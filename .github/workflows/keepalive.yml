@@ -1,0 +1,22 @@
+name: Mantener Supabase activo
+
+# El plan gratuito de Supabase pausa proyectos tras ~1 semana sin actividad.
+# Este workflow consulta la API 2 veces por semana para evitar la pausa.
+
+on:
+  schedule:
+    - cron: '0 12 * * 1,4'   # lunes y jueves 12:00 UTC (~08:00 Chile)
+  workflow_dispatch:          # permite ejecutarlo manualmente
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping a Supabase REST
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://jhikhnciakulgwhfflyv.supabase.co/rest/v1/cubicador_seguimiento?select=proyecto_num&limit=1" \
+            -H "apikey: sb_publishable_SSZSUXDouSnGxH21SowKig_VkSg9lTs" \
+            -H "Authorization: Bearer sb_publishable_SSZSUXDouSnGxH21SowKig_VkSg9lTs")
+          echo "Respuesta HTTP: $code"
+          if [ "$code" -ge 500 ]; then echo "Servidor con problemas"; exit 1; fi
