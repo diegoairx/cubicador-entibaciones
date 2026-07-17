@@ -85,6 +85,15 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
 .login-card .btn{width:100%;margin-bottom:8px}
 #login-msg{font-size:12.5px;color:var(--danger);min-height:18px;margin-top:4px}
 #user-chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:12px;padding:6px 12px;border-radius:20px}
+.apps-wrap{position:relative;display:inline-block}
+.apps-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 26px rgba(11,42,74,.25);min-width:240px;z-index:120;overflow:hidden}
+.apps-menu.open{display:block}
+.apps-menu a{display:flex;align-items:center;gap:10px;padding:11px 14px;color:var(--txt);text-decoration:none;font-size:13px;font-weight:600;border-bottom:1px solid var(--line)}
+.apps-menu a:last-child{border-bottom:none}
+.apps-menu a:hover{background:#eef6fc;color:var(--navy)}
+.apps-menu .ico{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;flex-shrink:0}
+.login-apps{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--mut)}
+.login-apps a{color:var(--blue);text-decoration:none;font-weight:600}
 @media print{
   header nav,.btn,.subtabs,.no-print,footer{display:none!important}
   header{background:var(--navy)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -108,6 +117,17 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-v="apu" onclick="go('apu')">APU</button>
     <button data-v="informe" onclick="go('informe')">Informe Ejecutivo</button>
     <button data-v="nube" onclick="go('nube')">☁ Base de Datos</button>
+    <div class="apps-wrap">
+      <button onclick="toggleApps(event)">⊞ Mis Apps ▾</button>
+      <div id="apps-menu" class="apps-menu">
+        <a href="https://diegoairx.github.io/soil-propuestas/" target="_blank" rel="noopener">
+          <span class="ico" style="background:linear-gradient(135deg,#6b4a12,#c98a2b)">📋</span>Soil Propuestas</a>
+        <a href="https://diegoairx.github.io/optimizador-perfiles-h/" target="_blank" rel="noopener">
+          <span class="ico" style="background:linear-gradient(135deg,#0b3a1e,#27ae60)">⚙️</span>Optimizador Perfiles H</a>
+        <a href="https://www.ngencospa.com/" target="_blank" rel="noopener">
+          <span class="ico" style="background:linear-gradient(135deg,var(--navy),var(--sky))">🌐</span>Sitio web Ngenco</a>
+      </div>
+    </div>
     <span id="user-chip" style="display:none"></span>
     <button id="btn-salir" style="display:none" onclick="logout()">Salir</button>
   </nav>
@@ -122,6 +142,10 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button class="btn" onclick="login()">Ingresar</button>
     <button class="btn ghost" onclick="signup()">Crear cuenta</button>
     <div id="login-msg"></div>
+    <div class="login-apps">Ecosistema Ngenco:
+      <a href="https://diegoairx.github.io/soil-propuestas/" target="_blank" rel="noopener">Soil Propuestas</a> ·
+      <a href="https://diegoairx.github.io/optimizador-perfiles-h/" target="_blank" rel="noopener">Perfiles H</a>
+    </div>
   </div>
 </div>
 <main>
@@ -889,6 +913,11 @@ async function entrar(){
   if(on)document.getElementById("user-chip").textContent=data.session.user.email;
 }
 entrar();
+function toggleApps(ev){
+  ev.stopPropagation();
+  document.getElementById("apps-menu").classList.toggle("open");
+}
+document.addEventListener("click",()=>document.getElementById("apps-menu").classList.remove("open"));
 function nubeMsg(t,err){const e=document.getElementById("nube-status");
   e.style.display="block";e.style.borderColor=err?"var(--danger)":"#b8e0c8";
   e.style.background=err?"#fdeeee":"#eefaf2";e.textContent=t;
