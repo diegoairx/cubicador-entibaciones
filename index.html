@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ngenco SpA · Cubicador de Entibaciones</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{
   --navy:#0b2a4a; --navy2:#004080; --blue:#1d6fb8; --sky:#35a7de; --sky2:#7fc8ec;
@@ -76,6 +77,14 @@ input.cell:hover{border-color:var(--line);background:#fff}
 .sig{display:flex;gap:60px;margin-top:50px;justify-content:center}
 .sig div{text-align:center;border-top:1.5px solid var(--txt);padding-top:6px;width:220px;font-size:12.5px}
 footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
+.login-bg{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy),var(--navy2));display:flex;align-items:center;justify-content:center;z-index:999}
+.login-card{background:#fff;border-radius:14px;padding:30px 34px;width:360px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.4);text-align:center}
+.login-card h2{color:var(--navy);font-size:17px;margin:12px 0 4px}
+.login-card p{color:var(--mut);font-size:12.5px;margin-bottom:16px}
+.login-card input{margin-bottom:10px;text-align:left}
+.login-card .btn{width:100%;margin-bottom:8px}
+#login-msg{font-size:12.5px;color:var(--danger);min-height:18px;margin-top:4px}
+#user-chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:12px;padding:6px 12px;border-radius:20px}
 @media print{
   header nav,.btn,.subtabs,.no-print,footer{display:none!important}
   header{background:var(--navy)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -99,8 +108,22 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-v="apu" onclick="go('apu')">APU</button>
     <button data-v="informe" onclick="go('informe')">Informe Ejecutivo</button>
     <button data-v="nube" onclick="go('nube')">☁ Base de Datos</button>
+    <span id="user-chip" style="display:none"></span>
+    <button id="btn-salir" style="display:none" onclick="logout()">Salir</button>
   </nav>
 </header>
+<div id="login-bg" class="login-bg">
+  <div class="login-card">
+    <img class="logo-img" style="box-shadow:none;height:60px" src="https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png/v1/fill/w_300,h_114,al_c,q_90/logo.png" alt="Ngenco SpA" onerror="this.style.display='none'">
+    <h2>Cubicador de Entibaciones</h2>
+    <p>Acceso restringido al equipo autorizado</p>
+    <label style="text-align:left">Correo</label><input id="l_email" type="email" placeholder="nombre@ngencospa.com">
+    <label style="text-align:left">Contraseña</label><input id="l_pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()">
+    <button class="btn" onclick="login()">Ingresar</button>
+    <button class="btn ghost" onclick="signup()">Crear cuenta</button>
+    <div id="login-msg"></div>
+  </div>
+</div>
 <main>
 
 <!-- ══════════ PROYECTO ══════════ -->
@@ -176,6 +199,13 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     </div>
     <div id="nube-status" class="note" style="display:none"></div>
     <div id="nube-lista">Cargando…</div>
+    <h2 style="margin-top:24px">Equipo autorizado</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input id="eq_mail" type="email" placeholder="correo@empresa.cl" style="max-width:280px">
+      <button class="btn" onclick="equipoAgregar()">+ Autorizar correo</button>
+    </div>
+    <div id="equipo-box"></div>
+    <p class="note">Solo los correos de esta lista pueden ver y editar la base de datos, aunque otras personas creen cuenta. Cada integrante debe crear su cuenta con el correo autorizado y confirmarlo desde su email.</p>
   </div>
 </section>
 
@@ -437,7 +467,7 @@ function go(v){curV=v;
   if(v==="cubicacion")renderSub();
   if(v==="apu")renderAPU();
   if(v==="informe")renderInforme();
-  if(v==="nube")nubeListar();
+  if(v==="nube"){nubeListar();equipoListar();}
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
@@ -831,7 +861,34 @@ function renderInforme(){
 /* ═════════════════ BASE DE DATOS SUPABASE ═════════════════ */
 const SUPA_URL="https://jhikhnciakulgwhfflyv.supabase.co";
 const SUPA_KEY="sb_publishable_SSZSUXDouSnGxH21SowKig_VkSg9lTs";
-const SH={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json"};
+const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+async function getSH(){
+  const {data}=await sb.auth.getSession();
+  if(!data.session)throw new Error("Sesión expirada: vuelve a iniciar sesión");
+  return {apikey:SUPA_KEY,Authorization:"Bearer "+data.session.access_token,"Content-Type":"application/json"};
+}
+function lmsg(t,ok){const e=document.getElementById("login-msg");e.style.color=ok?"var(--ok)":"var(--danger)";e.textContent=t;}
+async function login(){
+  const {error}=await sb.auth.signInWithPassword({email:val("l_email").trim(),password:val("l_pass")});
+  if(error){lmsg(error.message==="Invalid login credentials"?"Credenciales inválidas":error.message);return;}
+  entrar();
+}
+async function signup(){
+  if((val("l_pass")||"").length<6){lmsg("La contraseña debe tener al menos 6 caracteres");return;}
+  const {error}=await sb.auth.signUp({email:val("l_email").trim(),password:val("l_pass")});
+  if(error){lmsg(error.message);return;}
+  lmsg("Cuenta creada. Revisa tu correo y confírmalo antes de ingresar.",1);
+}
+async function logout(){await sb.auth.signOut();location.reload();}
+async function entrar(){
+  const {data}=await sb.auth.getSession();
+  const on=!!data.session;
+  document.getElementById("login-bg").style.display=on?"none":"flex";
+  document.getElementById("user-chip").style.display=on?"inline-block":"none";
+  document.getElementById("btn-salir").style.display=on?"inline-block":"none";
+  if(on)document.getElementById("user-chip").textContent=data.session.user.email;
+}
+entrar();
 function nubeMsg(t,err){const e=document.getElementById("nube-status");
   e.style.display="block";e.style.borderColor=err?"var(--danger)":"#b8e0c8";
   e.style.background=err?"#fdeeee":"#eefaf2";e.textContent=t;
@@ -852,10 +909,10 @@ async function nubeGuardar(){
     let r;
     if(S.cloudId){
       r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${S.cloudId}`,
-        {method:"PATCH",headers:SH,body:JSON.stringify(body)});
+        {method:"PATCH",headers:await getSH(),body:JSON.stringify(body)});
     }else{
       r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos`,
-        {method:"POST",headers:{...SH,Prefer:"return=representation"},body:JSON.stringify(body)});
+        {method:"POST",headers:{...await getSH(),Prefer:"return=representation"},body:JSON.stringify(body)});
       if(r.ok){const d=await r.json();S.cloudId=d[0].id;}
     }
     if(!r.ok)throw new Error(await r.text());
@@ -865,7 +922,7 @@ async function nubeGuardar(){
 async function nubeListar(){
   const el=document.getElementById("nube-lista");
   try{
-    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:SH});
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:await getSH()});
     if(!r.ok)throw new Error(await r.text());
     const rows=await r.json();
     if(!rows.length){el.innerHTML='<p class="note">Sin proyectos guardados aún. Usa "Guardar proyecto actual".</p>';return;}
@@ -885,7 +942,7 @@ async function nubeListar(){
 }
 async function nubeCargar(id){
   try{
-    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${id}&select=datos`,{headers:SH});
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${id}&select=datos`,{headers:await getSH()});
     if(!r.ok)throw new Error(await r.text());
     const d=await r.json(); if(!d.length)throw new Error("no encontrado");
     S=d[0].datos.S; S.cloudId=id;
@@ -896,12 +953,45 @@ async function nubeCargar(id){
 async function nubeEliminar(id,nom){
   if(!confirm(`¿Eliminar de la base de datos el proyecto "${nom}"? Esta acción no se puede deshacer.`))return;
   try{
-    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${id}`,{method:"DELETE",headers:SH});
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${id}`,{method:"DELETE",headers:await getSH()});
     if(!r.ok)throw new Error(await r.text());
     if(S.cloudId===id)delete S.cloudId;
     nubeMsg("Proyecto eliminado");nubeListar();
   }catch(e){nubeMsg("Error al eliminar: "+e.message,1);}
 }
+/* ═════════════════ EQUIPO AUTORIZADO ═════════════════ */
+async function equipoListar(){
+  const el=document.getElementById("equipo-box"); if(!el)return;
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/equipo_autorizado?select=email,agregado_en&order=email`,{headers:await getSH()});
+    if(!r.ok)throw new Error(await r.text());
+    const rows=await r.json();
+    el.innerHTML=`<table style="max-width:520px"><tr><th>Correo autorizado</th><th>Desde</th><th></th></tr>
+    ${rows.map(p=>`<tr><td>${p.email}</td><td>${(p.agregado_en||"").slice(0,10)}</td>
+      <td><button class="btn warn sm" onclick="equipoQuitar('${p.email}')">✕</button></td></tr>`).join("")}</table>`;
+  }catch(e){el.innerHTML=`<p class="note" style="border-color:var(--danger)">No se pudo cargar el equipo: ${e.message}</p>`;}
+}
+async function equipoAgregar(){
+  const m=(val("eq_mail")||"").trim().toLowerCase();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)){nubeMsg("Correo inválido",1);return;}
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/equipo_autorizado`,
+      {method:"POST",headers:await getSH(),body:JSON.stringify({email:m})});
+    if(!r.ok)throw new Error(await r.text());
+    document.getElementById("eq_mail").value="";
+    nubeMsg("✔ Correo autorizado");equipoListar();
+  }catch(e){nubeMsg("Error: "+e.message,1);}
+}
+async function equipoQuitar(m){
+  if(!confirm(`¿Quitar autorización a ${m}? Esa persona perderá acceso a la base de datos.`))return;
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/equipo_autorizado?email=eq.${encodeURIComponent(m)}`,
+      {method:"DELETE",headers:await getSH()});
+    if(!r.ok)throw new Error(await r.text());
+    nubeMsg("Autorización eliminada");equipoListar();
+  }catch(e){nubeMsg("Error: "+e.message,1);}
+}
+
 /* ═════════════════ EXPORTACIÓN CSV ═════════════════ */
 function dlCSV(nombre,filas){
   const csv="﻿"+filas.map(f=>f.map(c=>{c=String(c??"");return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(";")).join("\r\n");
@@ -911,7 +1001,7 @@ function dlCSV(nombre,filas){
 }
 async function csvSeguimiento(){
   try{
-    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:SH});
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:await getSH()});
     if(!r.ok)throw new Error(await r.text());
     const rows=await r.json();
     const filas=[["Proyecto N°","Nombre","Cliente","Ubicación","Ingeniero","Rev.","Estado","Total Neto CLP","Total UF","Creado","Actualizado"]];

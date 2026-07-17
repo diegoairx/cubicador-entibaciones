@@ -26,9 +26,11 @@ Fórmulas replicadas y validadas contra las planillas de ingeniería:
 
 Los precios unitarios precargados son referenciales y editables; validar antes de cotizar.
 
-## Advertencia de seguridad de datos
+## Seguridad y acceso
 
-La tabla usa una política RLS abierta con clave publicable: cualquier persona con la URL de la app puede leer y modificar los registros. Adecuado para uso interno; para acceso restringido, habilitar Supabase Auth y ajustar las políticas RLS.
+Acceso restringido con Supabase Auth (correo + contraseña). Las políticas RLS solo permiten leer/escribir a usuarios autenticados cuyo correo esté en la tabla `equipo_autorizado` (lista blanca gestionable desde la pestaña Base de Datos de la app). Crear cuenta no otorga acceso si el correo no está autorizado.
+
+Flujo de alta de un integrante: (1) un miembro del equipo autoriza su correo en la app, (2) el integrante crea su cuenta con ese correo, (3) confirma el correo desde su email y (4) inicia sesión.
 
 ---
 © Ngenco SpA — Servicios y Maquinarias · www.ngencospa.com
