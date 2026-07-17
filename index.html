@@ -77,6 +77,7 @@ input.cell:hover{border-color:var(--line);background:#fff}
 .sig{display:flex;gap:60px;margin-top:50px;justify-content:center}
 .sig div{text-align:center;border-top:1.5px solid var(--txt);padding-top:6px;width:220px;font-size:12.5px}
 footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
+.help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--sky);color:#fff;font-size:10px;font-weight:700;cursor:help;margin-left:5px;vertical-align:middle}
 .login-bg{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy),var(--navy2));display:flex;align-items:center;justify-content:center;z-index:999}
 .login-card{background:#fff;border-radius:14px;padding:30px 34px;width:360px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.4);text-align:center}
 .login-card h2{color:var(--navy);font-size:17px;margin:12px 0 4px}
@@ -291,9 +292,11 @@ function calcMBA(s){
   const mlPerf=rnd(s.Lp*nPerf);                  // D20 =D18*D19
   let ancTot=0,mlAnc=0,det=[];
   (s.anc||[]).forEach(a=>{
-    const cant=up(nPerf/2);                      // D30 =D19/2
+    const auto=up(nPerf/2);                      // D30 =D19/2 (automático)
+    const manual=(a.cant!==""&&a.cant!=null&&+a.cant>0);
+    const cant=manual?Math.round(+a.cant):auto;  // editable: vacío = automático
     const ml=a.len>0?rnd(cant*a.len):0;          // F30 =D30*E30
-    det.push({...a,cant,ml}); ancTot+=cant; mlAnc+=ml;
+    det.push({...a,cant,auto,manual,ml}); ancTot+=cant; mlAnc+=ml;
   });
   const vigas=ancTot, cabez=ancTot;              // D22=D36 ; D26=D36
   const mlExt=rnd(s.ext*vigas*2);                // D25 =D24*D22*2
@@ -524,6 +527,8 @@ function clearMod(m){
 
 /* ═════════════════ RENDER: MBA ═════════════════ */
 function inp(path,v,step,w){return `<input class="cell" type="number" step="${step||0.1}" value="${v}" style="width:${w||80}px" onchange="setv('${path}',this.value)">`;}
+const HELP_EXTRA="Ajuste manual del conteo de perfiles. La fórmula L÷espaciamiento cuenta solo los vanos; agrega unidades por: cierre del tramo (+1 por extremo libre), hombros o remates en los extremos, esquinas o quiebres del perímetro, y respaldo por rechazo en la hinca. Referencia planilla Siete Lagunas: +1 tramo que continúa en otra sección, +2 tramo aislado, +3 a +4 con esquinas u hombros. Criterio del ingeniero.";
+const helpIco=t=>`<span class="help" title="${t}">i</span>`;
 function setv(path,v){
   const seg=path.split(".");let o=S;
   for(let i=0;i<seg.length-1;i++)o=o[isNaN(seg[i])?seg[i]:+seg[i]];
@@ -548,7 +553,7 @@ function renderMBA(){
       <div><label>Altura libre H (m)</label>${inp(`mba.${i}.H`,s.H)}</div>
       <div><label>Longitud L (m)</label>${inp(`mba.${i}.L`,s.L)}</div>
       <div><label>Espaciamiento (m)</label>${inp(`mba.${i}.esp`,s.esp)}</div>
-      <div><label>Perfiles extra (+)</label>${inp(`mba.${i}.extra`,s.extra,1)}</div>
+      <div><label>Perfiles extra (+)${helpIco(HELP_EXTRA)}</label>${inp(`mba.${i}.extra`,s.extra,1)}</div>
       <div><label>Long. perfil H+d (m)</label>${inp(`mba.${i}.Lp`,s.Lp)}</div>
       <div><label>Tablones</label><select onchange="setvs('mba.${i}.tab',this.value)">
         <option ${String(s.tab)!=="2.5"?"selected":""} value="2.0">2,0"</option><option ${String(s.tab)==="2.5"?"selected":""} value="2.5">2,5"</option></select></div>
@@ -556,13 +561,14 @@ function renderMBA(){
         ${perfiles().map(p=>`<option ${s.perfil===p?"selected":""}>${p}</option>`).join("")}</select></div>
       <div><label>Long. extensión (m)</label>${inp(`mba.${i}.ext`,s.ext)}</div>
     </div>
-    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de anclaje (cantidad = perfiles/2, c/${rnd(s.esp*2)} m)</b>
-    <table style="margin-top:6px"><tr><th>Línea</th><th>N° cables</th><th>Capacidad (kN)</th><th>Longitud (m)</th><th class="num">Cantidad</th><th class="num">ml totales</th><th></th></tr>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de anclaje</b>${helpIco("Cantidad automática = perfiles ÷ 2 (un anclaje cada 2 perfiles, c/"+rnd(s.esp*2)+" m según planilla). Puedes escribir otra cantidad para agregar o quitar unidades; deja el campo vacío para volver al cálculo automático.")}
+    <table style="margin-top:6px"><tr><th>Línea</th><th>N° cables</th><th>Capacidad (kN)</th><th>Longitud (m)</th><th>Cantidad (editable)</th><th class="num">ml totales</th><th></th></tr>
     ${c.det.map((a,j)=>`<tr><td>${j+1}</td>
       <td>${inp(`mba.${i}.anc.${j}.nc`,a.nc,1,55)}</td>
       <td>${inp(`mba.${i}.anc.${j}.kn`,a.kn,5,70)}</td>
       <td>${inp(`mba.${i}.anc.${j}.len`,a.len,0.5,70)}</td>
-      <td class="num">${a.cant}</td><td class="num">${fmt(a.ml,1)}</td>
+      <td><input class="cell" type="number" step="1" min="0" value="${a.manual?a.cant:""}" placeholder="auto: ${a.auto}" style="width:85px" title="Vacío = automático (perfiles/2)" onchange="setv('mba.${i}.anc.${j}.cant',this.value)">${a.manual?"":`<span style="font-size:11px;color:var(--mut)"> ${a.cant}</span>`}</td>
+      <td class="num">${fmt(a.ml,1)}</td>
       <td><button class="btn warn sm" onclick="S.mba[${i}].anc.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
     </table>
     <button class="btn ghost sm" style="margin-top:6px" onclick="S.mba[${i}].anc.push({nc:2,kn:190,len:10});renderSub()">+ Línea de anclaje</button></div>
@@ -594,7 +600,7 @@ function renderMBV(){
       <div><label>Altura libre H (m)</label>${inp(`mbv.${i}.H`,s.H)}</div>
       <div><label>Longitud L (m)</label>${inp(`mbv.${i}.L`,s.L)}</div>
       <div><label>Espaciamiento (m)</label>${inp(`mbv.${i}.esp`,s.esp)}</div>
-      <div><label>Perfiles extra (+)</label>${inp(`mbv.${i}.extra`,s.extra,1)}</div>
+      <div><label>Perfiles extra (+)${helpIco(HELP_EXTRA)}</label>${inp(`mbv.${i}.extra`,s.extra,1)}</div>
       <div><label>Long. perfil H+d (m)</label>${inp(`mbv.${i}.Lp`,s.Lp)}</div>
       <div><label>Tablones</label><select onchange="setvs('mbv.${i}.tab',this.value)">
         <option ${String(s.tab)!=="2.5"?"selected":""} value="2.0">2,0"</option><option ${String(s.tab)==="2.5"?"selected":""} value="2.5">2,5"</option></select></div>
@@ -967,7 +973,8 @@ async function nubeListar(){
         <button class="btn warn sm" onclick="nubeEliminar('${p.id}','${(p.nombre||"").replace(/'/g,"")}')">✕</button>
       </td></tr>`).join("")}</table></div>
     <p class="note" style="margin-top:10px">El proyecto abierto actualmente se destaca en celeste. "Guardar" actualiza el registro abierto; para crear una copia nueva usa Proyecto → cambiar N° y nombre, luego recarga la página y guarda.</p>`;
-  }catch(e){el.innerHTML=`<p class="note" style="border-color:var(--danger)">Sin conexión a la base de datos: ${e.message}</p>`;}
+  }catch(e){el.innerHTML=`<p class="note" style="border-color:var(--danger)">Sin conexión a la base de datos: ${e.message}<br>
+  <b>Nota:</b> el plan gratuito de Supabase pausa el proyecto tras ~1 semana sin uso. Un GitHub Action lo mantiene activo automáticamente; si aun así aparece este error, reactívalo en supabase.com y reintenta en 1-2 minutos.</p>`;}
 }
 async function nubeCargar(id){
   try{
