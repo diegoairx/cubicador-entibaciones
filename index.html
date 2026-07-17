@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ngenco SpA · Cubicador de Entibaciones</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --navy:#0b2a4a; --navy2:#004080; --blue:#1d6fb8; --sky:#35a7de; --sky2:#7fc8ec;
+  --bg:#f3f6f9; --card:#ffffff; --line:#dde6ee; --txt:#1c2b3a; --mut:#5f7385;
+  --accent:#f2994a; --ok:#27ae60; --danger:#e05252;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+header{background:linear-gradient(120deg,var(--navy) 0%,var(--navy2) 55%,var(--blue) 100%);color:#fff;padding:16px 28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-mark{width:46px;height:46px;border-radius:10px;background:linear-gradient(160deg,var(--sky) 0%,var(--blue) 100%);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+.logo-img{height:54px;width:auto;background:#fff;border-radius:10px;padding:4px 12px;box-shadow:0 3px 8px rgba(0,0,0,.25)}
+.rep-head .logo-img{box-shadow:none;padding:0;height:60px}
+.logo h1{font-size:19px;font-weight:700;letter-spacing:.4px}
+.logo small{display:block;font-size:11.5px;font-weight:400;color:var(--sky2)}
+nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:13.5px;font-weight:600;transition:.15s}
+nav button:hover{background:rgba(255,255,255,.22)}
+nav button.act{background:var(--sky);border-color:var(--sky);color:var(--navy);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+main{max-width:1280px;margin:22px auto;padding:0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px;box-shadow:0 1px 4px rgba(11,42,74,.06)}
+.card h2{font-size:16px;color:var(--navy);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h2::before{content:"";width:5px;height:20px;background:var(--sky);border-radius:3px;display:inline-block}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+label{display:block;font-size:11.5px;font-weight:600;color:var(--mut);margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13.5px;background:#fff;color:var(--txt)}
+input:focus,select:focus{outline:2px solid var(--sky2);border-color:var(--sky)}
+input[type=number]{text-align:right}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--navy);color:#fff;padding:8px 9px;text-align:left;font-weight:600;font-size:12px;white-space:nowrap}
+td{padding:7px 9px;border-bottom:1px solid var(--line)}
+tr:nth-child(even) td{background:#f8fafc}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.res td{font-weight:700;background:#e8f4fb!important;color:var(--navy)}
+.subtabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.subtabs button{background:#fff;border:1.5px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:600;font-size:13px}
+.subtabs button.act{background:var(--sky);border-color:var(--sky);color:#fff}
+.btn{background:var(--blue);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}
+.btn:hover{background:var(--navy2)}
+.btn.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
+.btn.warn{background:var(--danger)}
+.btn.sm{padding:5px 10px;font-size:12px}
+.sec{border:1.5px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;background:#fcfdfe}
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sec-head .tag{background:var(--navy);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px}
+.kpi{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}
+.kpi div{background:#eef6fc;border:1px solid var(--sky2);border-radius:9px;padding:8px 14px;min-width:130px}
+.kpi b{display:block;font-size:17px;color:var(--navy)}
+.kpi span{font-size:11px;color:var(--mut)}
+.tots{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0}
+.tots .t{flex:1;min-width:200px;background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-radius:12px;padding:16px 18px}
+.tots .t.alt{background:linear-gradient(135deg,var(--blue),var(--sky))}
+.tots .t small{font-size:11.5px;opacity:.85;text-transform:uppercase;letter-spacing:.5px}
+.tots .t b{display:block;font-size:22px;margin-top:4px}
+.note{font-size:12px;color:var(--mut);background:#fff8ef;border:1px solid #f5d9b8;border-radius:8px;padding:8px 12px;margin-top:10px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+.chart-box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;height:340px}
+.chart-box h3{font-size:13px;color:var(--navy);margin-bottom:8px}
+canvas{max-height:290px}
+input.cell{border:1px solid transparent;background:transparent;padding:4px 6px;text-align:right}
+input.cell:hover{border-color:var(--line);background:#fff}
+.rep-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--navy);padding-bottom:14px;margin-bottom:18px}
+.rep-head h2{font-size:21px;color:var(--navy)}
+.rep-head h2::before{display:none}
+.rep-meta{font-size:12.5px;color:var(--mut);line-height:1.7;text-align:right}
+.sig{display:flex;gap:60px;margin-top:50px;justify-content:center}
+.sig div{text-align:center;border-top:1.5px solid var(--txt);padding-top:6px;width:220px;font-size:12.5px}
+footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
+@media print{
+  header nav,.btn,.subtabs,.no-print,footer{display:none!important}
+  header{background:var(--navy)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff}
+  main{max-width:100%;margin:0}
+  .card{box-shadow:none;border:none;page-break-inside:avoid}
+  .view{display:none!important}
+  #view-informe{display:block!important}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <img class="logo-img" src="https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png/v1/fill/w_300,h_114,al_c,q_90/logo.png" alt="Ngenco SpA" onerror="this.outerHTML='&lt;div class=&quot;logo-mark&quot;&gt;N&lt;/div&gt;'">
+    <div><h1>NGENCO SpA<small>Servicios y Maquinarias · Cubicador de Entibaciones</small></h1></div>
+  </div>
+  <nav>
+    <button class="act" data-v="proyecto" onclick="go('proyecto')">Proyecto</button>
+    <button data-v="cubicacion" onclick="go('cubicacion')">Cubicación</button>
+    <button data-v="apu" onclick="go('apu')">APU</button>
+    <button data-v="informe" onclick="go('informe')">Informe Ejecutivo</button>
+    <button data-v="nube" onclick="go('nube')">☁ Base de Datos</button>
+  </nav>
+</header>
+<main>
+
+<!-- ══════════ PROYECTO ══════════ -->
+<section id="view-proyecto" class="view">
+  <div class="card">
+    <h2>Datos del Proyecto</h2>
+    <div class="grid g3">
+      <div><label>Proyecto N°</label><input id="p_num" value="22 0923"></div>
+      <div><label>Nombre</label><input id="p_nom" value="Ed. Siete Lagunas"></div>
+      <div><label>Ubicación</label><input id="p_ubi" value="Concepción, Biobío"></div>
+      <div><label>Mandante / Cliente</label><input id="p_cli" value=""></div>
+      <div><label>Ingeniero</label><input id="p_ing" value=""></div>
+      <div><label>Revisor</label><input id="p_rev" value=""></div>
+      <div><label>Revisión</label><input id="p_revn" value="0"></div>
+      <div><label>Fecha</label><input id="p_fec" type="date"></div>
+      <div><label>Tipo de Obra</label><input id="p_tipo" value="Entibaciones"></div>
+      <div><label>Estado</label><select id="p_est">
+        <option>En estudio</option><option>Enviado a cotización</option><option>Adjudicado</option>
+        <option>En ejecución</option><option>Finalizado</option><option>No adjudicado</option></select></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Parámetros Económicos</h2>
+    <div class="grid g4">
+      <div><label>Valor UF (CLP)</label><input id="p_uf" type="number" value="39500" step="10"></div>
+      <div><label>Gastos Generales %</label><input id="p_gg" type="number" value="12" step="0.5"></div>
+      <div><label>Utilidad %</label><input id="p_ut" type="number" value="10" step="0.5"></div>
+      <div><label>IVA %</label><input id="p_iva" type="number" value="19" step="0.5"></div>
+    </div>
+    <p class="note">Los precios unitarios precargados son referenciales del mercado chileno y deben ser validados antes de cotizar. Todos son editables en la pestaña APU.</p>
+  </div>
+  <div class="card no-print">
+    <h2>Respaldo</h2>
+    <button class="btn" onclick="exportJSON()">⬇ Exportar proyecto (JSON)</button>
+    <button class="btn ghost" onclick="document.getElementById('impfile').click()">⬆ Importar proyecto</button>
+    <input type="file" id="impfile" accept=".json" style="display:none" onchange="importJSON(event)">
+    <button class="btn warn" style="float:right" onclick="clearMod('todo');go('cubicacion')">🗑 Limpiar todo el proyecto</button>
+  </div>
+</section>
+
+<!-- ══════════ CUBICACIÓN ══════════ -->
+<section id="view-cubicacion" class="view" style="display:none">
+  <div class="subtabs">
+    <button class="act" data-s="mba" onclick="goSub('mba')">Berlinés Anclado</button>
+    <button data-s="mbv" onclick="goSub('mbv')">Berlinés en Voladizo</button>
+    <button data-s="sn" onclick="goSub('sn')">Soil Nailing</button>
+    <button data-s="mp" onclick="goSub('mp')">Micropilotes</button>
+    <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
+    <button data-s="mt" onclick="goSub('mt')">Mov. de Tierra</button>
+    <button data-s="resumen" onclick="goSub('resumen')">📋 Cuadro Resumen</button>
+  </div>
+  <div id="sub-mba"></div>
+  <div id="sub-mbv" style="display:none"></div>
+  <div id="sub-sn" style="display:none"></div>
+  <div id="sub-mp" style="display:none"></div>
+  <div id="sub-fab" style="display:none"></div>
+  <div id="sub-mt" style="display:none"></div>
+  <div id="sub-resumen" style="display:none"></div>
+</section>
+
+<!-- ══════════ APU ══════════ -->
+<section id="view-apu" class="view" style="display:none"><div id="apu-body"></div></section>
+
+<!-- ══════════ BASE DE DATOS (SUPABASE) ══════════ -->
+<section id="view-nube" class="view" style="display:none">
+  <div class="card">
+    <h2>Base de Datos de Proyectos — Seguimiento por Cliente</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn" onclick="nubeGuardar()">💾 Guardar proyecto actual</button>
+      <button class="btn ghost" onclick="nubeListar()">↻ Actualizar lista</button>
+      <button class="btn ghost" onclick="csvSeguimiento()">⬇ CSV seguimiento (todos)</button>
+      <button class="btn ghost" onclick="csvActual()">⬇ CSV cubicación actual</button>
+    </div>
+    <div id="nube-status" class="note" style="display:none"></div>
+    <div id="nube-lista">Cargando…</div>
+  </div>
+</section>
+
+<!-- ══════════ INFORME ══════════ -->
+<section id="view-informe" class="view" style="display:none">
+  <div class="no-print" style="text-align:right;margin-bottom:12px">
+    <button class="btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+  </div>
+  <div id="rep-body" class="card"></div>
+</section>
+
+</main>
+<footer>Ngenco SpA · Su aliado especializado para enfrentar los desafíos relacionados con el agua en la construcción · www.ngencospa.com</footer>
+
+<script>
+/* ═════════════════ CATÁLOGOS ═════════════════ */
+const PERFILES_BASE=[
+ "W150x22.5","W150x29.8","W200x26.6","W200x31.3","W200x35.9","W200x41.7","W200x46.1","W200x52",
+ "W250x32.7","W250x38.5","W250x44.8","W250x49.1","W250x58","W310x38.7","W310x44.5","W310x52","W310x60",
+ "W360x32.9","W360x39","W360x44.8","W360x51","W360x57.8","W410x46.1","W410x53","W460x52","W460x60",
+ "HP250x62","HP310x79","HP310x93"];
+function perfiles(){return [...PERFILES_BASE,...(S.perfCustom||[])];}
+function addPerfil(){
+  const v=prompt('Nuevo perfil (formato: W310x44.5 o HP250x62 — el número tras la "x" es el kg/m):');
+  if(!v)return;
+  const t=v.trim().toUpperCase().replace(",",".").replace("X","x");
+  if(!/^(W|HP)\d{3}x\d+(\.\d+)?$/.test(t)){alert("Formato inválido. Ejemplo: W310x44.5");return;}
+  S.perfCustom=S.perfCustom||[];
+  if(!perfiles().includes(t))S.perfCustom.push(t);
+  renderSub();
+}
+const kgm=p=>parseFloat(p.split("x")[1]);
+const PERNOS=["R32S","R32N","R38N","R51N","T76N"];
+const rnd=(v,d=2)=>Math.round(v*10**d)/10**d;
+const up=v=>Math.ceil(v-1e-9);
+const fmt=(v,d=2)=>isFinite(v)?v.toLocaleString("es-CL",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";
+const clp=v=>"$"+Math.round(v).toLocaleString("es-CL");
+
+/* ═════════════════ ESTADO ═════════════════ */
+let S={
+ mba:[{nom:"Diseño tipo 1A",H:3.6,L:12.1,esp:1.6,extra:4,Lp:5.5,tab:"2.0",perfil:"W200x31.3",ext:0.5,
+   anc:[{nc:2,kn:190,len:10.5}]}],
+ mbv:[{nom:"Sección voladizo 1",H:3.0,L:20,esp:1.2,extra:2,Lp:7.0,tab:"2.0",perfil:"W250x32.7"}],
+ sn:[{nom:"Tramo 1",H:6,inc:84,Lpl:20,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,
+   per:[{tipo:"R32S",cant:9,len:9.5},{tipo:"R38N",cant:9,len:10.5}]}],
+ mp:{per:[{tipo:"R32N",kn:230,cant:10,len:9.5},{tipo:"R51N",kn:630,cant:6,len:15.5}],
+   placas:[{nom:"Placa 200x200 e=10mm",cant:10},{nom:"Placa 200x200 e=30mm",cant:6}],
+   viga:{L:0,b:0.4,h:0.6,cuant:90}},
+ mt:{areas:[{nom:"Área 1",A:199.65,L:41.9}],mej:{A:0,h:0}},
+ fab:{num:1,dias:5,rows:[{det:"Corte 1, Línea 1",cant:24,largo:15,ang:20,kn:560,cables:4,lw:5}]},
+ perfCustom:[],
+ apu:{}  // overrides {key:{mat,mo,eq}}
+};
+
+/* ═════════ CÁLCULOS (fórmulas idénticas a planilla MBA Siete Lagunas) ═════════ */
+function calcMBA(s){
+  const area=rnd(s.H*s.L);                       // D15 =D12*D13
+  const nPerf=up(s.L/s.esp)+(+s.extra);          // D19 =ROUNDUP(L/esp,0)+extra
+  const mlPerf=rnd(s.Lp*nPerf);                  // D20 =D18*D19
+  let ancTot=0,mlAnc=0,det=[];
+  (s.anc||[]).forEach(a=>{
+    const cant=up(nPerf/2);                      // D30 =D19/2
+    const ml=a.len>0?rnd(cant*a.len):0;          // F30 =D30*E30
+    det.push({...a,cant,ml}); ancTot+=cant; mlAnc+=ml;
+  });
+  const vigas=ancTot, cabez=ancTot;              // D22=D36 ; D26=D36
+  const mlExt=rnd(s.ext*vigas*2);                // D25 =D24*D22*2
+  const mlCab=rnd(mlAnc*1.2);                    // L19 =L18*1.2 (+20% tensado)
+  return{area,nPerf,mlPerf,vigas,cabez,mlExt,mlAnc,mlCab,det};
+}
+function calcMBV(s){
+  const area=rnd(s.H*s.L);
+  const nPerf=up(s.L/s.esp)+(+s.extra);
+  const mlPerf=rnd(s.Lp*nPerf);
+  return{area,nPerf,mlPerf};
+}
+function calcSN(s){
+  const Lm=s.inc>0?s.H/Math.sin(s.inc*Math.PI/180):0;      // D14
+  const aEf=rnd(Lm*s.Lpl);                                  // D18
+  const aTot=rnd(aEf+s.emp*s.Lpl);                          // D19
+  const ab=s.lb*s.hb, aper=s.hb*s.tras*2+s.lb*s.tras*2;     // D25,D26
+  const perd=ab>0?aper/ab*100:0;                            // D27
+  const mFierro=(s.lb/s.sep+1)*s.hb+(s.hb/s.sep+1)*s.lb;    // D30
+  const kgMalla1=Math.PI*(s.fi/1000)**2*0.25*7850*mFierro;  // D31
+  const m2Malla=(1+perd/100)*aTot;                          // D32
+  const nMallas=(s.H>0)?up(m2Malla/s.lb/s.hb)*2:0;          // D33 (doble malla)
+  const kgMalla=rnd(kgMalla1*nMallas);                      // D34
+  let det=[],nPer=0,mlPer=0,byTipo={};
+  (s.per||[]).forEach(p=>{
+    const ml=(p.len>0&&p.cant>0)?up(p.cant*p.len):0;        // F39 ROUNDUP
+    det.push({...p,ml}); nPer+=+p.cant; mlPer+=ml;
+    byTipo[p.tipo]=(byTipo[p.tipo]||0)+ml;
+  });
+  const dados=nPer, placas=nPer;                            // D49,D50
+  const barb=up(aTot/4);                                    // D51 (1@4m2)
+  const m3Shot=rnd(aTot*s.e/100);
+  return{Lm:rnd(Lm),aEf,aTot,perd:rnd(perd,1),kgMalla,nMallas,det,nPer,mlPer,byTipo,dados,placas,barb,m3Shot};
+}
+function calcMP(){
+  const m=S.mp; let det=[],ml=0,n=0;
+  m.per.forEach(p=>{const mli=(p.cant>0&&p.len>0)?up(p.cant*p.len):0;det.push({...p,ml:mli});ml+=mli;n+=+p.cant;});
+  const v=m.viga, m3=rnd(v.L*v.b*v.h), kg=rnd(m3*v.cuant), mold=rnd(2*v.h*v.L);
+  return{det,ml,n,m3,kg,mold};
+}
+/* Fabricación de anclajes de cable 0,6" (fórmulas idénticas a planilla "MBA Anclajes") */
+function calcFAB(){
+  if(!S.fab)S.fab={num:1,dias:5,rows:[]};
+  let det=[],T={anc:0,cable:0,vaina:0,tubo:0,perf:0,sep2:0,sep6:0,cunas:0};
+  S.fab.rows.forEach(r=>{
+    const lk=rnd(r.largo-r.lw);                       // Lk = C - Lw
+    const cable=rnd(r.largo*r.cant*r.cables);         // H = C×B×G
+    const vaina=rnd(lk*r.cables*r.cant);              // K = Lk×G×B (vaina/spaguetti)
+    const tubo=rnd(r.cant*r.largo);                   // Z = P×C
+    const perf=rnd(r.cant*Math.max(r.largo-1.5,0));   // S = (C-1.5)×P
+    const sepU=r.lw>0?up(r.lw/1.5+1):0;               // ROUNDUP(Lw/1.5+1)
+    const via2=+r.cables===2?sepU*r.cant:0;           // 2 vías si 2 cables
+    const via6=+r.cables>2?sepU*r.cant:0;             // 6 vías si >2 cables
+    const cunas=r.cant*r.cables;                      // cuñas cónicas = P×Q
+    det.push({...r,lk,cable,vaina,tubo,perf,sepU,via2,via6,cunas,res:r.cables*157});
+    T.anc+=+r.cant;T.cable+=cable;T.vaina+=vaina;T.tubo+=tubo;T.perf+=perf;
+    T.sep2+=via2;T.sep6+=via6;T.cunas+=cunas;
+  });
+  T.rollos=Math.ceil(T.cable/3000*10)/10;             // ROUNDUP(m/3000, 1 decimal)
+  return{det,T};
+}
+function calcMT(){
+  let m3=0,det=[];
+  S.mt.areas.forEach(a=>{const v=up(a.A*a.L);det.push({...a,m3:v});m3+=v;}); // C11 =ROUNDUP(A*L,0)
+  const mej=up(S.mt.mej.A*S.mt.mej.h);
+  return{det,m3,mej};
+}
+
+/* ═════════ RESUMEN GLOBAL (partidas) ═════════ */
+function resumen(){
+  const R=[]; const add=(sis,key,unit,qty)=>{if(qty>0.0001)R.push({sis,key,unit,qty:rnd(qty)});};
+  // MBA
+  let t20=0,t25=0,perf={},vig=0,cab=0,ext=0,anc=0,cabl=0;
+  S.mba.forEach(s=>{const c=calcMBA(s);
+    if(String(s.tab)==="2.5")t25+=c.area; else t20+=c.area;
+    perf[s.perfil]=(perf[s.perfil]||0)+c.mlPerf;
+    vig+=c.vigas;cab+=c.cabez;ext+=c.mlExt;anc+=c.mlAnc;cabl+=c.mlCab;});
+  add("Muro Berlinés Anclado",'Entibación tablones 2,0"',"m²",t20);
+  add("Muro Berlinés Anclado",'Entibación tablones 2,5"',"m²",t25);
+  Object.entries(perf).forEach(([p,v])=>add("Muro Berlinés Anclado","Perfil "+p+" hincado/retirado","ml",v));
+  add("Muro Berlinés Anclado","Extensiones W200x26.6","ml",ext);
+  add("Muro Berlinés Anclado","Vigas de amarre","un",vig);
+  add("Muro Berlinés Anclado","Cabezales de anclaje (4 cables)","un",cab);
+  add("Muro Berlinés Anclado","Anclajes postensados inyectados","ml",anc);
+  add("Muro Berlinés Anclado","Cables de acero (+20% tensado)","ml",cabl);
+  // MBV
+  let v20=0,v25=0,perfV={};
+  S.mbv.forEach(s=>{const c=calcMBV(s);
+    if(String(s.tab)==="2.5")v25+=c.area; else v20+=c.area;
+    perfV[s.perfil]=(perfV[s.perfil]||0)+c.mlPerf;});
+  add("Muro Berlinés en Voladizo",'Entibación tablones 2,0"',"m²",v20);
+  add("Muro Berlinés en Voladizo",'Entibación tablones 2,5"',"m²",v25);
+  Object.entries(perfV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Perfil "+p+" hincado/retirado","ml",v));
+  // SN
+  let shot=0,m3s=0,malla=0,dados=0,plac=0,barb=0,pt={};
+  S.sn.forEach(s=>{const c=calcSN(s);shot+=c.aTot;m3s+=c.m3Shot;malla+=c.kgMalla;dados+=c.dados;plac+=c.placas;barb+=c.barb;
+    Object.entries(c.byTipo).forEach(([t,v])=>pt[t]=(pt[t]||0)+v);});
+  add("Soil Nailing","Shotcrete G-25 proyectado","m²",shot);
+  add("Soil Nailing","Hormigón proyectado G-25 (vol.)","m³",m3s);
+  add("Soil Nailing","Malla acero (doble malla)","kg",malla);
+  Object.entries(pt).forEach(([t,v])=>add("Soil Nailing","Pernos autoperforantes "+t,"ml",v));
+  add("Soil Nailing","Dados de protección hormigón","un",dados);
+  add("Soil Nailing","Placas 220x220x15 A370-240ES","un",plac);
+  add("Soil Nailing","Barbacanas 2\" L=450mm","un",barb);
+  // MP
+  const mp=calcMP(); const byT={};
+  mp.det.forEach(d=>{if(d.ml>0)byT[d.tipo]=(byT[d.tipo]||0)+d.ml;});
+  Object.entries(byT).forEach(([t,v])=>add("Micropilotes","Micropilote autoperforante "+t,"ml",v));
+  S.mp.placas.forEach(p=>{if(p.cant>0)add("Micropilotes",p.nom,"un",p.cant);});
+  add("Micropilotes","Hormigón G-25 viga socalzado","m³",mp.m3);
+  add("Micropilotes","Acero A630 viga socalzado","kg",mp.kg);
+  add("Micropilotes","Moldaje viga socalzado","m²",mp.mold);
+  // FAB anclajes
+  const fb=calcFAB().T;
+  add("Fabricación de Anclajes",'Cable 0,6" de diámetro',"m",fb.cable);
+  add("Fabricación de Anclajes","Separador 2 vías","un",fb.sep2);
+  add("Fabricación de Anclajes","Separador 6 vías","un",fb.sep6);
+  add("Fabricación de Anclajes","Vaina o spaguetti","m",fb.vaina);
+  add("Fabricación de Anclajes","Tubo de inyección","m",fb.tubo);
+  add("Fabricación de Anclajes","Viga de amarre UPN 240","un",fb.anc);
+  add("Fabricación de Anclajes","Placa de anclaje","un",fb.anc);
+  add("Fabricación de Anclajes","Cabeza de anclaje","un",fb.anc);
+  add("Fabricación de Anclajes",'Cuña cónica cable 0,6"',"un",fb.cunas);
+  // MT
+  const mt=calcMT();
+  add("Movimiento de Tierra","Excavación masiva y retiro","m³",mt.m3);
+  add("Movimiento de Tierra","Mejoramiento Arena Biobío","m³",mt.mej);
+  return R;
+}
+
+/* ═════════ PRECIOS REFERENCIALES (CLP/unidad, editables) ═════════ */
+const PBASE={
+ 'Entibación tablones 2,0"':{mat:14000,mo:9000,eq:5000},
+ 'Entibación tablones 2,5"':{mat:17500,mo:9500,eq:5500},
+ 'Perfil':{mat:0,mo:8000,eq:14000,kg:1550},
+ 'Extensiones W200x26.6':{mat:41000,mo:9000,eq:6000},
+ 'Vigas de amarre':{mat:120000,mo:60000,eq:40000},
+ 'Cabezales de anclaje (4 cables)':{mat:95000,mo:45000,eq:30000},
+ 'Anclajes postensados inyectados':{mat:38000,mo:26000,eq:31000},
+ 'Cables de acero (+20% tensado)':{mat:4200,mo:800,eq:500},
+ 'Shotcrete G-25 proyectado':{mat:38000,mo:22000,eq:25000},
+ 'Hormigón proyectado G-25 (vol.)':{mat:0,mo:0,eq:0},
+ 'Malla acero (doble malla)':{mat:1250,mo:450,eq:150},
+ 'Pernos autoperforantes R32S':{mat:28000,mo:14000,eq:13000},
+ 'Pernos autoperforantes R32N':{mat:30000,mo:14000,eq:13000},
+ 'Pernos autoperforantes R38N':{mat:36000,mo:15000,eq:14000},
+ 'Pernos autoperforantes R51N':{mat:48000,mo:16000,eq:16000},
+ 'Micropilote autoperforante R32N':{mat:42000,mo:28000,eq:38000},
+ 'Micropilote autoperforante R51N':{mat:58000,mo:30000,eq:42000},
+ 'Micropilote autoperforante T76N':{mat:88000,mo:34000,eq:48000},
+ 'Dados de protección hormigón':{mat:9000,mo:7000,eq:2000},
+ 'Placas 220x220x15 A370-240ES':{mat:16000,mo:3500,eq:1000},
+ 'Barbacanas 2" L=450mm':{mat:5500,mo:3500,eq:1000},
+ 'Hormigón G-25 viga socalzado':{mat:115000,mo:45000,eq:20000},
+ 'Acero A630 viga socalzado':{mat:1250,mo:450,eq:100},
+ 'Moldaje viga socalzado':{mat:12000,mo:9000,eq:2000},
+ 'Excavación masiva y retiro':{mat:0,mo:2200,eq:7300},
+ 'Mejoramiento Arena Biobío':{mat:14500,mo:2500,eq:5000},
+ 'Cable 0,6" de diámetro':{mat:3900,mo:350,eq:150},
+ 'Separador 2 vías':{mat:1800,mo:250,eq:0},
+ 'Separador 6 vías':{mat:2600,mo:250,eq:0},
+ 'Vaina o spaguetti':{mat:950,mo:200,eq:0},
+ 'Tubo de inyección':{mat:850,mo:200,eq:0},
+ 'Viga de amarre UPN 240':{mat:148000,mo:32000,eq:15000},
+ 'Placa de anclaje':{mat:28000,mo:5000,eq:1000},
+ 'Cabeza de anclaje':{mat:68000,mo:8000,eq:2000},
+ 'Cuña cónica cable 0,6"':{mat:4800,mo:700,eq:0},
+ 'Placa 200x200 e=10mm':{mat:12000,mo:3000,eq:800},
+ 'Placa 200x200 e=30mm':{mat:26000,mo:3000,eq:800},
+ 'Placa 250x250 e=10mm':{mat:16000,mo:3000,eq:800},
+};
+function basePrice(key){
+  if(PBASE[key])return {...PBASE[key]};
+  if(key.startsWith("Perfil ")){
+    const w=kgm(key.split(" ")[1]);
+    return{mat:Math.round(PBASE.Perfil.kg*w),mo:PBASE.Perfil.mo,eq:PBASE.Perfil.eq};
+  }
+  if(key.startsWith("Placa"))return{mat:15000,mo:3000,eq:800};
+  return{mat:0,mo:0,eq:0};
+}
+function priceOf(key){ return S.apu[key]?{...S.apu[key]}:basePrice(key); }
+function puOf(key){
+  const p=priceOf(key), gg=+val("p_gg")/100, ut=+val("p_ut")/100;
+  const cd=p.mat+p.mo+p.eq;
+  return{...p,cd,pu:cd*(1+gg)*(1+ut)};
+}
+const val=id=>document.getElementById(id)?.value??0;
+
+/* ═════════════════ NAVEGACIÓN ═════════════════ */
+let curV="proyecto",curS="mba";
+function go(v){curV=v;
+  document.querySelectorAll(".view").forEach(e=>e.style.display="none");
+  document.getElementById("view-"+v).style.display="block";
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("act",b.dataset.v===v));
+  if(v==="cubicacion")renderSub();
+  if(v==="apu")renderAPU();
+  if(v==="informe")renderInforme();
+  if(v==="nube")nubeListar();
+}
+function goSub(s){curS=s;
+  document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
+  ["mba","mbv","sn","mp","fab","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  renderSub();
+}
+function renderSub(){
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,fab:renderFAB,mt:renderMT,resumen:renderResumen})[curS]();
+}
+
+/* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
+function modHead(t,m){return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap"><h2 style="margin-bottom:0">${t}</h2><button class="btn warn sm no-print" style="margin-left:auto" onclick="clearMod('${m}')">🗑 Limpiar datos</button></div>`;}
+function clearMod(m){
+  if(!confirm("¿Limpiar todos los datos de este módulo? Esta acción no se puede deshacer."))return;
+  if(m==="mba")S.mba=[];
+  else if(m==="mbv")S.mbv=[];
+  else if(m==="sn")S.sn=[];
+  else if(m==="mp")S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
+  else if(m==="mt")S.mt={areas:[],mej:{A:0,h:0}};
+  else if(m==="fab")S.fab={num:1,dias:5,rows:[]};
+  else if(m==="apu"){S.apu={};renderAPU();return;}
+  else if(m==="todo"){
+    S.mba=[];S.mbv=[];S.sn=[];S.apu={};
+    S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
+    S.mt={areas:[],mej:{A:0,h:0}};
+    S.fab={num:1,dias:5,rows:[]};
+  }
+  renderSub();
+}
+
+/* ═════════════════ RENDER: MBA ═════════════════ */
+function inp(path,v,step,w){return `<input class="cell" type="number" step="${step||0.1}" value="${v}" style="width:${w||80}px" onchange="setv('${path}',this.value)">`;}
+function setv(path,v){
+  const seg=path.split(".");let o=S;
+  for(let i=0;i<seg.length-1;i++)o=o[isNaN(seg[i])?seg[i]:+seg[i]];
+  const last=seg[seg.length-1];
+  o[last]=isNaN(+v)||v===""?v:+v;
+  renderSub();
+}
+function setvs(path,v){ // conserva el valor como texto (ej: tablón "2.0"/"2.5")
+  const seg=path.split(".");let o=S;
+  for(let i=0;i<seg.length-1;i++)o=o[isNaN(seg[i])?seg[i]:+seg[i]];
+  o[seg[seg.length-1]]=String(v);
+  renderSub();
+}
+function renderMBA(){
+  let h="";
+  S.mba.forEach((s,i)=>{
+    const c=calcMBA(s);
+    h+=`<div class="sec"><div class="sec-head"><span class="tag">SECCIÓN ${i+1}</span>
+      <input value="${s.nom}" style="max-width:260px" onchange="setv('mba.${i}.nom',this.value)">
+      <button class="btn warn sm" style="margin-left:auto" onclick="S.mba.splice(${i},1);renderSub()">✕ Eliminar</button></div>
+    <div class="grid g4">
+      <div><label>Altura libre H (m)</label>${inp(`mba.${i}.H`,s.H)}</div>
+      <div><label>Longitud L (m)</label>${inp(`mba.${i}.L`,s.L)}</div>
+      <div><label>Espaciamiento (m)</label>${inp(`mba.${i}.esp`,s.esp)}</div>
+      <div><label>Perfiles extra (+)</label>${inp(`mba.${i}.extra`,s.extra,1)}</div>
+      <div><label>Long. perfil H+d (m)</label>${inp(`mba.${i}.Lp`,s.Lp)}</div>
+      <div><label>Tablones</label><select onchange="setvs('mba.${i}.tab',this.value)">
+        <option ${String(s.tab)!=="2.5"?"selected":""} value="2.0">2,0"</option><option ${String(s.tab)==="2.5"?"selected":""} value="2.5">2,5"</option></select></div>
+      <div><label>Perfil</label><select onchange="setvs('mba.${i}.perfil',this.value)">
+        ${perfiles().map(p=>`<option ${s.perfil===p?"selected":""}>${p}</option>`).join("")}</select></div>
+      <div><label>Long. extensión (m)</label>${inp(`mba.${i}.ext`,s.ext)}</div>
+    </div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de anclaje (cantidad = perfiles/2, c/${rnd(s.esp*2)} m)</b>
+    <table style="margin-top:6px"><tr><th>Línea</th><th>N° cables</th><th>Capacidad (kN)</th><th>Longitud (m)</th><th class="num">Cantidad</th><th class="num">ml totales</th><th></th></tr>
+    ${c.det.map((a,j)=>`<tr><td>${j+1}</td>
+      <td>${inp(`mba.${i}.anc.${j}.nc`,a.nc,1,55)}</td>
+      <td>${inp(`mba.${i}.anc.${j}.kn`,a.kn,5,70)}</td>
+      <td>${inp(`mba.${i}.anc.${j}.len`,a.len,0.5,70)}</td>
+      <td class="num">${a.cant}</td><td class="num">${fmt(a.ml,1)}</td>
+      <td><button class="btn warn sm" onclick="S.mba[${i}].anc.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+    </table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="S.mba[${i}].anc.push({nc:2,kn:190,len:10});renderSub()">+ Línea de anclaje</button></div>
+    <div class="kpi">
+      <div><b>${fmt(c.area)}</b><span>m² entibación ${s.tab}"</span></div>
+      <div><b>${c.nPerf}</b><span>perfiles ${s.perfil}</span></div>
+      <div><b>${fmt(c.mlPerf,1)}</b><span>ml perfiles</span></div>
+      <div><b>${c.vigas}</b><span>vigas amarre</span></div>
+      <div><b>${c.cabez}</b><span>cabezales</span></div>
+      <div><b>${fmt(c.mlExt,1)}</b><span>ml extensiones</span></div>
+      <div><b>${fmt(c.mlAnc,1)}</b><span>ml anclajes</span></div>
+      <div><b>${fmt(c.mlCab,1)}</b><span>ml cables (+20%)</span></div>
+    </div></div>`;
+  });
+  h+=`<button class="btn" onclick="S.mba.push({nom:'Nueva sección',H:3.6,L:12,esp:1.6,extra:4,Lp:5.5,tab:'2.0',perfil:'W200x31.3',ext:0.5,anc:[{nc:2,kn:190,len:10.5}]});renderSub()">+ Agregar sección</button>
+  <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>`;
+  document.getElementById("sub-mba").innerHTML=`<div class="card">${modHead("Muro Berlinés Anclado Temporal","mba")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: MB VOLADIZO ═════════════════ */
+function renderMBV(){
+  let h="";
+  S.mbv.forEach((s,i)=>{
+    const c=calcMBV(s);
+    h+=`<div class="sec"><div class="sec-head"><span class="tag">SECCIÓN ${i+1}</span>
+      <input value="${s.nom}" style="max-width:260px" onchange="setv('mbv.${i}.nom',this.value)">
+      <button class="btn warn sm" style="margin-left:auto" onclick="S.mbv.splice(${i},1);renderSub()">✕ Eliminar</button></div>
+    <div class="grid g4">
+      <div><label>Altura libre H (m)</label>${inp(`mbv.${i}.H`,s.H)}</div>
+      <div><label>Longitud L (m)</label>${inp(`mbv.${i}.L`,s.L)}</div>
+      <div><label>Espaciamiento (m)</label>${inp(`mbv.${i}.esp`,s.esp)}</div>
+      <div><label>Perfiles extra (+)</label>${inp(`mbv.${i}.extra`,s.extra,1)}</div>
+      <div><label>Long. perfil H+d (m)</label>${inp(`mbv.${i}.Lp`,s.Lp)}</div>
+      <div><label>Tablones</label><select onchange="setvs('mbv.${i}.tab',this.value)">
+        <option ${String(s.tab)!=="2.5"?"selected":""} value="2.0">2,0"</option><option ${String(s.tab)==="2.5"?"selected":""} value="2.5">2,5"</option></select></div>
+      <div><label>Perfil</label><select onchange="setvs('mbv.${i}.perfil',this.value)">
+        ${perfiles().map(p=>`<option ${s.perfil===p?"selected":""}>${p}</option>`).join("")}</select></div>
+    </div>
+    <div class="kpi">
+      <div><b>${fmt(c.area)}</b><span>m² entibación ${s.tab}"</span></div>
+      <div><b>${c.nPerf}</b><span>perfiles ${s.perfil}</span></div>
+      <div><b>${fmt(c.mlPerf,1)}</b><span>ml perfiles</span></div>
+    </div>
+    <p class="note">Voladizo: sin anclajes ni puntales. La ficha (empotramiento d) se controla con "Longitud de perfil H+d". Verificar d ≥ 1.5–2.0 H según memoria de cálculo.</p></div>`;
+  });
+  h+=`<button class="btn" onclick="S.mbv.push({nom:'Nueva sección',H:3,L:15,esp:1.2,extra:2,Lp:7,tab:'2.0',perfil:'W250x32.7'});renderSub()">+ Agregar sección</button>
+  <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>`;
+  document.getElementById("sub-mbv").innerHTML=`<div class="card">${modHead("Muro Berlinés en Voladizo","mbv")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: SOIL NAILING ═════════════════ */
+function renderSN(){
+  let h="";
+  S.sn.forEach((s,i)=>{
+    const c=calcSN(s);
+    h+=`<div class="sec"><div class="sec-head"><span class="tag">TRAMO ${i+1}</span>
+      <input value="${s.nom}" style="max-width:260px" onchange="setv('sn.${i}.nom',this.value)">
+      <button class="btn warn sm" style="margin-left:auto" onclick="S.sn.splice(${i},1);renderSub()">✕ Eliminar</button></div>
+    <div class="grid g4">
+      <div><label>Altura proyectada H (m)</label>${inp(`sn.${i}.H`,s.H)}</div>
+      <div><label>Inclinación talud (°)</label>${inp(`sn.${i}.inc`,s.inc,1)}</div>
+      <div><label>Long. en planta (m)</label>${inp(`sn.${i}.Lpl`,s.Lpl)}</div>
+      <div><label>Empotramiento (m)</label>${inp(`sn.${i}.emp`,s.emp)}</div>
+      <div><label>Espesor shotcrete (cm)</label>${inp(`sn.${i}.e`,s.e,1)}</div>
+      <div><label>Malla φ (mm)</label><select onchange="setv('sn.${i}.fi',this.value)">
+        <option ${s.fi==10?"selected":""} value="10">φ10</option><option ${s.fi==12?"selected":""} value="12">φ12</option></select></div>
+      <div><label>Espac. fierros (m)</label>${inp(`sn.${i}.sep`,s.sep,0.05)}</div>
+      <div><label>Traslape (m)</label>${inp(`sn.${i}.tras`,s.tras,0.05)}</div>
+      <div><label>Largo batache (m)</label>${inp(`sn.${i}.lb`,s.lb)}</div>
+      <div><label>Altura batache (m)</label>${inp(`sn.${i}.hb`,s.hb)}</div>
+    </div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de pernos</b>
+    <table style="margin-top:6px"><tr><th>Línea</th><th>Tipo</th><th>Cantidad</th><th>Longitud (m)</th><th class="num">ml totales</th><th></th></tr>
+    ${c.det.map((p,j)=>`<tr><td>${j+1}</td>
+      <td><select style="width:90px" onchange="setv('sn.${i}.per.${j}.tipo',this.value)">${PERNOS.map(t=>`<option ${p.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+      <td>${inp(`sn.${i}.per.${j}.cant`,p.cant,1,60)}</td>
+      <td>${inp(`sn.${i}.per.${j}.len`,p.len,0.5,70)}</td>
+      <td class="num">${fmt(p.ml,0)}</td>
+      <td><button class="btn warn sm" onclick="S.sn[${i}].per.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+    </table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="S.sn[${i}].per.push({tipo:'R38N',cant:8,len:10.5});renderSub()">+ Línea de pernos</button></div>
+    <div class="kpi">
+      <div><b>${fmt(c.Lm)}</b><span>m long. muro SN</span></div>
+      <div><b>${fmt(c.aTot)}</b><span>m² shotcrete G-25 e=${s.e}cm</span></div>
+      <div><b>${fmt(c.m3Shot)}</b><span>m³ hormigón proyectado</span></div>
+      <div><b>${fmt(c.perd,1)}%</b><span>pérdida traslape</span></div>
+      <div><b>${c.nMallas}</b><span>mallas (doble)</span></div>
+      <div><b>${fmt(c.kgMalla,0)}</b><span>kg malla φ${s.fi}@${s.sep*100}</span></div>
+      <div><b>${fmt(c.mlPer,0)}</b><span>ml pernos</span></div>
+      <div><b>${c.dados}</b><span>dados protección</span></div>
+      <div><b>${c.placas}</b><span>placas 220x220</span></div>
+      <div><b>${c.barb}</b><span>barbacanas (1@4m²)</span></div>
+    </div></div>`;
+  });
+  h+=`<button class="btn" onclick="S.sn.push({nom:'Nuevo tramo',H:5,inc:84,Lpl:15,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,per:[{tipo:'R32S',cant:8,len:9.5}]});renderSub()">+ Agregar tramo</button>`;
+  document.getElementById("sub-sn").innerHTML=`<div class="card">${modHead("Soil Nailing","sn")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: MICROPILOTES ═════════════════ */
+function renderMP(){
+  const c=calcMP(); const m=S.mp;
+  let h=`<table><tr><th>Micropilote</th><th>Capacidad (kN)</th><th>Cantidad</th><th>Longitud (m)</th><th class="num">ml totales</th><th></th></tr>
+  ${c.det.map((p,j)=>`<tr>
+    <td><select style="width:90px" onchange="setv('mp.per.${j}.tipo',this.value)">${PERNOS.map(t=>`<option ${p.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+    <td>${inp(`mp.per.${j}.kn`,p.kn,10,70)}</td>
+    <td>${inp(`mp.per.${j}.cant`,p.cant,1,60)}</td>
+    <td>${inp(`mp.per.${j}.len`,p.len,0.5,70)}</td>
+    <td class="num">${fmt(p.ml,0)}</td>
+    <td><button class="btn warn sm" onclick="S.mp.per.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+  <tr class="res"><td colspan="2">TOTAL</td><td>${c.n}</td><td></td><td class="num">${fmt(c.ml,0)} ml</td><td></td></tr></table>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="S.mp.per.push({tipo:'R51N',kn:630,cant:4,len:12});renderSub()">+ Tipo de micropilote</button>
+  <h2 style="margin-top:20px">Placas de apoyo</h2>
+  <table><tr><th>Placa</th><th>Cantidad</th><th></th></tr>
+  ${m.placas.map((p,j)=>`<tr><td><input value="${p.nom}" style="max-width:280px" onchange="setv('mp.placas.${j}.nom',this.value)"></td>
+    <td>${inp(`mp.placas.${j}.cant`,p.cant,1,70)}</td>
+    <td><button class="btn warn sm" onclick="S.mp.placas.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}</table>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="S.mp.placas.push({nom:'Placa 250x250 e=10mm',cant:0});renderSub()">+ Placa</button>
+  <h2 style="margin-top:20px">Viga de socalzado</h2>
+  <div class="grid g4">
+    <div><label>Longitud (m)</label>${inp('mp.viga.L',m.viga.L)}</div>
+    <div><label>Ancho b (m)</label>${inp('mp.viga.b',m.viga.b,0.05)}</div>
+    <div><label>Alto h (m)</label>${inp('mp.viga.h',m.viga.h,0.05)}</div>
+    <div><label>Cuantía acero (kg/m³)</label>${inp('mp.viga.cuant',m.viga.cuant,5)}</div>
+  </div>
+  <div class="kpi">
+    <div><b>${fmt(c.m3)}</b><span>m³ hormigón G-25</span></div>
+    <div><b>${fmt(c.kg,0)}</b><span>kg acero A630</span></div>
+    <div><b>${fmt(c.mold)}</b><span>m² moldaje</span></div>
+  </div>`;
+  document.getElementById("sub-mp").innerHTML=`<div class="card">${modHead("Micropilotes","mp")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: FABRICACIÓN DE ANCLAJES ═════════════════ */
+function renderFAB(){
+  const c=calcFAB(); const f=S.fab;
+  const rec=(()=>{const d=new Date((val("p_fec")||new Date().toISOString().slice(0,10))+"T12:00:00");
+    d.setDate(d.getDate()+(+f.dias||0));return d.toISOString().slice(0,10);})();
+  let h=`<div class="grid g4" style="margin-bottom:14px">
+    <div><label>N° de solicitud</label>${inp('fab.num',f.num,1)}</div>
+    <div><label>Días para recepción</label>${inp('fab.dias',f.dias,1)}</div>
+    <div><label>Fecha solicitud</label><input value="${val("p_fec")}" disabled></div>
+    <div><label>Recepción requerida</label><input value="${rec}" disabled></div>
+  </div>
+  <div style="overflow-x:auto"><table>
+  <tr><th>Detalle en plano</th><th>Cant.</th><th>Largo (m)</th><th>Áng. (°)</th><th>To (kN)</th><th>Cables</th><th>Lw bulbo (m)</th>
+  <th class="num">Lk vaina (m)</th><th class="num">Cable (m)</th><th class="num">Vaina (m)</th><th class="num">Tubo iny. (m)</th><th class="num">Perfor. (m)</th><th class="num">Separadores</th><th></th></tr>
+  ${c.det.map((r,j)=>`<tr>
+    <td><input value="${r.det}" style="min-width:130px" onchange="setvs('fab.rows.${j}.det',this.value)"></td>
+    <td>${inp(`fab.rows.${j}.cant`,r.cant,1,55)}</td>
+    <td>${inp(`fab.rows.${j}.largo`,r.largo,0.5,65)}</td>
+    <td>${inp(`fab.rows.${j}.ang`,r.ang,1,50)}</td>
+    <td>${inp(`fab.rows.${j}.kn`,r.kn,10,65)}</td>
+    <td>${inp(`fab.rows.${j}.cables`,r.cables,1,50)}</td>
+    <td>${inp(`fab.rows.${j}.lw`,r.lw,0.5,60)}</td>
+    <td class="num">${fmt(r.lk,1)}</td><td class="num">${fmt(r.cable,0)}</td><td class="num">${fmt(r.vaina,0)}</td>
+    <td class="num">${fmt(r.tubo,0)}</td><td class="num">${fmt(r.perf,0)}</td>
+    <td class="num">${r.via2>0?r.via2+" (2 vías)":r.via6>0?r.via6+" (6 vías)":"–"}</td>
+    <td><button class="btn warn sm" onclick="S.fab.rows.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+  </table></div>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="S.fab.rows.push({det:'Corte, Línea',cant:10,largo:12,ang:20,kn:500,cables:4,lw:5});renderSub()">+ Línea de anclajes</button>
+  <p class="note">Capacidad referencial cables 0,6": 1→157 · 2→314 · 3→471 · 4→628 · 5→785 · 6→942 kN. Distancia máx. entre separadores: 1,50 m en longitud de bulbo. Largo perforación = Largo − 1,5 m.</p>
+  <h2 style="margin-top:18px">Totales de fabricación</h2>
+  <div class="kpi">
+    <div><b>${c.T.anc}</b><span>anclajes</span></div>
+    <div><b>${fmt(c.T.cable,0)}</b><span>m cable 0,6"</span></div>
+    <div><b>${fmt(c.T.rollos,1)}</b><span>rollos cable (3.000 m)</span></div>
+    <div><b>${fmt(c.T.sep2,0)}</b><span>separadores 2 vías</span></div>
+    <div><b>${fmt(c.T.sep6,0)}</b><span>separadores 6 vías</span></div>
+    <div><b>${fmt(c.T.vaina,0)}</b><span>m vaina / spaguetti</span></div>
+    <div><b>${fmt(c.T.tubo,0)}</b><span>m tubo de inyección</span></div>
+    <div><b>${fmt(c.T.perf,0)}</b><span>m perforación</span></div>
+    <div><b>${c.T.anc}</b><span>vigas amarre UPN 240</span></div>
+    <div><b>${c.T.anc}</b><span>placas de anclaje</span></div>
+    <div><b>${c.T.anc}</b><span>cabezas de anclaje</span></div>
+    <div><b>${fmt(c.T.cunas,0)}</b><span>cuñas cónicas 0,6"</span></div>
+  </div>`;
+  document.getElementById("sub-fab").innerHTML=`<div class="card">${modHead("Fabricación de Anclajes de Cable — Solicitud N°"+(f.num??1),"fab")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: MOV TIERRA ═════════════════ */
+function renderMT(){
+  const c=calcMT();
+  let h=`<table><tr><th>Zona</th><th>Área corte (m²)</th><th>Longitud (m)</th><th class="num">m³ (redondeo ↑)</th><th></th></tr>
+  ${c.det.map((a,j)=>`<tr><td><input value="${a.nom}" style="max-width:200px" onchange="setv('mt.areas.${j}.nom',this.value)"></td>
+    <td>${inp(`mt.areas.${j}.A`,a.A,0.01,90)}</td>
+    <td>${inp(`mt.areas.${j}.L`,a.L,0.1,80)}</td>
+    <td class="num">${fmt(a.m3,0)}</td>
+    <td><button class="btn warn sm" onclick="S.mt.areas.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+  <tr class="res"><td colspan="3">TOTAL EXCAVACIÓN</td><td class="num">${fmt(c.m3,0)} m³</td><td></td></tr></table>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="S.mt.areas.push({nom:'Nueva zona',A:0,L:0});renderSub()">+ Zona</button>
+  <h2 style="margin-top:20px">Mejoramiento (Arena Biobío)</h2>
+  <div class="grid g4">
+    <div><label>Área planta (m²)</label>${inp('mt.mej.A',S.mt.mej.A)}</div>
+    <div><label>Altura promedio (m)</label>${inp('mt.mej.h',S.mt.mej.h,0.05)}</div>
+  </div>
+  <div class="kpi"><div><b>${fmt(c.mej,0)}</b><span>m³ mejoramiento</span></div></div>`;
+  document.getElementById("sub-mt").innerHTML=`<div class="card">${modHead("Movimiento de Tierra","mt")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: RESUMEN ═════════════════ */
+function renderResumen(){
+  const R=resumen();
+  let h=`<table><tr><th>Sistema</th><th>Partida</th><th>Unidad</th><th class="num">Cantidad</th></tr>`;
+  let last="";
+  R.forEach(r=>{
+    h+=`<tr><td>${r.sis!==last?"<b>"+r.sis+"</b>":""}</td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td></tr>`;
+    last=r.sis;
+  });
+  h+="</table>";
+  document.getElementById("sub-resumen").innerHTML=`<div class="card"><h2>Cuadro Resumen de Cubicación</h2>${h}</div>`;
+}
+
+/* ═════════════════ RENDER: APU ═════════════════ */
+function setPrice(key,field,v){
+  if(!S.apu[key])S.apu[key]=priceOf(key);
+  S.apu[key][field]=+v||0;
+  renderAPU();
+}
+function renderAPU(){
+  const R=resumen(); const uf=+val("p_uf")||39500;
+  const gg=+val("p_gg"),ut=+val("p_ut"),iva=+val("p_iva");
+  let cd=0, rows="", last="", bySis={};
+  R.forEach(r=>{
+    const p=puOf(r.key), tot=p.pu*r.qty;
+    cd+=p.cd*r.qty;
+    bySis[r.sis]=(bySis[r.sis]||0)+tot;
+    const k=r.key.replace(/'/g,"\\'").replace(/"/g,"&quot;");
+    rows+=`<tr><td>${r.sis!==last?"<b>"+r.sis+"</b>":""}</td><td>${r.key}</td><td>${r.unit}</td>
+      <td class="num">${fmt(r.qty)}</td>
+      <td><input class="cell" type="number" value="${p.mat}" style="width:90px" onchange="setPrice('${k}','mat',this.value)"></td>
+      <td><input class="cell" type="number" value="${p.mo}" style="width:85px" onchange="setPrice('${k}','mo',this.value)"></td>
+      <td><input class="cell" type="number" value="${p.eq}" style="width:85px" onchange="setPrice('${k}','eq',this.value)"></td>
+      <td class="num">${clp(p.cd)}</td><td class="num"><b>${clp(p.pu)}</b></td>
+      <td class="num"><b>${clp(tot)}</b></td></tr>`;
+    last=r.sis;
+  });
+  const cdT=cd, ggT=cdT*gg/100, utT=(cdT+ggT)*ut/100, neto=cdT+ggT+utT, ivaT=neto*iva/100, tot=neto+ivaT;
+  const h=`<div class="card"><h2>Análisis de Precios Unitarios</h2>
+  <p class="note no-print">Edita Materiales / Mano de Obra / Equipos por unidad (CLP). PU = Costo directo × (1+GG%) × (1+Utilidad%). GG, Utilidad, IVA y valor UF se configuran en Proyecto.</p>
+  <div style="overflow-x:auto"><table>
+  <tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cant.</th><th>Materiales</th><th>M. Obra</th><th>Equipos</th><th class="num">C. Directo</th><th class="num">P. Unitario</th><th class="num">Total</th></tr>
+  ${rows}</table></div>
+  <div class="tots">
+    <div class="t"><small>Costo directo</small><b>${clp(cdT)}</b></div>
+    <div class="t"><small>GG ${gg}% + Utilidad ${ut}%</small><b>${clp(ggT+utT)}</b></div>
+    <div class="t alt"><small>Neto</small><b>${clp(neto)}</b></div>
+    <div class="t alt"><small>IVA ${iva}%</small><b>${clp(ivaT)}</b></div>
+    <div class="t" style="background:linear-gradient(135deg,#0b3a1e,var(--ok))"><small>TOTAL CLP</small><b>${clp(tot)}</b></div>
+    <div class="t" style="background:linear-gradient(135deg,#5a3a00,var(--accent))"><small>TOTAL UF (UF=${fmt(uf,0)})</small><b>UF ${fmt(tot/uf,1)}</b></div>
+  </div>
+  <button class="btn ghost no-print" onclick="S.apu={};renderAPU()">↺ Restaurar precios referenciales</button></div>`;
+  document.getElementById("apu-body").innerHTML=h;
+}
+
+/* ═════════════════ INFORME EJECUTIVO ═════════════════ */
+let ch1,ch2;
+function renderInforme(){
+  const R=resumen(); const uf=+val("p_uf")||39500;
+  const gg=+val("p_gg"),ut=+val("p_ut"),iva=+val("p_iva");
+  let bySis={},tot=0;
+  R.forEach(r=>{const t=puOf(r.key).pu*r.qty;bySis[r.sis]=(bySis[r.sis]||0)+t;tot+=t;});
+  const ivaT=tot*iva/100, totIva=tot+ivaT;
+  const top=[...R].map(r=>({...r,t:puOf(r.key).pu*r.qty})).sort((a,b)=>b.t-a.t).slice(0,8);
+  const hoy=val("p_fec")||new Date().toISOString().slice(0,10);
+  const sisRows=Object.entries(bySis).map(([s,v])=>
+    `<tr><td>${s}</td><td class="num">${clp(v)}</td><td class="num">UF ${fmt(v/uf,1)}</td><td class="num">${fmt(v/tot*100,1)}%</td></tr>`).join("");
+  let last="",qtyRows="";
+  R.forEach(r=>{qtyRows+=`<tr><td>${r.sis!==last?"<b>"+r.sis+"</b>":""}</td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td><td class="num">${clp(puOf(r.key).pu)}</td><td class="num">${clp(puOf(r.key).pu*r.qty)}</td></tr>`;last=r.sis;});
+  document.getElementById("rep-body").innerHTML=`
+  <div class="rep-head">
+    <div><div class="logo" style="color:var(--navy)">
+      <img class="logo-img" src="https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png/v1/fill/w_300,h_114,al_c,q_90/logo.png" alt="Ngenco SpA" onerror="this.outerHTML='<div class=\\'logo-mark\\'>N</div>'">
+      <div><h2 style="margin:0">INFORME EJECUTIVO DE CUBICACIÓN Y PRESUPUESTO</h2>
+      <span style="color:var(--mut);font-size:13px">NGENCO SpA · Servicios y Maquinarias</span></div></div></div>
+    <div class="rep-meta">
+      <b>Proyecto:</b> ${val("p_num")} — ${val("p_nom")}<br>
+      <b>Ubicación:</b> ${val("p_ubi")}<br>
+      <b>Cliente:</b> ${val("p_cli")||"—"} · <b>Rev.:</b> ${val("p_revn")}<br>
+      <b>Fecha:</b> ${hoy} · <b>Ing.:</b> ${val("p_ing")||"—"}
+    </div>
+  </div>
+  <h2>1. Resumen Económico</h2>
+  <div class="tots">
+    <div class="t"><small>Presupuesto Neto</small><b>${clp(tot)}</b></div>
+    <div class="t alt"><small>IVA ${iva}%</small><b>${clp(ivaT)}</b></div>
+    <div class="t" style="background:linear-gradient(135deg,#0b3a1e,var(--ok))"><small>Total con IVA</small><b>${clp(totIva)}</b></div>
+    <div class="t" style="background:linear-gradient(135deg,#5a3a00,var(--accent))"><small>Total Neto UF</small><b>UF ${fmt(tot/uf,1)}</b></div>
+  </div>
+  <table><tr><th>Sistema de entibación</th><th class="num">Neto CLP</th><th class="num">Neto UF</th><th class="num">Incidencia</th></tr>${sisRows}
+  <tr class="res"><td>TOTAL NETO</td><td class="num">${clp(tot)}</td><td class="num">UF ${fmt(tot/uf,1)}</td><td class="num">100%</td></tr></table>
+  <h2 style="margin-top:22px">2. Análisis Gráfico</h2>
+  <div class="charts">
+    <div class="chart-box"><h3>Distribución del costo por sistema</h3><canvas id="c1"></canvas></div>
+    <div class="chart-box"><h3>Partidas de mayor incidencia (CLP)</h3><canvas id="c2"></canvas></div>
+  </div>
+  <h2 style="margin-top:22px">3. Cubicación y Presupuesto por Partida</h2>
+  <table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (CLP)</th><th class="num">Total (CLP)</th></tr>${qtyRows}</table>
+  <h2 style="margin-top:22px">4. Observaciones</h2>
+  <p style="font-size:13px;line-height:1.7;color:var(--txt)">
+  Cubicación desarrollada según metodología de planilla de ingeniería Ngenco/Soil (criterios de la memoria "MBA Siete Lagunas Rev.2"):
+  perfiles con redondeo superior por espaciamiento más unidades de respaldo, anclajes a razón de un elemento cada dos perfiles por línea,
+  cables con 20% adicional por extensión de tensado, shotcrete con pérdida por traslape de malla, y excavación con redondeo superior.
+  Los precios unitarios incluyen ${gg}% de gastos generales y ${ut}% de utilidad sobre el costo directo; no incluyen IVA salvo donde se indica.
+  Presupuesto referencial sujeto a validación de terreno, mecánica de suelos e ingeniería de detalle.</p>
+  <div class="sig"><div>${val("p_ing")||"Ingeniero de Proyecto"}<br><small>Elaboró</small></div>
+  <div>${val("p_rev")||"Revisor"}<br><small>Revisó / Aprobó</small></div></div>`;
+  // charts
+  const cols=["#0b2a4a","#1d6fb8","#35a7de","#7fc8ec","#f2994a","#27ae60","#8e9bab"];
+  if(ch1)ch1.destroy(); if(ch2)ch2.destroy();
+  ch1=new Chart(document.getElementById("c1"),{type:"doughnut",
+    data:{labels:Object.keys(bySis),datasets:[{data:Object.values(bySis),backgroundColor:cols,borderWidth:2,borderColor:"#fff"}]},
+    options:{plugins:{legend:{position:"bottom",labels:{font:{size:11}}}},maintainAspectRatio:false}});
+  ch2=new Chart(document.getElementById("c2"),{type:"bar",
+    data:{labels:top.map(r=>r.key.length>28?r.key.slice(0,27)+"…":r.key),
+      datasets:[{data:top.map(r=>r.t),backgroundColor:"#1d6fb8",borderRadius:5}]},
+    options:{indexAxis:"y",plugins:{legend:{display:false}},maintainAspectRatio:false,
+      scales:{x:{ticks:{callback:v=>"$"+(v/1e6).toFixed(1)+"M"}}}}});
+}
+
+/* ═════════════════ BASE DE DATOS SUPABASE ═════════════════ */
+const SUPA_URL="https://jhikhnciakulgwhfflyv.supabase.co";
+const SUPA_KEY="sb_publishable_SSZSUXDouSnGxH21SowKig_VkSg9lTs";
+const SH={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json"};
+function nubeMsg(t,err){const e=document.getElementById("nube-status");
+  e.style.display="block";e.style.borderColor=err?"var(--danger)":"#b8e0c8";
+  e.style.background=err?"#fdeeee":"#eefaf2";e.textContent=t;
+  setTimeout(()=>e.style.display="none",5000);}
+function totalesActuales(){
+  const R=resumen();let tot=0;
+  R.forEach(r=>tot+=puOf(r.key).pu*r.qty);
+  const uf=+val("p_uf")||39500;
+  return{neto:Math.round(tot),uf:rnd(tot/uf,1)};
+}
+async function nubeGuardar(){
+  try{
+    const t=totalesActuales();
+    const proj={};["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"].forEach(id=>proj[id]=val(id));
+    const body={proyecto_num:val("p_num"),nombre:val("p_nom"),cliente:val("p_cli"),
+      ubicacion:val("p_ubi"),ingeniero:val("p_ing"),revision:val("p_revn"),estado:val("p_est"),
+      total_neto_clp:t.neto,total_uf:t.uf,datos:{S,proj}};
+    let r;
+    if(S.cloudId){
+      r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${S.cloudId}`,
+        {method:"PATCH",headers:SH,body:JSON.stringify(body)});
+    }else{
+      r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos`,
+        {method:"POST",headers:{...SH,Prefer:"return=representation"},body:JSON.stringify(body)});
+      if(r.ok){const d=await r.json();S.cloudId=d[0].id;}
+    }
+    if(!r.ok)throw new Error(await r.text());
+    nubeMsg("✔ Proyecto guardado en la base de datos");nubeListar();
+  }catch(e){nubeMsg("Error al guardar: "+e.message,1);}
+}
+async function nubeListar(){
+  const el=document.getElementById("nube-lista");
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:SH});
+    if(!r.ok)throw new Error(await r.text());
+    const rows=await r.json();
+    if(!rows.length){el.innerHTML='<p class="note">Sin proyectos guardados aún. Usa "Guardar proyecto actual".</p>';return;}
+    el.innerHTML=`<div style="overflow-x:auto"><table>
+    <tr><th>N°</th><th>Proyecto</th><th>Cliente</th><th>Ubicación</th><th>Estado</th><th class="num">Neto CLP</th><th class="num">UF</th><th>Actualizado</th><th></th></tr>
+    ${rows.map(p=>`<tr ${S.cloudId===p.id?'style="outline:2px solid var(--sky)"':""}>
+      <td>${p.proyecto_num||""}</td><td><b>${p.nombre||""}</b></td><td>${p.cliente||"—"}</td>
+      <td>${p.ubicacion||""}</td><td>${p.estado||""}</td>
+      <td class="num">${p.total_neto_clp?clp(p.total_neto_clp):"—"}</td>
+      <td class="num">${p.total_uf?fmt(p.total_uf,1):"—"}</td><td>${p.actualizado||""}</td>
+      <td style="white-space:nowrap">
+        <button class="btn sm" onclick="nubeCargar('${p.id}')">Abrir</button>
+        <button class="btn warn sm" onclick="nubeEliminar('${p.id}','${(p.nombre||"").replace(/'/g,"")}')">✕</button>
+      </td></tr>`).join("")}</table></div>
+    <p class="note" style="margin-top:10px">El proyecto abierto actualmente se destaca en celeste. "Guardar" actualiza el registro abierto; para crear una copia nueva usa Proyecto → cambiar N° y nombre, luego recarga la página y guarda.</p>`;
+  }catch(e){el.innerHTML=`<p class="note" style="border-color:var(--danger)">Sin conexión a la base de datos: ${e.message}</p>`;}
+}
+async function nubeCargar(id){
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${id}&select=datos`,{headers:SH});
+    if(!r.ok)throw new Error(await r.text());
+    const d=await r.json(); if(!d.length)throw new Error("no encontrado");
+    S=d[0].datos.S; S.cloudId=id;
+    Object.entries(d[0].datos.proj||{}).forEach(([k,v])=>{const e=document.getElementById(k);if(e)e.value=v;});
+    nubeMsg("✔ Proyecto cargado");go("cubicacion");
+  }catch(e){nubeMsg("Error al cargar: "+e.message,1);}
+}
+async function nubeEliminar(id,nom){
+  if(!confirm(`¿Eliminar de la base de datos el proyecto "${nom}"? Esta acción no se puede deshacer.`))return;
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${id}`,{method:"DELETE",headers:SH});
+    if(!r.ok)throw new Error(await r.text());
+    if(S.cloudId===id)delete S.cloudId;
+    nubeMsg("Proyecto eliminado");nubeListar();
+  }catch(e){nubeMsg("Error al eliminar: "+e.message,1);}
+}
+/* ═════════════════ EXPORTACIÓN CSV ═════════════════ */
+function dlCSV(nombre,filas){
+  const csv="﻿"+filas.map(f=>f.map(c=>{c=String(c??"");return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(";")).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download=nombre;a.click();
+}
+async function csvSeguimiento(){
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:SH});
+    if(!r.ok)throw new Error(await r.text());
+    const rows=await r.json();
+    const filas=[["Proyecto N°","Nombre","Cliente","Ubicación","Ingeniero","Rev.","Estado","Total Neto CLP","Total UF","Creado","Actualizado"]];
+    rows.forEach(p=>filas.push([p.proyecto_num,p.nombre,p.cliente,p.ubicacion,p.ingeniero,p.revision,p.estado,p.total_neto_clp,p.total_uf,p.creado,p.actualizado]));
+    dlCSV("Seguimiento_Proyectos_Ngenco.csv",filas);
+  }catch(e){nubeMsg("Error CSV: "+e.message,1);}
+}
+function csvActual(){
+  const R=resumen();const gg=+val("p_gg"),ut=+val("p_ut"),iva=+val("p_iva"),uf=+val("p_uf")||39500;
+  const filas=[["CUBICACIÓN Y PRESUPUESTO — "+val("p_num")+" "+val("p_nom")],
+   ["Cliente",val("p_cli"),"","Ubicación",val("p_ubi"),"","Fecha",val("p_fec")],[],
+   ["Sistema","Partida","Unidad","Cantidad","Materiales CLP","M.Obra CLP","Equipos CLP","Costo Directo","P.Unitario CLP","Total CLP"]];
+  let tot=0,cd=0;
+  R.forEach(r=>{const p=puOf(r.key);tot+=p.pu*r.qty;cd+=p.cd*r.qty;
+    filas.push([r.sis,r.key,r.unit,r.qty,p.mat,p.mo,p.eq,p.cd,Math.round(p.pu),Math.round(p.pu*r.qty)]);});
+  filas.push([],["","","","","","","","Costo Directo",Math.round(cd)],
+   ["","","","","","","","GG "+gg+"% + Util "+ut+"%",Math.round(tot-cd)],
+   ["","","","","","","","NETO",Math.round(tot)],
+   ["","","","","","","","IVA "+iva+"%",Math.round(tot*iva/100)],
+   ["","","","","","","","TOTAL CLP",Math.round(tot*(1+iva/100))],
+   ["","","","","","","","TOTAL UF (UF="+uf+")",rnd(tot/uf,1)]);
+  dlCSV("Cubicacion_"+val("p_num").replace(/\s/g,"_")+".csv",filas);
+}
+
+/* ═════════════════ IMPORT / EXPORT ═════════════════ */
+function exportJSON(){
+  const data={S,proj:{}};
+  ["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"].forEach(id=>data.proj[id]=val(id));
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,1)],{type:"application/json"}));
+  a.download=`Cubicacion_${val("p_num").replace(/\s/g,"_")}.json`;a.click();
+}
+function importJSON(ev){
+  const f=ev.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{const d=JSON.parse(e.target.result);S=d.S;
+    Object.entries(d.proj||{}).forEach(([id,v])=>{const el=document.getElementById(id);if(el)el.value=v;});
+    go("cubicacion");}catch(err){alert("Archivo inválido");}};
+  r.readAsText(f);
+}
+document.getElementById("p_fec").value=new Date().toISOString().slice(0,10);
+</script>
+</body>
+</html>
