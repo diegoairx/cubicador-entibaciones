@@ -6,6 +6,7 @@
 <title>Ngenco SpA · Cubicador de Entibaciones</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 :root{
   --navy:#0b2a4a; --navy2:#004080; --blue:#1d6fb8; --sky:#35a7de; --sky2:#7fc8ec;
@@ -77,6 +78,19 @@ input.cell:hover{border-color:var(--line);background:#fff}
 .sig{display:flex;gap:60px;margin-top:50px;justify-content:center}
 .sig div{text-align:center;border-top:1.5px solid var(--txt);padding-top:6px;width:220px;font-size:12.5px}
 footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
+.pdf-mode{font-size:10px}
+.pdf-mode table{font-size:8.5px}
+.pdf-mode th{padding:3px 6px;font-size:8.5px}
+.pdf-mode td{padding:2px 6px}
+.pdf-mode h2{font-size:13px}
+.pdf-mode .rep-head h2{font-size:16px}
+.pdf-mode .tots .t{padding:8px 12px;min-width:140px}
+.pdf-mode .tots .t b{font-size:15px}
+.pdf-mode .chart-box{height:220px;padding:8px}
+.pdf-mode canvas{max-height:180px}
+.pdf-mode .sig{margin-top:20px}
+.pdf-mode .no-print{display:none!important}
+.pdf-mode p{font-size:9.5px!important}
 .help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--sky);color:#fff;font-size:10px;font-weight:700;cursor:help;margin-left:5px;vertical-align:middle}
 .login-bg{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy),var(--navy2));display:flex;align-items:center;justify-content:center;z-index:999}
 .login-card{background:#fff;border-radius:14px;padding:30px 34px;width:360px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.4);text-align:center}
@@ -237,13 +251,13 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
 <!-- ══════════ INFORME ══════════ -->
 <section id="view-informe" class="view" style="display:none">
   <div class="no-print" style="text-align:right;margin-bottom:12px">
-    <button class="btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+    <button class="btn" id="btn-pdf" onclick="descargarPDF()">⬇ Descargar PDF (máx. 2 páginas)</button>
   </div>
   <div id="rep-body" class="card"></div>
 </section>
 
 </main>
-<footer>Ngenco SpA · Su aliado especializado para enfrentar los desafíos relacionados con el agua en la construcción · www.ngencospa.com</footer>
+<footer>Ngenco SpA · Servicios y Maquinarias · www.ngencospa.com</footer>
 
 <script>
 /* ═════════════════ CATÁLOGOS ═════════════════ */
@@ -706,7 +720,8 @@ function renderFAB(){
   const c=calcFAB(); const f=S.fab;
   const rec=(()=>{const d=new Date((val("p_fec")||new Date().toISOString().slice(0,10))+"T12:00:00");
     d.setDate(d.getDate()+(+f.dias||0));return d.toISOString().slice(0,10);})();
-  let h=`<div class="grid g4" style="margin-bottom:14px">
+  let h=`<div style="text-align:right;margin-bottom:8px"><button class="btn" onclick="fabPDF()">⬇ Descargar solicitud PDF</button></div>
+  <div class="grid g4" style="margin-bottom:14px">
     <div><label>N° de solicitud</label>${inp('fab.num',f.num,1)}</div>
     <div><label>Días para recepción</label>${inp('fab.dias',f.dias,1)}</div>
     <div><label>Fecha solicitud</label><input value="${val("p_fec")}" disabled></div>
@@ -826,10 +841,13 @@ function renderAPU(){
 /* ═════════════════ INFORME EJECUTIVO ═════════════════ */
 let ch1,ch2;
 function renderInforme(){
-  const R=resumen(); const uf=+val("p_uf")||39500;
+  const R=resumen().filter(r=>r.sis!=="Fabricación de Anclajes"); // excluida del informe ejecutivo
+  const uf=+val("p_uf")||39500;
   const gg=+val("p_gg"),ut=+val("p_ut"),iva=+val("p_iva");
   let bySis={},tot=0;
   R.forEach(r=>{const t=puOf(r.key).pu*r.qty;bySis[r.sis]=(bySis[r.sis]||0)+t;tot+=t;});
+  const m2mba=S.mba.reduce((t,s)=>t+calcMBA(s).area,0);
+  const costoMBA=bySis["Muro Berlinés Anclado"]||0;
   const ivaT=tot*iva/100, totIva=tot+ivaT;
   const top=[...R].map(r=>({...r,t:puOf(r.key).pu*r.qty})).sort((a,b)=>b.t-a.t).slice(0,8);
   const hoy=val("p_fec")||new Date().toISOString().slice(0,10);
@@ -856,6 +874,7 @@ function renderInforme(){
     <div class="t alt"><small>IVA ${iva}%</small><b>${clp(ivaT)}</b></div>
     <div class="t" style="background:linear-gradient(135deg,#0b3a1e,var(--ok))"><small>Total con IVA</small><b>${clp(totIva)}</b></div>
     <div class="t" style="background:linear-gradient(135deg,#5a3a00,var(--accent))"><small>Total Neto UF</small><b>UF ${fmt(tot/uf,1)}</b></div>
+    ${m2mba>0?`<div class="t alt"><small>Entibación MBA — neto por m²</small><b>UF ${fmt(costoMBA/m2mba/uf,2)}/m²</b><span style="font-size:11.5px;opacity:.85">${clp(costoMBA/m2mba)}/m² · ${fmt(m2mba)} m²</span></div>`:""}
   </div>
   <table><tr><th>Sistema de entibación</th><th class="num">Neto CLP</th><th class="num">Neto UF</th><th class="num">Incidencia</th></tr>${sisRows}
   <tr class="res"><td>TOTAL NETO</td><td class="num">${clp(tot)}</td><td class="num">UF ${fmt(tot/uf,1)}</td><td class="num">100%</td></tr></table>
@@ -864,13 +883,12 @@ function renderInforme(){
     <div class="chart-box"><h3>Distribución del costo por sistema</h3><canvas id="c1"></canvas></div>
     <div class="chart-box"><h3>Partidas de mayor incidencia (CLP)</h3><canvas id="c2"></canvas></div>
   </div>
-  <h2 style="margin-top:22px">3. Cubicación y Presupuesto por Partida</h2>
-  <table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (CLP)</th><th class="num">Total (CLP)</th></tr>${qtyRows}</table>
+  <h2 style="margin-top:22px">3. Cubicación y Presupuesto por Partida
+    <button class="btn ghost sm no-print" id="btn-partidas" style="margin-left:10px" onclick="togglePartidas()">▲ Contraer partidas</button></h2>
+  <div id="partidas-wrap"><table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (CLP)</th><th class="num">Total (CLP)</th></tr>${qtyRows}</table></div>
   <h2 style="margin-top:22px">4. Observaciones</h2>
   <p style="font-size:13px;line-height:1.7;color:var(--txt)">
-  Cubicación desarrollada según metodología de planilla de ingeniería Ngenco/Soil (criterios de la memoria "MBA Siete Lagunas Rev.2"):
-  perfiles con redondeo superior por espaciamiento más unidades de respaldo, anclajes a razón de un elemento cada dos perfiles por línea,
-  cables con 20% adicional por extensión de tensado, shotcrete con pérdida por traslape de malla, y excavación con redondeo superior.
+  Cubicación desarrollada según metodología de planilla de ingeniería Ngenco.
   Los precios unitarios incluyen ${gg}% de gastos generales y ${ut}% de utilidad sobre el costo directo; no incluyen IVA salvo donde se indica.
   Presupuesto referencial sujeto a validación de terreno, mecánica de suelos e ingeniería de detalle.</p>
   <div class="sig"><div>${val("p_ing")||"Ingeniero de Proyecto"}<br><small>Elaboró</small></div>
@@ -1060,6 +1078,87 @@ function csvActual(){
    ["","","","","","","","TOTAL CLP",Math.round(tot*(1+iva/100))],
    ["","","","","","","","TOTAL UF (UF="+uf+")",rnd(tot/uf,1)]);
   dlCSV("Cubicacion_"+val("p_num").replace(/\s/g,"_")+".csv",filas);
+}
+
+/* ═════════════════ DESCARGA PDF ═════════════════ */
+function togglePartidas(){
+  const w=document.getElementById("partidas-wrap"),b=document.getElementById("btn-partidas");
+  const oculto=w.style.display==="none";
+  w.style.display=oculto?"block":"none";
+  b.textContent=oculto?"▲ Contraer partidas":"▼ Extender partidas";
+}
+async function descargarPDF(){
+  const btn=document.getElementById("btn-pdf");btn.disabled=true;btn.textContent="Generando PDF…";
+  try{
+    const el=document.getElementById("rep-body");
+    el.classList.add("pdf-mode");
+    renderInforme(); // re-render gráficos al tamaño compacto
+    el.classList.add("pdf-mode");
+    await new Promise(r=>setTimeout(r,600));
+    const worker=html2pdf().set({
+      margin:[7,7,7,7],
+      filename:`Informe_Ejecutivo_${(val("p_num")||"proyecto").replace(/\s/g,"_")}.pdf`,
+      image:{type:"jpeg",quality:0.95},
+      html2canvas:{scale:2,useCORS:true,logging:false},
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
+      pagebreak:{mode:["css","legacy"]}
+    }).from(el).toPdf();
+    const pdf=await worker.get("pdf");
+    while(pdf.internal.getNumberOfPages()>2)pdf.deletePage(pdf.internal.getNumberOfPages()); // máx. 2 páginas
+    await worker.save();
+    el.classList.remove("pdf-mode");
+    renderInforme();
+  }catch(e){alert("Error al generar PDF: "+e.message);}
+  btn.disabled=false;btn.textContent="⬇ Descargar PDF (máx. 2 páginas)";
+}
+async function fabPDF(){
+  const c=calcFAB(); const f=S.fab;
+  const rec=(()=>{const d=new Date((val("p_fec")||new Date().toISOString().slice(0,10))+"T12:00:00");
+    d.setDate(d.getDate()+(+f.dias||0));return d.toISOString().slice(0,10);})();
+  const el=document.createElement("div");
+  el.style.cssText="width:1050px;padding:14px;background:#fff;color:#1c2b3a;font-size:11px";
+  el.innerHTML=`
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0b2a4a;padding-bottom:8px;margin-bottom:10px">
+    <div><b style="font-size:16px;color:#0b2a4a">SOLICITUD DE FABRICACIÓN DE ANCLAJES N°${f.num??1}</b><br>
+    <span style="font-size:12px">Obra: ${val("p_nom")||"—"} · Proyecto ${val("p_num")||""} · ${val("p_ubi")||""}</span></div>
+    <div style="text-align:right;font-size:11.5px"><b>NGENCO SpA</b><br>Fecha solicitud: ${val("p_fec")}<br>Recepción requerida: ${rec}</div>
+  </div>
+  <table style="width:100%">
+  <tr><th>Detalle en plano</th><th>Cant.</th><th>Largo (m)</th><th>Áng. (°)</th><th>To (kN)</th><th>Cables</th><th>Lw bulbo (m)</th><th>Lk vaina (m)</th><th>Cable (m)</th><th>Vaina (m)</th><th>Tubo iny. (m)</th><th>Perfor. (m)</th><th>Separadores</th></tr>
+  ${c.det.map(r=>`<tr><td>${r.det}</td><td class="num">${r.cant}</td><td class="num">${fmt(r.largo,1)}</td><td class="num">${r.ang}</td><td class="num">${r.kn}</td><td class="num">${r.cables}</td><td class="num">${fmt(r.lw,1)}</td><td class="num">${fmt(r.lk,1)}</td><td class="num">${fmt(r.cable,0)}</td><td class="num">${fmt(r.vaina,0)}</td><td class="num">${fmt(r.tubo,0)}</td><td class="num">${fmt(r.perf,0)}</td><td class="num">${r.via2>0?r.via2+" (2 vías)":r.via6>0?r.via6+" (6 vías)":"–"}</td></tr>`).join("")}
+  <tr class="res"><td><b>TOTALES</b></td><td class="num">${c.T.anc}</td><td></td><td></td><td></td><td></td><td></td><td></td>
+  <td class="num">${fmt(c.T.cable,0)}</td><td class="num">${fmt(c.T.vaina,0)}</td><td class="num">${fmt(c.T.tubo,0)}</td><td class="num">${fmt(c.T.perf,0)}</td><td class="num">${fmt(c.T.sep2+c.T.sep6,0)}</td></tr>
+  </table>
+  <table style="width:60%;margin-top:12px">
+  <tr><th colspan="3">RESUMEN DE MATERIALES</th></tr>
+  <tr><td>Cable 0,6" de diámetro</td><td class="num">${fmt(c.T.cable,0)}</td><td>m (${fmt(c.T.rollos,1)} rollos de 3.000 m)</td></tr>
+  <tr><td>Separador 2 vías</td><td class="num">${fmt(c.T.sep2,0)}</td><td>unid</td></tr>
+  <tr><td>Separador 6 vías</td><td class="num">${fmt(c.T.sep6,0)}</td><td>unid</td></tr>
+  <tr><td>Vaina o spaguetti</td><td class="num">${fmt(c.T.vaina,0)}</td><td>m</td></tr>
+  <tr><td>Tubo de inyección</td><td class="num">${fmt(c.T.tubo,0)}</td><td>m</td></tr>
+  <tr><td>Viga de amarre UPN 240</td><td class="num">${c.T.anc}</td><td>unid</td></tr>
+  <tr><td>Placa de anclaje</td><td class="num">${c.T.anc}</td><td>unid</td></tr>
+  <tr><td>Cabeza de anclaje</td><td class="num">${c.T.anc}</td><td>unid</td></tr>
+  <tr><td>Cuña cónica para cable 0,6"</td><td class="num">${fmt(c.T.cunas,0)}</td><td>unid</td></tr>
+  </table>
+  <p style="font-size:10px;margin-top:10px;color:#5f7385">Observaciones: distancia máxima entre separadores 1,50 m en longitud de bulbo · Largo de perforación = largo − 1,5 m ·
+  Resistencia cables 0,6": 1→157 · 2→314 · 3→471 · 4→628 · 5→785 · 6→942 kN.</p>
+  <div style="display:flex;gap:80px;justify-content:center;margin-top:45px;font-size:11px">
+    <div style="border-top:1.5px solid #1c2b3a;width:200px;text-align:center;padding-top:4px">Solicitado por<br>NGENCO SpA</div>
+    <div style="border-top:1.5px solid #1c2b3a;width:200px;text-align:center;padding-top:4px">Recibido por<br>Fabricante</div>
+  </div>`;
+  document.body.appendChild(el);
+  try{
+    await html2pdf().set({
+      margin:[6,6,6,6],
+      filename:`Solicitud_Fabricacion_Anclajes_N${f.num??1}_${(val("p_num")||"").replace(/\s/g,"_")}.pdf`,
+      image:{type:"jpeg",quality:0.95},
+      html2canvas:{scale:2,useCORS:true,logging:false},
+      jsPDF:{unit:"mm",format:"a4",orientation:"landscape"},
+      pagebreak:{mode:["css","legacy"]}
+    }).from(el).save();
+  }catch(e){alert("Error al generar PDF: "+e.message);}
+  el.remove();
 }
 
 /* ═════════════════ IMPORT / EXPORT ═════════════════ */
