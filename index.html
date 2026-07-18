@@ -948,27 +948,39 @@ function setPrice(key,field,v){
   S.apu[key][field]=+v||0;
   renderAPU();
 }
+let apuCol=new Set();
+function toggleApu(i){apuCol.has(i)?apuCol.delete(i):apuCol.add(i);renderAPU();}
 function renderAPU(){
   const R=resumen(); const uf=+val("p_uf")||39500;
   const gg=+val("p_gg"),ut=+val("p_ut"),iva=+val("p_iva");
-  let cd=0, rows="", last="", bySis={};
-  R.forEach(r=>{
-    const p=puOf(r.key), tot=p.pu*r.qty;
-    cd+=p.cd*r.qty;
-    bySis[r.sis]=(bySis[r.sis]||0)+tot;
-    const k=r.key.replace(/'/g,"\\'").replace(/"/g,"&quot;");
-    rows+=`<tr><td>${r.sis!==last?"<b>"+r.sis+"</b>":""}</td><td>${r.key}</td><td>${r.unit}</td>
-      <td class="num">${fmt(r.qty)}</td>
-      <td><input class="cell" type="number" value="${p.mat}" style="width:90px" onchange="setPrice('${k}','mat',this.value)"></td>
-      <td><input class="cell" type="number" value="${p.mo}" style="width:85px" onchange="setPrice('${k}','mo',this.value)"></td>
-      <td><input class="cell" type="number" value="${p.eq}" style="width:85px" onchange="setPrice('${k}','eq',this.value)"></td>
-      <td class="num">${clp(p.cd)}</td><td class="num"><b>${clp(p.pu)}</b></td>
-      <td class="num"><b>${clp(tot)}</b></td></tr>`;
-    last=r.sis;
+  let cd=0, rows="", bySis={};
+  const grupos={};
+  R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
+  Object.entries(grupos).forEach(([sis,rs],gi)=>{
+    let sub=0;
+    rs.forEach(r=>{const p=puOf(r.key);sub+=p.pu*r.qty;cd+=p.cd*r.qty;});
+    bySis[sis]=sub;
+    const col=apuCol.has(gi);
+    rows+=`<tr style="cursor:pointer" onclick="toggleApu(${gi})" title="Clic para contraer/extender">
+      <td colspan="3" style="background:#dcebf7;font-weight:700;color:var(--navy)">${col?"▸":"▾"} ${sis}</td>
+      <td class="num" style="background:#dcebf7;color:var(--mut);font-size:12px">${rs.length} part.</td>
+      <td colspan="5" style="background:#dcebf7"></td>
+      <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}</td></tr>`;
+    if(!col)rs.forEach(r=>{
+      const p=puOf(r.key), tot=p.pu*r.qty;
+      const k=r.key.replace(/'/g,"\\'").replace(/"/g,"&quot;");
+      rows+=`<tr><td></td><td>${r.key}</td><td>${r.unit}</td>
+        <td class="num">${fmt(r.qty)}</td>
+        <td><input class="cell" type="number" value="${p.mat}" style="width:90px" onchange="setPrice('${k}','mat',this.value)"></td>
+        <td><input class="cell" type="number" value="${p.mo}" style="width:85px" onchange="setPrice('${k}','mo',this.value)"></td>
+        <td><input class="cell" type="number" value="${p.eq}" style="width:85px" onchange="setPrice('${k}','eq',this.value)"></td>
+        <td class="num">${clp(p.cd)}</td><td class="num"><b>${clp(p.pu)}</b></td>
+        <td class="num"><b>${clp(tot)}</b></td></tr>`;
+    });
   });
   const cdT=cd, ggT=cdT*gg/100, utT=(cdT+ggT)*ut/100, neto=cdT+ggT+utT, ivaT=neto*iva/100, tot=neto+ivaT;
   const h=`<div class="card"><h2>Análisis de Precios Unitarios</h2>
-  <p class="note no-print">Edita Materiales / Mano de Obra / Equipos por unidad (CLP). PU = Costo directo × (1+GG%) × (1+Utilidad%). GG, Utilidad, IVA y valor UF se configuran en Proyecto.</p>
+  <p class="note no-print">Edita Materiales / Mano de Obra / Equipos por unidad (CLP). PU = Costo directo × (1+GG%) × (1+Utilidad%). GG, Utilidad, IVA y valor UF se configuran en Proyecto. Clic en el encabezado de cada sistema para contraer/extender sus partidas (el subtotal queda siempre visible).</p>
   <div style="overflow-x:auto"><table>
   <tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cant.</th><th>Materiales</th><th>M. Obra</th><th>Equipos</th><th class="num">C. Directo</th><th class="num">P. Unitario</th><th class="num">Total</th></tr>
   ${rows}</table></div>
