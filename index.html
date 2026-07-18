@@ -264,7 +264,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
 <script>
 /* ═════════════════ CATÁLOGOS ═════════════════ */
 const PERFILES_BASE=[
- "W150x22.5","W150x29.8","W200x26.6","W200x31.3","W200x35.9","W200x41.7","W200x46.1","W200x52",
+ "W150x22.5","W150x29.8","W150x37.1","W200x26.6","W200x31.3","W200x35.9","W200x41.7","W200x46.1","W200x52",
  "W250x32.7","W250x38.5","W250x44.8","W250x49.1","W250x58","W310x38.7","W310x44.5","W310x52","W310x60",
  "W360x32.9","W360x39","W360x44.8","W360x51","W360x57.8","W410x46.1","W410x53","W460x52","W460x60",
  "HP250x62","HP310x79","HP310x93"];
@@ -304,18 +304,22 @@ function calcMBA(s){
   const area=rnd(s.H*s.L);                       // D15 =D12*D13
   const nPerf=up(s.L/s.esp)+(+s.extra);          // D19 =ROUNDUP(L/esp,0)+extra
   const mlPerf=rnd(s.Lp*nPerf);                  // D20 =D18*D19
-  let ancTot=0,mlAnc=0,det=[];
+  let ancTot=0,mlAnc=0,nCables=0,mlCab=0,det=[];
+  const lr=(s.lr===""||s.lr==null)?1.5:+s.lr;    // reserva por cable (Nota Técnica Nexxo: Lr=1,5 m)
   (s.anc||[]).forEach(a=>{
     const auto=up(nPerf/2);                      // D30 =D19/2 (automático)
     const manual=(a.cant!==""&&a.cant!=null&&+a.cant>0);
     const cant=manual?Math.round(+a.cant):auto;  // editable: vacío = automático
-    const ml=a.len>0?rnd(cant*a.len):0;          // F30 =D30*E30
-    det.push({...a,cant,auto,manual,ml}); ancTot+=cant; mlAnc+=ml;
+    const ml=a.len>0?rnd(cant*a.len):0;          // La = Na·Lt
+    const nc=+a.nc||0;
+    const cab=a.len>0?rnd(cant*nc*(+a.len+lr)):0; // Lc = Na·nc·(Lt+Lr)  [NT Nexxo ec. 5.6]
+    det.push({...a,cant,auto,manual,ml,cab}); ancTot+=cant; mlAnc+=ml;
+    nCables+=cant*nc; mlCab+=cab;
   });
   const vigas=ancTot, cabez=ancTot;              // D22=D36 ; D26=D36
   const mlExt=rnd(s.ext*vigas*2);                // D25 =D24*D22*2
-  const mlCab=rnd(mlAnc*1.2);                    // L19 =L18*1.2 (+20% tensado)
-  return{area,nPerf,mlPerf,vigas,cabez,mlExt,mlAnc,mlCab,det};
+  const tAcero=rnd(mlPerf*kgm(s.perfil)/1000,2); // M = L·μWF  [NT Nexxo ec. 5.2]
+  return{area,nPerf,mlPerf,vigas,cabez,mlExt,mlAnc,mlCab:rnd(mlCab),nCables,tAcero,lr,det};
 }
 function calcMBV(s){
   const area=rnd(s.H*s.L);
@@ -416,11 +420,11 @@ function calcMT(){
 function resumen(){
   const R=[]; const add=(sis,key,unit,qty)=>{if(qty>0.0001)R.push({sis,key,unit,qty:rnd(qty)});};
   // MBA
-  let t20=0,t25=0,perf={},vig=0,cab=0,ext=0,anc=0,cabl=0;
+  let t20=0,t25=0,perf={},vig=0,cab=0,ext=0,anc=0,cabl=0,ncab=0;
   S.mba.forEach(s=>{const c=calcMBA(s);
     if(String(s.tab)==="2.5")t25+=c.area; else t20+=c.area;
     perf[s.perfil]=(perf[s.perfil]||0)+c.mlPerf;
-    vig+=c.vigas;cab+=c.cabez;ext+=c.mlExt;anc+=c.mlAnc;cabl+=c.mlCab;});
+    vig+=c.vigas;cab+=c.cabez;ext+=c.mlExt;anc+=c.mlAnc;cabl+=c.mlCab;ncab+=c.nCables;});
   add("Muro Berlinés Anclado",'Entibación tablones 2,0"',"m²",t20);
   add("Muro Berlinés Anclado",'Entibación tablones 2,5"',"m²",t25);
   Object.entries(perf).forEach(([p,v])=>add("Muro Berlinés Anclado","Perfil "+p+" hincado/retirado","ml",v));
@@ -428,7 +432,8 @@ function resumen(){
   add("Muro Berlinés Anclado","Vigas de amarre","un",vig);
   add("Muro Berlinés Anclado","Cabezales de anclaje (4 cables)","un",cab);
   add("Muro Berlinés Anclado","Anclajes postensados inyectados","ml",anc);
-  add("Muro Berlinés Anclado","Cables de acero (+20% tensado)","ml",cabl);
+  add("Muro Berlinés Anclado",'Cables de acero 0,6" (incl. reserva)',"ml",cabl);
+  add("Muro Berlinés Anclado","Cuñas cónicas / mordazas","un",ncab);
   // MBV
   let v20=0,v25=0,perfV={};
   S.mbv.forEach(s=>{const c=calcMBV(s);
@@ -502,7 +507,8 @@ const PBASE={
  'Vigas de amarre':{mat:120000,mo:60000,eq:40000},
  'Cabezales de anclaje (4 cables)':{mat:95000,mo:45000,eq:30000},
  'Anclajes postensados inyectados':{mat:38000,mo:26000,eq:31000},
- 'Cables de acero (+20% tensado)':{mat:4200,mo:800,eq:500},
+ 'Cables de acero 0,6" (incl. reserva)':{mat:4200,mo:800,eq:500},
+ 'Cuñas cónicas / mordazas':{mat:4800,mo:700,eq:0},
  'Shotcrete G-25 proyectado':{mat:38000,mo:22000,eq:25000},
  'Hormigón proyectado G-25 (vol.)':{mat:0,mo:0,eq:0},
  'Malla acero (doble malla)':{mat:1250,mo:450,eq:150},
@@ -641,6 +647,7 @@ function renderMBA(){
       <div><label>Perfil</label><select onchange="setvs('mba.${i}.perfil',this.value)">
         ${perfiles().map(p=>`<option ${s.perfil===p?"selected":""}>${p}</option>`).join("")}</select></div>
       <div><label>Long. extensión (m)</label>${inp(`mba.${i}.ext`,s.ext)}</div>
+      <div><label>Reserva cable Lr (m)${helpIco("Longitud adicional por cable para desarrollo, manipulación y tensado. Nota Técnica de referencia (MBA Ed. Nexxo, Pewen): Lr = 1,5 m por cable. Cables totales = Σ N°anclajes × cables/anclaje × (Lt + Lr).")}</label>${inp(`mba.${i}.lr`,s.lr??1.5)}</div>
     </div>
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de anclaje</b>${helpIco("Cantidad automática = perfiles ÷ 2 (un anclaje cada 2 perfiles, c/"+rnd(s.esp*2)+" m según planilla). Puedes escribir otra cantidad para agregar o quitar unidades; deja el campo vacío para volver al cálculo automático.")}
     <table style="margin-top:6px"><tr><th>Línea</th><th>N° cables</th><th>Capacidad (kN)</th><th>Longitud (m)</th><th>Cantidad (editable)</th><th class="num">ml totales</th><th></th></tr>
@@ -661,7 +668,9 @@ function renderMBA(){
       <div><b>${c.cabez}</b><span>cabezales</span></div>
       <div><b>${fmt(c.mlExt,1)}</b><span>ml extensiones</span></div>
       <div><b>${fmt(c.mlAnc,1)}</b><span>ml anclajes</span></div>
-      <div><b>${fmt(c.mlCab,1)}</b><span>ml cables (+20%)</span></div>
+      <div><b>${c.nCables}</b><span>n° cables</span></div>
+      <div><b>${fmt(c.mlCab,1)}</b><span>ml cables (Lt+${fmt(c.lr,1)})</span></div>
+      <div><b>${fmt(c.tAcero)}</b><span>t acero perfiles</span></div>
     </div></div>`;
   });
   h+=`<button class="btn" onclick="S.mba.push({nom:'Nueva sección',H:3.6,L:12,esp:1.6,extra:4,Lp:5.5,tab:'2.0',perfil:'W200x31.3',ext:0.5,anc:[{nc:2,kn:190,len:10.5}]});renderSub()">+ Agregar sección</button>
@@ -1032,7 +1041,7 @@ function wpqCard(){
   <p class="note no-print">Modelo de pricing basado en la data histórica de proyectos (planilla Z_Price): costo directo por regresión CD/m² = 4.370·prof + 7.176, absorción de costos fijos (135 UF/mes) y semáforo de política comercial. Independiente del APU por partidas de arriba: úsalo para cotizar el servicio por m² de planta.</p>
   <div class="grid g4">
     <div><label>Planta del proyecto (m²)</label>${inp('wpq.m2',q.m2,10)}</div>
-    <div><label>Prof. excavación (m)</label>${inp('wpq.prof',q.prof,0.5)}</div>
+    <div><label>Prof. excavación (m)${helpIco("IMPORTANTE: usar la profundidad de EXCAVACIÓN (sello), NO la profundidad del pozo — el pozo agrega 1,5 a 2 m bajo el sello y usarla infla el costo directo ~15%. Además, la planilla Z_Price está calibrada con UF fija 40.290,47: para comparar 1:1 con el Excel, ajusta el Valor UF en la pestaña Proyecto.")}</label>${inp('wpq.prof',q.prof,0.5)}</div>
     <div><label>Duración (meses)${helpIco("Sugerida por regresión de productividad (m²/mes = −5,9·prof + 267): "+fmt(c.durSug,1)+" meses para esta planta y profundidad ("+fmt(c.prodEsp,1)+" m²/mes esperados).")}</label>${inp('wpq.mes',q.mes,0.5)}</div>
     <div><label>Proyectos paralelos</label>${inp('wpq.par',q.par,1)}</div>
     <div><label>Mejoramiento terreno</label><select onchange="setvs('wpq.mej',this.value)">
