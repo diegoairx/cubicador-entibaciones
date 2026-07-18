@@ -996,8 +996,18 @@ function renderInforme(){
   const hoy=val("p_fec")||new Date().toISOString().slice(0,10);
   const sisRows=Object.entries(bySis).map(([s,v])=>
     `<tr><td>${s}</td><td class="num">${clp(v)}</td><td class="num">UF ${fmt(v/uf,1)}</td><td class="num">${fmt(v/tot*100,1)}%</td></tr>`).join("");
-  let last="",qtyRows="";
-  R.forEach(r=>{qtyRows+=`<tr><td>${r.sis!==last?"<b>"+r.sis+"</b>":""}</td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td><td class="num">${clp(puOf(r.key).pu)}</td><td class="num">${clp(puOf(r.key).pu*r.qty)}</td></tr>`;last=r.sis;});
+  let qtyRows="";
+  const grupos={};
+  R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
+  Object.entries(grupos).forEach(([sis,rows],gi)=>{
+    const sub=rows.reduce((t,r)=>t+puOf(r.key).pu*r.qty,0);
+    qtyRows+=`<tr style="cursor:pointer" onclick="toggleSis(${gi})" title="Clic para contraer/extender">
+      <td colspan="3" style="background:#dcebf7;font-weight:700;color:var(--navy)"><span id="sis-arrow-${gi}">▾</span> ${sis}</td>
+      <td class="num" style="background:#dcebf7;color:var(--mut);font-size:12px">${rows.length} part.</td>
+      <td style="background:#dcebf7"></td>
+      <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}</td></tr>`;
+    rows.forEach(r=>{qtyRows+=`<tr class="sisrow-${gi}"><td></td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td><td class="num">${clp(puOf(r.key).pu)}</td><td class="num">${clp(puOf(r.key).pu*r.qty)}</td></tr>`;});
+  });
   document.getElementById("rep-body").innerHTML=`
   <div class="rep-head">
     <div><div class="logo" style="color:var(--navy)">
@@ -1027,7 +1037,7 @@ function renderInforme(){
     <div class="chart-box"><h3>Partidas de mayor incidencia (CLP)</h3><canvas id="c2"></canvas></div>
   </div>
   <h2 style="margin-top:22px">3. Cubicación y Presupuesto por Partida
-    <button class="btn ghost sm no-print" id="btn-partidas" style="margin-left:10px" onclick="togglePartidas()">▲ Contraer partidas</button></h2>
+    <span class="no-print" style="font-size:11.5px;font-weight:400;color:var(--mut);margin-left:10px">(clic en cada sistema para contraer/extender)</span></h2>
   <div id="partidas-wrap"><table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (CLP)</th><th class="num">Total (CLP)</th></tr>${qtyRows}</table></div>
   <h2 style="margin-top:22px">4. Observaciones</h2>
   <p style="font-size:13px;line-height:1.7;color:var(--txt)">
@@ -1224,11 +1234,13 @@ function csvActual(){
 }
 
 /* ═════════════════ DESCARGA PDF ═════════════════ */
-function togglePartidas(){
-  const w=document.getElementById("partidas-wrap"),b=document.getElementById("btn-partidas");
-  const oculto=w.style.display==="none";
-  w.style.display=oculto?"block":"none";
-  b.textContent=oculto?"▲ Contraer partidas":"▼ Extender partidas";
+function toggleSis(i){
+  const rows=document.querySelectorAll(".sisrow-"+i);
+  if(!rows.length)return;
+  const ocultar=rows[0].style.display!=="none";
+  rows.forEach(r=>r.style.display=ocultar?"none":"");
+  const a=document.getElementById("sis-arrow-"+i);
+  if(a)a.textContent=ocultar?"▸":"▾";
 }
 async function descargarPDF(){
   const btn=document.getElementById("btn-pdf");btn.disabled=true;btn.textContent="Generando PDF…";
