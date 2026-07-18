@@ -211,6 +211,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-s="sn" onclick="goSub('sn')">Soil Nailing</button>
     <button data-s="mp" onclick="goSub('mp')">Micropilotes</button>
     <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
+    <button data-s="ag" onclick="goSub('ag')">💧 Agotamiento</button>
     <button data-s="mt" onclick="goSub('mt')">Mov. de Tierra</button>
     <button data-s="resumen" onclick="goSub('resumen')">📋 Cuadro Resumen</button>
   </div>
@@ -219,6 +220,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div id="sub-sn" style="display:none"></div>
   <div id="sub-mp" style="display:none"></div>
   <div id="sub-fab" style="display:none"></div>
+  <div id="sub-ag" style="display:none"></div>
   <div id="sub-mt" style="display:none"></div>
   <div id="sub-resumen" style="display:none"></div>
 </section>
@@ -295,6 +297,7 @@ let S={
    viga:{L:0,b:0.4,h:0.6,cuant:90}},
  mt:{areas:[{nom:"Área 1",A:199.65,L:41.9}],mej:{A:0,h:0}},
  fab:{num:1,dias:5,rows:[{det:"Corte 1, Línea 1",cant:24,largo:15,ang:20,kn:560,cables:4,lw:5}]},
+ ag:[{nom:"Zona 1",tipo:"wellpoint",L:42,B:20,esp:3,cant:"",prof:8,diam:250,bombas:2,meses:3,drenes:0,sentinas:1,piez:2}],
  perfCustom:[],
  apu:{}  // overrides {key:{mat,mo,eq}}
 };
@@ -372,6 +375,18 @@ function calcFAB(){
   T.rollos=Math.ceil(T.cable/3000*10)/10;             // ROUNDUP(m/3000, 1 decimal)
   return{det,T};
 }
+/* Agotamiento de napa (well point / pozos profundos - metodología GGU-DRAWDOWN) */
+function calcAG(s){
+  const perim=s.B>0?rnd(2*(+s.L+ +s.B)):rnd(+s.L);       // perímetro excavación (o tramo lineal)
+  const autoN=s.esp>0?up(perim/s.esp):0;                  // pozos = ROUNDUP(perímetro/espaciamiento)
+  const manual=(s.cant!==""&&s.cant!=null&&+s.cant>0);
+  const n=manual?Math.round(+s.cant):autoN;               // editable (ej: resultado optimización GGU)
+  const mlPerf=rnd(n*s.prof);                             // ml perforación = n° pozos × profundidad
+  const lanzas=s.tipo==="wellpoint"?n:0;
+  const colector=rnd(perim*1.05);                         // colector con 5% adicional por conexiones
+  const eqMes=rnd((+s.bombas||0)*(+s.meses||0),1);        // equipos-mes de bombeo
+  return{perim,autoN,manual,n,mlPerf,lanzas,colector,eqMes};
+}
 function calcMT(){
   let m3=0,det=[];
   S.mt.areas.forEach(a=>{const v=up(a.A*a.L);det.push({...a,m3:v});m3+=v;}); // C11 =ROUNDUP(A*L,0)
@@ -434,6 +449,24 @@ function resumen(){
   add("Fabricación de Anclajes","Placa de anclaje","un",fb.anc);
   add("Fabricación de Anclajes","Cabeza de anclaje","un",fb.anc);
   add("Fabricación de Anclajes",'Cuña cónica cable 0,6"',"un",fb.cunas);
+  // Agotamiento
+  let agPerf={},agLanzas=0,agColector=0,agInst=0,agEqMes=0,agMeses=0,agDrenes=0,agSent=0,agPiez=0,agHab=0;
+  (S.ag||[]).forEach(s=>{const c=calcAG(s);
+    agPerf[s.diam]=(agPerf[s.diam]||0)+c.mlPerf; agHab+=c.mlPerf;
+    agLanzas+=c.lanzas; agColector+=c.colector; agInst+=(+s.bombas||0);
+    agEqMes+=c.eqMes; agMeses+=(+s.meses||0);
+    agDrenes+=(+s.drenes||0); agSent+=(+s.sentinas||0); agPiez+=(+s.piez||0);});
+  Object.entries(agPerf).forEach(([d,v])=>add("Agotamiento de Napa","Perforación Auger Ø"+d+"mm para pozos","ml",v));
+  add("Agotamiento de Napa","Habilitación pozo (PVC ranurado + filtro gravilla)","ml",agHab);
+  add("Agotamiento de Napa","Lanza well point instalada","un",agLanzas);
+  add("Agotamiento de Napa","Colector de succión/descarga","ml",agColector);
+  add("Agotamiento de Napa","Instalación y retiro equipo de bombeo","un",agInst);
+  add("Agotamiento de Napa","Arriendo equipo de bombeo","eq-mes",agEqMes);
+  add("Agotamiento de Napa","Energía/combustible bombeo","eq-mes",agEqMes);
+  add("Agotamiento de Napa","Operación y mantención del sistema","mes",agMeses);
+  add("Agotamiento de Napa","Dren horizontal de captación","ml",agDrenes);
+  add("Agotamiento de Napa","Sentina/pozo de achique","un",agSent);
+  add("Agotamiento de Napa","Monitoreo piezométrico","un",agPiez);
   // MT
   const mt=calcMT();
   add("Movimiento de Tierra","Excavación masiva y retiro","m³",mt.m3);
@@ -469,6 +502,18 @@ const PBASE={
  'Moldaje viga socalzado':{mat:12000,mo:9000,eq:2000},
  'Excavación masiva y retiro':{mat:0,mo:2200,eq:7300},
  'Mejoramiento Arena Biobío':{mat:14500,mo:2500,eq:5000},
+ 'Perforación Auger Ø160mm para pozos':{mat:4500,mo:8500,eq:14000},
+ 'Perforación Auger Ø250mm para pozos':{mat:6000,mo:9500,eq:17500},
+ 'Habilitación pozo (PVC ranurado + filtro gravilla)':{mat:9500,mo:4500,eq:2000},
+ 'Lanza well point instalada':{mat:18000,mo:8000,eq:6000},
+ 'Colector de succión/descarga':{mat:8500,mo:3500,eq:2000},
+ 'Instalación y retiro equipo de bombeo':{mat:25000,mo:65000,eq:70000},
+ 'Arriendo equipo de bombeo':{mat:0,mo:120000,eq:680000},
+ 'Energía/combustible bombeo':{mat:0,mo:0,eq:390000},
+ 'Operación y mantención del sistema':{mat:60000,mo:950000,eq:180000},
+ 'Dren horizontal de captación':{mat:12000,mo:8500,eq:15000},
+ 'Sentina/pozo de achique':{mat:65000,mo:85000,eq:110000},
+ 'Monitoreo piezométrico':{mat:45000,mo:35000,eq:38000},
  'Cable 0,6" de diámetro':{mat:3900,mo:350,eq:150},
  'Separador 2 vías':{mat:1800,mo:250,eq:0},
  'Separador 6 vías':{mat:2600,mo:250,eq:0},
@@ -512,11 +557,11 @@ function go(v){curV=v;
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","fab","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","sn","mp","fab","ag","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,fab:renderFAB,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,fab:renderFAB,ag:renderAG,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
@@ -529,12 +574,14 @@ function clearMod(m){
   else if(m==="mp")S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
   else if(m==="mt")S.mt={areas:[],mej:{A:0,h:0}};
   else if(m==="fab")S.fab={num:1,dias:5,rows:[]};
+  else if(m==="ag")S.ag=[];
   else if(m==="apu"){S.apu={};renderAPU();return;}
   else if(m==="todo"){
     S.mba=[];S.mbv=[];S.sn=[];S.apu={};
     S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
     S.mt={areas:[],mej:{A:0,h:0}};
     S.fab={num:1,dias:5,rows:[]};
+    S.ag=[];
   }
   renderSub();
 }
@@ -761,6 +808,47 @@ function renderFAB(){
     <div><b>${fmt(c.T.cunas,0)}</b><span>cuñas cónicas 0,6"</span></div>
   </div>`;
   document.getElementById("sub-fab").innerHTML=`<div class="card">${modHead("Fabricación de Anclajes de Cable — Solicitud N°"+(f.num??1),"fab")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: AGOTAMIENTO ═════════════════ */
+function renderAG(){
+  if(!S.ag)S.ag=[];
+  let h="";
+  S.ag.forEach((s,i)=>{
+    const c=calcAG(s);
+    h+=`<div class="sec"><div class="sec-head"><span class="tag">ZONA ${i+1}</span>
+      <input value="${s.nom}" style="max-width:260px" onchange="setvs('ag.${i}.nom',this.value)">
+      <button class="btn warn sm" style="margin-left:auto" onclick="S.ag.splice(${i},1);renderSub()">✕ Eliminar</button></div>
+    <div class="grid g4">
+      <div><label>Sistema</label><select onchange="setvs('ag.${i}.tipo',this.value)">
+        <option value="wellpoint" ${s.tipo==="wellpoint"?"selected":""}>Well Point</option>
+        <option value="profundo" ${s.tipo==="profundo"?"selected":""}>Pozos profundos</option></select></div>
+      <div><label>Largo excav. L (m)</label>${inp(`ag.${i}.L`,s.L)}</div>
+      <div><label>Ancho excav. B (m)</label>${inp(`ag.${i}.B`,s.B)}</div>
+      <div><label>Espac. pozos (m)</label>${inp(`ag.${i}.esp`,s.esp)}</div>
+      <div><label>N° pozos (editable)${helpIco("Automático = ROUNDUP(perímetro ÷ espaciamiento). Escribe la cantidad optimizada de GGU-DRAWDOWN si ya tienes el diseño; vacío vuelve al cálculo automático.")}</label>
+        <input class="cell" type="number" step="1" min="0" value="${c.manual?c.n:""}" placeholder="auto: ${c.autoN}" style="width:100%;text-align:right" onchange="setv('ag.${i}.cant',this.value)"></div>
+      <div><label>Prof. pozo (m)</label>${inp(`ag.${i}.prof`,s.prof)}</div>
+      <div><label>Ø perforación (mm)</label><select onchange="setv('ag.${i}.diam',this.value)">
+        <option ${+s.diam===160?"selected":""}>160</option><option ${+s.diam===250?"selected":""}>250</option></select></div>
+      <div><label>N° equipos bombeo</label>${inp(`ag.${i}.bombas`,s.bombas,1)}</div>
+      <div><label>Meses de operación</label>${inp(`ag.${i}.meses`,s.meses,0.5)}</div>
+      <div><label>Drenes horiz. (ml)</label>${inp(`ag.${i}.drenes`,s.drenes,1)}</div>
+      <div><label>Sentinas achique (un)</label>${inp(`ag.${i}.sentinas`,s.sentinas,1)}</div>
+      <div><label>Piezómetros (un)</label>${inp(`ag.${i}.piez`,s.piez,1)}</div>
+    </div>
+    <div class="kpi">
+      <div><b>${fmt(c.perim,1)}</b><span>m perímetro</span></div>
+      <div><b>${c.n}</b><span>pozos ${s.tipo==="wellpoint"?"well point":"profundos"}</span></div>
+      <div><b>${fmt(c.mlPerf,1)}</b><span>ml perforación Ø${s.diam}</span></div>
+      ${c.lanzas>0?`<div><b>${c.lanzas}</b><span>lanzas well point</span></div>`:""}
+      <div><b>${fmt(c.colector,1)}</b><span>ml colector (+5%)</span></div>
+      <div><b>${fmt(c.eqMes,1)}</b><span>equipos-mes bombeo</span></div>
+    </div>
+    <p class="note">Dimensionamiento hidráulico (caudal, n° de pozos y profundidad) según optimización GGU-DRAWDOWN: pozos a 1–3 m del borde, abatimiento ≥ 0,3–0,5 m bajo sello de excavación.</p></div>`;
+  });
+  h+=`<button class="btn" onclick="S.ag.push({nom:'Nueva zona',tipo:'wellpoint',L:30,B:15,esp:3,cant:'',prof:8,diam:250,bombas:1,meses:2,drenes:0,sentinas:1,piez:2});renderSub()">+ Agregar zona</button>`;
+  document.getElementById("sub-ag").innerHTML=`<div class="card">${modHead("Agotamiento de Napa Freática","ag")}${h}</div>`;
 }
 
 /* ═════════════════ RENDER: MOV TIERRA ═════════════════ */
