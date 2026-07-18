@@ -297,7 +297,8 @@ let S={
    viga:{L:0,b:0.4,h:0.6,cuant:90}},
  mt:{areas:[{nom:"Área 1",A:199.65,L:41.9}],mej:{A:0,h:0}},
  fab:{num:1,dias:5,rows:[{det:"Corte 1, Línea 1",cant:24,largo:15,ang:20,kn:560,cables:4,lw:5}]},
- ag:[{nom:"Zona 1",tipo:"wellpoint",L:42,B:20,esp:3,cant:"",prof:8,diam:250,bombas:2,meses:3,drenes:0,sentinas:1,piez:2}],
+ ag:[{nom:"Zona 1",tipo:"wellpoint",L:42,B:20,esp:3,cant:"",prof:8,diam:250,bombas:2,meses:3,drenes:0,sentinas:1,piez:2,
+   k:0.0005,H:10,t:3.5,z:0.4,conf:"libre",mEsp:5,alfa:1.1,beta:1.2,Rmode:"sichardt",Rfix:150}],
  perfCustom:[],
  apu:{}  // overrides {key:{mat,mo,eq}}
 };
@@ -386,6 +387,27 @@ function calcAG(s){
   const colector=rnd(perim*1.05);                         // colector con 5% adicional por conexiones
   const eqMes=rnd((+s.bombas||0)*(+s.meses||0),1);        // equipos-mes de bombeo
   return{perim,autoN,manual,n,mlPerf,lanzas,colector,eqMes};
+}
+/* Cálculo hidráulico HERTH/ARNDTS - GGU-DRAWDOWN:
+   Q = π·k·(H²-h²)/(lnR-lnA) [libre] | Q = 2π·m·s·k/(lnR-lnA) [confinado]
+   R Sichardt = 3000·s·√k · A_RE = √(B·L/π) · Q(beh) = α·β·Q */
+function calcAGH(s,c){
+  const k=+s.k||0,H=+s.H||0,t=+s.t||0,z=(s.z===""||s.z==null)?0.4:+s.z;
+  const sAb=t+z;
+  if(!(k>0&&sAb>0&&+s.L>0&&+s.B>0))return null;
+  if(s.conf!=="conf"&&!(H>0))return null;
+  let R=(s.Rmode==="fijo")?(+s.Rfix||0):3000*sAb*Math.sqrt(k);   // Sichardt o valor fijo
+  const A=Math.sqrt(+s.L*+s.B/Math.PI);                          // radio equivalente "with root"
+  let corr=false;
+  if(R<=A*Math.E){R=Math.sqrt(R*R+A*A);corr=true;}               // corrección R'=√(R²+A²) si ln(R/A)<1
+  const lnRA=Math.log(R)-Math.log(A);
+  let Q;
+  if(s.conf==="conf"){const m=+s.mEsp||0;if(!(m>0))return null;Q=Math.PI*2*m*sAb*k/lnRA;}
+  else{const h=Math.max(H-sAb,0);Q=Math.PI*k*(H*H-h*h)/lnRA;}
+  const Qbeh=((+s.alfa)||1.1)*((+s.beta)||1.2)*Q;
+  return{sAb:rnd(sAb,2),R:rnd(R,1),A:rnd(A,2),corr,
+    Qm3h:rnd(Q*3600,1),Qbehm3h:rnd(Qbeh*3600,1),Qbehls:rnd(Qbeh*1000,1),
+    qPozo:c.n>0?rnd(Qbeh*1000/c.n,2):0};
 }
 function calcMT(){
   let m3=0,det=[];
@@ -845,9 +867,42 @@ function renderAG(){
       <div><b>${fmt(c.colector,1)}</b><span>ml colector (+5%)</span></div>
       <div><b>${fmt(c.eqMes,1)}</b><span>equipos-mes bombeo</span></div>
     </div>
-    <p class="note">Dimensionamiento hidráulico (caudal, n° de pozos y profundidad) según optimización GGU-DRAWDOWN: pozos a 1–3 m del borde, abatimiento ≥ 0,3–0,5 m bajo sello de excavación.</p></div>`;
+    ${(()=>{const hy=calcAGH(s,c);
+      const soils=[["","— suelo típico —"],["0.05","Grava gruesa (5E-2)"],["0.005","Grava fina/Arena gruesa (5E-3)"],["0.0005","Arena media (5E-4)"],["0.00005","Arena fina (5E-5)"],["0.000005","Limo arenoso (5E-6)"],["0.0000001","Limo (1E-7)"]];
+      return `<div style="margin-top:14px;border-top:1.5px dashed var(--line);padding-top:12px">
+      <b style="font-size:12.5px;color:var(--navy)">Cálculo hidráulico HERTH/ARNDTS — GGU-DRAWDOWN</b>${helpIco("Q = π·k·(H²−h²)/(lnR−lnA) en acuífero libre; Q = 2π·m·s·k/(lnR−lnA) en confinado. R según Sichardt = 3000·s·√k (o valor fijo si hay agua superficial cercana: distancia doble si el curso es perpendicular, simple si es paralelo). A_RE = √(B·L/π). Q(beh) = α·β·Q con α=1,10 y β=1,20 (HERTH/ARNDTS). Requiere L y B > 0.")}
+      <div class="grid g4" style="margin-top:8px">
+        <div><label>Acuífero</label><select onchange="setvs('ag.${i}.conf',this.value)">
+          <option value="libre" ${s.conf!=="conf"?"selected":""}>Libre</option>
+          <option value="conf" ${s.conf==="conf"?"selected":""}>Confinado</option></select></div>
+        <div><label>Suelo típico → k</label><select onchange="if(this.value)setv('ag.${i}.k',this.value)">
+          ${soils.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("")}</select></div>
+        <div><label>k (m/s)</label>${inp(`ag.${i}.k`,s.k??"","any")}</div>
+        <div><label>H — NF a base filtro (m)</label>${inp(`ag.${i}.H`,s.H??"")}</div>
+        <div><label>t — sello bajo NF (m)</label>${inp(`ag.${i}.t`,s.t??"")}</div>
+        <div><label>z — margen abatim. (m)</label>${inp(`ag.${i}.z`,s.z??0.4)}</div>
+        ${s.conf==="conf"?`<div><label>m — espesor acuífero (m)</label>${inp(`ag.${i}.mEsp`,s.mEsp??5)}</div>`:""}
+        <div><label>Factor α</label>${inp(`ag.${i}.alfa`,s.alfa??1.1,0.05)}</div>
+        <div><label>Factor β</label>${inp(`ag.${i}.beta`,s.beta??1.2,0.05)}</div>
+        <div><label>Rango R</label><select onchange="setvs('ag.${i}.Rmode',this.value)">
+          <option value="sichardt" ${s.Rmode!=="fijo"?"selected":""}>Sichardt (auto)</option>
+          <option value="fijo" ${s.Rmode==="fijo"?"selected":""}>Valor fijo</option></select></div>
+        ${s.Rmode==="fijo"?`<div><label>R fijo (m)</label>${inp(`ag.${i}.Rfix`,s.Rfix??150,1)}</div>`:""}
+      </div>
+      ${hy?`<div class="kpi">
+        <div><b>${fmt(hy.sAb)}</b><span>s abatimiento (m)</span></div>
+        <div><b>${fmt(hy.R,1)}</b><span>R alcance (m)${hy.corr?" *R′":""}</span></div>
+        <div><b>${fmt(hy.A)}</b><span>A_RE radio equiv. (m)</span></div>
+        <div><b>${fmt(hy.Qm3h,1)}</b><span>Q teórico (m³/h)</span></div>
+        <div style="background:#e8f4fb;border-color:var(--blue)"><b>${fmt(hy.Qbehm3h,1)}</b><span>Q(beh) diseño (m³/h)</span></div>
+        <div><b>${fmt(hy.Qbehls,1)}</b><span>Q(beh) (l/s)</span></div>
+        <div><b>${fmt(hy.qPozo)}</b><span>q por pozo (l/s)</span></div>
+      </div>${hy.corr?`<p class="note">Se aplicó la corrección R′=√(R²+A²) porque ln(R/A) < 1 (excavación grande y/o k bajo), según GGU-DRAWDOWN.</p>`:""}`
+      :`<p class="note">Ingresa k, H, t y dimensiones L×B (>0) para calcular el caudal de diseño.</p>`}
+      </div>`;})()}
+    <p class="note">Dimensionamiento según metodología GGU-DRAWDOWN: pozos a 1–3 m del borde, abatimiento ≥ 0,3–0,5 m bajo sello. Verificar q por pozo vs capacidad de bombas disponibles.</p></div>`;
   });
-  h+=`<button class="btn" onclick="S.ag.push({nom:'Nueva zona',tipo:'wellpoint',L:30,B:15,esp:3,cant:'',prof:8,diam:250,bombas:1,meses:2,drenes:0,sentinas:1,piez:2});renderSub()">+ Agregar zona</button>`;
+  h+=`<button class="btn" onclick="S.ag.push({nom:'Nueva zona',tipo:'wellpoint',L:30,B:15,esp:3,cant:'',prof:8,diam:250,bombas:1,meses:2,drenes:0,sentinas:1,piez:2,k:0.0005,H:10,t:3,z:0.4,conf:'libre',mEsp:5,alfa:1.1,beta:1.2,Rmode:'sichardt',Rfix:150});renderSub()">+ Agregar zona</button>`;
   document.getElementById("sub-ag").innerHTML=`<div class="card">${modHead("Agotamiento de Napa Freática","ag")}${h}</div>`;
 }
 
