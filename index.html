@@ -475,7 +475,8 @@ function resumen(){
   // Agotamiento
   let agPerf={},agLanzas=0,agColector=0,agInst=0,agEqMes=0,agMeses=0,agDrenes=0,agSent=0,agPiez=0,agHab=0;
   (S.ag||[]).forEach(s=>{const c=calcAG(s);
-    agPerf[s.diam]=(agPerf[s.diam]||0)+c.mlPerf; agHab+=c.mlPerf;
+    agPerf[s.diam]=(agPerf[s.diam]||0)+c.mlPerf;
+    if(s.tipo!=="wellpoint")agHab+=c.mlPerf; // habilitación PVC solo pozos profundos (well point usa lanza)
     agLanzas+=c.lanzas; agColector+=c.colector; agInst+=(+s.bombas||0);
     agEqMes+=c.eqMes; agMeses+=(+s.meses||0);
     agDrenes+=(+s.drenes||0); agSent+=(+s.sentinas||0); agPiez+=(+s.piez||0);});
@@ -1056,12 +1057,26 @@ function wpqCard(){
     <table>
       <tr><th>Zona</th><th class="num">Umbral UF/m²</th><th class="num">CLP/m²</th><th>Aprobación</th></tr>
       <tr><td>🟢 Verde (M≥20%)</td><td class="num">≥ ${fmt(c.verde,2)}</td><td class="num">≥ ${clp(c.verde*c.ufv)}</td><td>Ejecutivo</td></tr>
-      <tr><td>🟡 Ámbar (10–20%)</td><td class="num">${fmt(c.ambar,2)} – ${fmt(c.verde,2)}</td><td class="num">${clp(c.ambar*c.ufv)} –</td><td>COO</td></tr>
-      <tr><td>🔴 Roja (0–10%)</td><td class="num">${fmt(c.roja,2)} – ${fmt(c.ambar,2)}</td><td class="num">${clp(c.roja*c.ufv)} –</td><td>CEO + sustento</td></tr>
+      <tr><td>🟡 Ámbar (10–20%)</td><td class="num">${fmt(c.ambar,2)} – ${fmt(c.verde,2)}</td><td class="num">${clp(c.ambar*c.ufv)} – ${clp(c.verde*c.ufv)}</td><td>COO</td></tr>
+      <tr><td>🔴 Roja (0–10%)</td><td class="num">${fmt(c.roja,2)} – ${fmt(c.ambar,2)}</td><td class="num">${clp(c.roja*c.ufv)} – ${clp(c.ambar*c.ufv)}</td><td>CEO + sustento</td></tr>
       <tr><td>⛔ No cotizar</td><td class="num">&lt; ${fmt(c.roja,2)}</td><td class="num">&lt; ${clp(c.roja*c.ufv)}</td><td>No aprobar</td></tr>
     </table>
     <p class="note" style="margin-top:10px">Reglas: descuento máx. ejecutivo 5% (COO hasta 10%, sobre eso CEO) · mejoramiento +35% calibrable · duración > 8 meses: cláusula de reajuste UF/IPC c/4 meses · prof. > 10 m: análisis técnico previo · provisión imprevistos 5% (&lt;6 meses) u 8% · todo proyecto > 4 meses se cotiza y factura en UF. Umbrales con parámetros estándar: 204 m²/mes y 2 proyectos paralelos.</p>
-  </div></div></div>`;
+  </div></div>
+  ${(()=>{ // verificación cruzada: costo directo por partidas vs modelo de regresión
+    const agR=resumen().filter(r=>r.sis==="Agotamiento de Napa");
+    if(!agR.length)return "";
+    let cdPart=0;agR.forEach(r=>{const p=priceOf(r.key);cdPart+=(p.mat+p.mo+p.eq)*r.qty;});
+    const m2pl=(S.ag||[]).reduce((t,s)=>t+((+s.L*+s.B)||0),0);
+    if(!(m2pl>0))return "";
+    const cdPartM2=cdPart/m2pl, dif=(cdPartM2-c.cd)/c.cd*100;
+    const alerta=Math.abs(dif)>15;
+    return `<div class="note" style="margin-top:12px;${alerta?"border-color:var(--danger);background:#fdeeee":"border-color:#b8e0c8;background:#eefaf2"}">
+    <b>Verificación cruzada (módulo Agotamiento vs modelo Z_Price):</b>
+    costo directo por partidas cubicadas = <b>${clp(cdPartM2)}/m²</b> (${clp(cdPart)} en ${fmt(m2pl,0)} m² de planta)
+    vs modelo por regresión a ${q.prof} m = <b>${clp(c.cd)}/m²</b> → diferencia <b>${dif>0?"+":""}${fmt(dif,1)}%</b>.
+    ${alerta?"⚠ Diferencia sobre ±15%: revisa precios unitarios, cantidades o la profundidad usada en el modelo.":"✓ Consistente con la data histórica (±15%)."}</div>`;})()}
+  </div>`;
 }
 
 /* ═════════════════ INFORME EJECUTIVO ═════════════════ */
