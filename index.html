@@ -170,15 +170,15 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div class="card">
     <h2>Datos del Proyecto</h2>
     <div class="grid g3">
-      <div><label>Proyecto N°</label><input id="p_num" value="22 0923"></div>
-      <div><label>Nombre</label><input id="p_nom" value="Ed. Siete Lagunas"></div>
-      <div><label>Ubicación</label><input id="p_ubi" value="Concepción, Biobío"></div>
+      <div><label>Proyecto N°</label><input id="p_num" value=""></div>
+      <div><label>Nombre</label><input id="p_nom" value=""></div>
+      <div><label>Ubicación</label><input id="p_ubi" value=""></div>
       <div><label>Mandante / Cliente</label><input id="p_cli" value=""></div>
       <div><label>Ingeniero</label><input id="p_ing" value=""></div>
       <div><label>Revisor</label><input id="p_rev" value=""></div>
       <div><label>Revisión</label><input id="p_revn" value="0"></div>
       <div><label>Fecha</label><input id="p_fec" type="date"></div>
-      <div><label>Tipo de Obra</label><input id="p_tipo" value="Entibaciones"></div>
+      <div><label>Tipo de Obra</label><input id="p_tipo" value=""></div>
       <div><label>Estado</label><select id="p_est">
         <option>En estudio</option><option>Enviado a cotización</option><option>Adjudicado</option>
         <option>En ejecución</option><option>Finalizado</option><option>No adjudicado</option></select></div>
@@ -287,18 +287,13 @@ const clp=v=>"$"+Math.round(v).toLocaleString("es-CL");
 
 /* ═════════════════ ESTADO ═════════════════ */
 let S={
- mba:[{nom:"Diseño tipo 1A",H:3.6,L:12.1,esp:1.6,extra:4,Lp:5.5,tab:"2.0",perfil:"W200x31.3",ext:0.5,
-   anc:[{nc:2,kn:190,len:10.5}]}],
- mbv:[{nom:"Sección voladizo 1",H:3.0,L:20,esp:1.2,extra:2,Lp:7.0,tab:"2.0",perfil:"W250x32.7"}],
- sn:[{nom:"Tramo 1",H:6,inc:84,Lpl:20,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,
-   per:[{tipo:"R32S",cant:9,len:9.5},{tipo:"R38N",cant:9,len:10.5}]}],
- mp:{per:[{tipo:"R32N",kn:230,cant:10,len:9.5},{tipo:"R51N",kn:630,cant:6,len:15.5}],
-   placas:[{nom:"Placa 200x200 e=10mm",cant:10},{nom:"Placa 200x200 e=30mm",cant:6}],
-   viga:{L:0,b:0.4,h:0.6,cuant:90}},
- mt:{areas:[{nom:"Área 1",A:199.65,L:41.9}],mej:{A:0,h:0}},
- fab:{num:1,dias:5,rows:[{det:"Corte 1, Línea 1",cant:24,largo:15,ang:20,kn:560,cables:4,lw:5}]},
- ag:[{nom:"Zona 1",tipo:"wellpoint",L:42,B:20,esp:3,cant:"",prof:8,diam:250,bombas:2,meses:3,drenes:0,sentinas:1,piez:2,
-   k:0.0005,H:10,t:3.5,z:0.4,conf:"libre",mEsp:5,alfa:1.1,beta:1.2,Rmode:"sichardt",Rfix:150}],
+ mba:[],
+ mbv:[],
+ sn:[],
+ mp:{per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}},
+ mt:{areas:[],mej:{A:0,h:0}},
+ fab:{num:1,dias:5,rows:[]},
+ ag:[],
  perfCustom:[],
  wpq:{m2:1500,prof:6.5,mes:8,mej:"NO",rec:30,mg:20,par:2,eval:0},
  apu:{}  // overrides {key:{mat,mo,eq}}
@@ -912,7 +907,7 @@ function renderAG(){
 /* ═════════════════ RENDER: MOV TIERRA ═════════════════ */
 function renderMT(){
   const c=calcMT();
-  let h=`<table><tr><th>Zona</th><th>Área corte (m²)</th><th>Longitud (m)</th><th class="num">m³ (redondeo ↑)</th><th></th></tr>
+  let h=`<table><tr><th>Zona</th><th>Área planta (m²)</th><th>Prof. excavación (m)</th><th class="num">m³ (redondeo ↑)</th><th></th></tr>
   ${c.det.map((a,j)=>`<tr><td><input value="${a.nom}" style="max-width:200px" onchange="setv('mt.areas.${j}.nom',this.value)"></td>
     <td>${inp(`mt.areas.${j}.A`,a.A,0.01,90)}</td>
     <td>${inp(`mt.areas.${j}.L`,a.L,0.1,80)}</td>
