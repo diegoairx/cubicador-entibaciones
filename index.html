@@ -300,6 +300,7 @@ let S={
  ag:[{nom:"Zona 1",tipo:"wellpoint",L:42,B:20,esp:3,cant:"",prof:8,diam:250,bombas:2,meses:3,drenes:0,sentinas:1,piez:2,
    k:0.0005,H:10,t:3.5,z:0.4,conf:"libre",mEsp:5,alfa:1.1,beta:1.2,Rmode:"sichardt",Rfix:150}],
  perfCustom:[],
+ wpq:{m2:1500,prof:6.5,mes:8,mej:"NO",rec:30,mg:20,par:2,eval:0},
  apu:{}  // overrides {key:{mat,mo,eq}}
 };
 
@@ -617,14 +618,15 @@ function setv(path,v){
   for(let i=0;i<seg.length-1;i++)o=o[isNaN(seg[i])?seg[i]:+seg[i]];
   const last=seg[seg.length-1];
   o[last]=isNaN(+v)||v===""?v:+v;
-  renderSub();
+  refreshView();
 }
 function setvs(path,v){ // conserva el valor como texto (ej: tablón "2.0"/"2.5")
   const seg=path.split(".");let o=S;
   for(let i=0;i<seg.length-1;i++)o=o[isNaN(seg[i])?seg[i]:+seg[i]];
   o[seg[seg.length-1]]=String(v);
-  renderSub();
+  refreshView();
 }
+function refreshView(){ if(curV==="apu")renderAPU(); else renderSub(); }
 function renderMBA(){
   let h="";
   S.mba.forEach((s,i)=>{
@@ -978,7 +980,88 @@ function renderAPU(){
     <div class="t" style="background:linear-gradient(135deg,#5a3a00,var(--accent))"><small>TOTAL UF (UF=${fmt(uf,0)})</small><b>UF ${fmt(tot/uf,1)}</b></div>
   </div>
   <button class="btn ghost no-print" onclick="S.apu={};renderAPU()">↺ Restaurar precios referenciales</button></div>`;
-  document.getElementById("apu-body").innerHTML=h;
+  document.getElementById("apu-body").innerHTML=h+wpqCard();
+}
+
+/* ═════ APU ESPECIAL AGOTAMIENTO — Modelo Well Points Ngenco (Z_Price) ═════
+   CD/m² = 4.370·prof + 7.176 (regresión base histórica, sin proyectos atípicos)
+   CF/m² = 135 UF/mes ÷ (m²/mes del proyecto) ÷ proyectos paralelos
+   Precio sugerido = (CD(+mej) + CF/m²)/(1−margen)
+   Semáforo estándar: productividad 204 m²/mes y 2 proyectos paralelos */
+function calcWPQ(){
+  if(!S.wpq)S.wpq={m2:1500,prof:6.5,mes:8,mej:"NO",rec:30,mg:20,par:2,eval:0};
+  const q=S.wpq, ufv=+val("p_uf")||39500;
+  const cd=4370*q.prof+7176;
+  const cdm=(String(q.mej).toUpperCase().startsWith("S"))?cd*(1+q.rec/100):cd;
+  const prodMes=q.mes>0?q.m2/q.mes:0;
+  const cfUF=(prodMes>0&&q.par>0)?135/prodMes/q.par:0;
+  const cfCLP=cfUF*ufv;
+  const ctot=cdm+cfCLP;
+  const mg=q.mg/100;
+  const pv=mg<1?ctot/(1-mg):0;
+  const total=pv*q.m2;
+  // Semáforo (parámetros estándar de política comercial)
+  const base=cd+135/(204*2)*ufv;
+  const verde=base/0.8/ufv, ambar=base/0.9/ufv, roja=base/ufv;
+  const evalUF=q.eval>0?+q.eval:pv/ufv;
+  let zona,zc,apr;
+  if(evalUF>=verde){zona="🟢 ZONA VERDE";zc="#27ae60";apr="Aprobación: ejecutivo comercial (margen ≥ 20%)";}
+  else if(evalUF>=ambar){zona="🟡 ZONA ÁMBAR";zc="#d8a018";apr="Requiere aprobación COO (margen 10–20%)";}
+  else if(evalUF>=roja){zona="🔴 ZONA ROJA";zc="#e05252";apr="Requiere aprobación CEO + sustento por escrito (margen 0–10%)";}
+  else{zona="⛔ NO COTIZAR";zc="#5f7385";apr="Precio bajo break-even: genera pérdida. No aprobar.";}
+  const mgReal=evalUF>0?(evalUF-ctot/ufv)/evalUF:0;
+  const utilReal=(evalUF-ctot/ufv)*q.m2;
+  const prodEsp=-5.9*q.prof+267;                       // regresión productividad
+  const durSug=prodEsp>0?q.m2/prodEsp:0;
+  return{cd,cdm,prodMes,cfUF,cfCLP,ctot,pv,pvUF:pv/ufv,total,totalUF:total/ufv,
+    factMes:q.mes>0?total/q.mes:0,util:total*mg,utilMes:q.mes>0?total*mg/q.mes:0,
+    verde,ambar,roja,evalUF,zona,zc,apr,mgReal,utilReal,prodEsp:rnd(prodEsp,1),durSug:rnd(durSug,1),ufv};
+}
+function wpqCard(){
+  const c=calcWPQ(), q=S.wpq;
+  const row=(lbl,v,v2)=>`<tr><td>${lbl}</td><td class="num"><b>${v}</b></td><td class="num">${v2||""}</td></tr>`;
+  return `<div class="card"><h2>APU Agotamiento — Modelo Well Points Ngenco</h2>
+  <p class="note no-print">Modelo de pricing basado en la data histórica de proyectos (planilla Z_Price): costo directo por regresión CD/m² = 4.370·prof + 7.176, absorción de costos fijos (135 UF/mes) y semáforo de política comercial. Independiente del APU por partidas de arriba: úsalo para cotizar el servicio por m² de planta.</p>
+  <div class="grid g4">
+    <div><label>Planta del proyecto (m²)</label>${inp('wpq.m2',q.m2,10)}</div>
+    <div><label>Prof. excavación (m)</label>${inp('wpq.prof',q.prof,0.5)}</div>
+    <div><label>Duración (meses)${helpIco("Sugerida por regresión de productividad (m²/mes = −5,9·prof + 267): "+fmt(c.durSug,1)+" meses para esta planta y profundidad ("+fmt(c.prodEsp,1)+" m²/mes esperados).")}</label>${inp('wpq.mes',q.mes,0.5)}</div>
+    <div><label>Proyectos paralelos</label>${inp('wpq.par',q.par,1)}</div>
+    <div><label>Mejoramiento terreno</label><select onchange="setvs('wpq.mej',this.value)">
+      <option ${q.mej!=="SI"?"selected":""} value="NO">NO</option><option ${q.mej==="SI"?"selected":""} value="SI">SÍ</option></select></div>
+    <div><label>Recargo mejoramiento %</label>${inp('wpq.rec',q.rec,5)}</div>
+    <div><label>Margen objetivo %</label>${inp('wpq.mg',q.mg,1)}</div>
+    <div><label>Precio a evaluar (UF/m²)${helpIco("Déjalo en 0 para evaluar el precio sugerido por el modelo. Ingresa un valor > 0 para evaluar una cotización alternativa o de la competencia.")}</label>${inp('wpq.eval',q.eval,0.01)}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:14px">
+  <div><table>
+    <tr><th colspan="3">RESULTADO DEL CÁLCULO (UF=${fmt(c.ufv,0)})</th></tr>
+    ${row("Costo directo /m²",clp(c.cd),"UF "+fmt(c.cd/c.ufv,3))}
+    ${q.mej==="SI"?row("CD + mejoramiento /m²",clp(c.cdm),"+"+q.rec+"%"):""}
+    ${row("CF absorbidos /m² ("+fmt(c.prodMes,0)+" m²/mes ÷ "+q.par+" proy.)",clp(c.cfCLP),"UF "+fmt(c.cfUF,3))}
+    ${row("Costo total /m²",clp(c.ctot),"UF "+fmt(c.ctot/c.ufv,3))}
+    ${row("PRECIO VENTA SUGERIDO /m²",clp(c.pv),"UF "+fmt(c.pvUF,2))}
+    ${row("PRESUPUESTO TOTAL",clp(c.total),"UF "+fmt(c.totalUF,0))}
+    ${row("Facturación mensual (referencial)",clp(c.factMes),"UF "+fmt(c.factMes/c.ufv,1))}
+    ${row("Utilidad esperada",clp(c.util),"UF "+fmt(c.util/c.ufv,0))}
+    ${row("Utilidad mensual",clp(c.utilMes),"UF "+fmt(c.utilMes/c.ufv,1))}
+  </table></div>
+  <div>
+    <div style="border:2px solid ${c.zc};border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <b style="font-size:15px;color:${c.zc}">${c.zona}</b>
+      <span style="font-size:12px;color:var(--mut)"> — evaluando ${q.eval>0?"precio ingresado":"precio sugerido"}: UF ${fmt(c.evalUF,2)}/m² (${clp(c.evalUF*c.ufv)}/m²)</span>
+      <p style="font-size:12.5px;margin-top:4px">${c.apr}</p>
+      <p style="font-size:12.5px">Margen real: <b>${fmt(c.mgReal*100,1)}%</b> · Utilidad real: <b>UF ${fmt(c.utilReal,0)}</b> (${clp(c.utilReal*c.ufv)})</p>
+    </div>
+    <table>
+      <tr><th>Zona</th><th class="num">Umbral UF/m²</th><th class="num">CLP/m²</th><th>Aprobación</th></tr>
+      <tr><td>🟢 Verde (M≥20%)</td><td class="num">≥ ${fmt(c.verde,2)}</td><td class="num">≥ ${clp(c.verde*c.ufv)}</td><td>Ejecutivo</td></tr>
+      <tr><td>🟡 Ámbar (10–20%)</td><td class="num">${fmt(c.ambar,2)} – ${fmt(c.verde,2)}</td><td class="num">${clp(c.ambar*c.ufv)} –</td><td>COO</td></tr>
+      <tr><td>🔴 Roja (0–10%)</td><td class="num">${fmt(c.roja,2)} – ${fmt(c.ambar,2)}</td><td class="num">${clp(c.roja*c.ufv)} –</td><td>CEO + sustento</td></tr>
+      <tr><td>⛔ No cotizar</td><td class="num">&lt; ${fmt(c.roja,2)}</td><td class="num">&lt; ${clp(c.roja*c.ufv)}</td><td>No aprobar</td></tr>
+    </table>
+    <p class="note" style="margin-top:10px">Reglas: descuento máx. ejecutivo 5% (COO hasta 10%, sobre eso CEO) · mejoramiento +35% calibrable · duración > 8 meses: cláusula de reajuste UF/IPC c/4 meses · prof. > 10 m: análisis técnico previo · provisión imprevistos 5% (&lt;6 meses) u 8% · todo proyecto > 4 meses se cotiza y factura en UF. Umbrales con parámetros estándar: 204 m²/mes y 2 proyectos paralelos.</p>
+  </div></div></div>`;
 }
 
 /* ═════════════════ INFORME EJECUTIVO ═════════════════ */
