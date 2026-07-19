@@ -86,8 +86,9 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
 .pdf-mode .rep-head h2{font-size:16px}
 .pdf-mode .tots .t{padding:8px 12px;min-width:140px}
 .pdf-mode .tots .t b{font-size:15px}
-.pdf-mode .chart-box{height:220px;padding:8px}
-.pdf-mode canvas{max-height:180px}
+.pdf-mode #sec-graficos{display:none!important}
+.pdf-mode table{page-break-inside:auto}
+.pdf-mode tr{page-break-inside:avoid}
 .pdf-mode .sig{margin-top:20px}
 .pdf-mode .no-print{display:none!important}
 .pdf-mode p{font-size:9.5px!important}
@@ -1156,15 +1157,16 @@ function renderInforme(){
   </div>
   <table><tr><th>Sistema de entibación</th><th class="num">Neto CLP</th><th class="num">Neto UF</th><th class="num">Incidencia</th></tr>${sisRows}
   <tr class="res"><td>TOTAL NETO</td><td class="num">${clp(tot)}</td><td class="num">UF ${fmt(tot/uf,1)}</td><td class="num">100%</td></tr></table>
-  <h2 style="margin-top:22px">2. Análisis Gráfico</h2>
+  <div id="sec-graficos">
+  <h2 style="margin-top:22px">2. Análisis Gráfico <span class="no-print" style="font-size:11px;font-weight:400;color:var(--mut)">(no se incluye en el PDF)</span></h2>
   <div class="charts">
     <div class="chart-box"><h3>Distribución del costo por sistema</h3><canvas id="c1"></canvas></div>
     <div class="chart-box"><h3>Partidas de mayor incidencia (CLP)</h3><canvas id="c2"></canvas></div>
-  </div>
-  <h2 style="margin-top:22px">3. Cubicación y Presupuesto por Partida
+  </div></div>
+  <h2 style="margin-top:22px" id="h-partidas"><span class="secn">3.</span> Cubicación y Presupuesto por Partida
     <span class="no-print" style="font-size:11.5px;font-weight:400;color:var(--mut);margin-left:10px">(clic en cada sistema para contraer/extender)</span></h2>
   <div id="partidas-wrap"><table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (CLP · UF)</th><th class="num">Total (CLP · UF)</th></tr>${qtyRows}</table></div>
-  <h2 style="margin-top:22px">4. Observaciones</h2>
+  <h2 style="margin-top:22px" id="h-obs"><span class="secn">4.</span> Observaciones</h2>
   <p style="font-size:13px;line-height:1.7;color:var(--txt)">
   Cubicación desarrollada según metodología de planilla de ingeniería Ngenco.
   Los precios unitarios incluyen ${gg}% de gastos generales y ${ut}% de utilidad sobre el costo directo; no incluyen IVA salvo donde se indica.
@@ -1371,10 +1373,11 @@ async function descargarPDF(){
   const btn=document.getElementById("btn-pdf");btn.disabled=true;btn.textContent="Generando PDF…";
   try{
     const el=document.getElementById("rep-body");
-    el.classList.add("pdf-mode");
-    renderInforme(); // re-render gráficos al tamaño compacto
-    el.classList.add("pdf-mode");
-    await new Promise(r=>setTimeout(r,600));
+    el.classList.add("pdf-mode");          // oculta análisis gráfico y compacta tipografía
+    const hp=document.getElementById("h-partidas"),ho=document.getElementById("h-obs");
+    if(hp)hp.querySelector(".secn").textContent="2.";   // renumera al excluir los gráficos
+    if(ho)ho.querySelector(".secn").textContent="3.";
+    await new Promise(r=>setTimeout(r,250));
     const worker=html2pdf().set({
       margin:[7,7,7,7],
       filename:`Informe_Ejecutivo_${(val("p_num")||"proyecto").replace(/\s/g,"_")}.pdf`,
@@ -1387,7 +1390,8 @@ async function descargarPDF(){
     while(pdf.internal.getNumberOfPages()>2)pdf.deletePage(pdf.internal.getNumberOfPages()); // máx. 2 páginas
     await worker.save();
     el.classList.remove("pdf-mode");
-    renderInforme();
+    if(hp)hp.querySelector(".secn").textContent="3.";
+    if(ho)ho.querySelector(".secn").textContent="4.";
   }catch(e){alert("Error al generar PDF: "+e.message);}
   btn.disabled=false;btn.textContent="⬇ Descargar PDF (máx. 2 páginas)";
 }
