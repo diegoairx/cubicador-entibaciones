@@ -969,7 +969,7 @@ function renderAPU(){
       <td colspan="3" style="background:#dcebf7;font-weight:700;color:var(--navy)">${col?"▸":"▾"} ${sis}</td>
       <td class="num" style="background:#dcebf7;color:var(--mut);font-size:12px">${rs.length} part.</td>
       <td colspan="5" style="background:#dcebf7"></td>
-      <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}</td></tr>`;
+      <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}<br><span style="font-size:11px;font-weight:600;color:var(--mut)">UF ${fmt(sub/uf,1)}</span></td></tr>`;
     if(!col)rs.forEach(r=>{
       const p=puOf(r.key), tot=p.pu*r.qty;
       const k=r.key.replace(/'/g,"\\'").replace(/"/g,"&quot;");
@@ -978,15 +978,16 @@ function renderAPU(){
         <td><input class="cell" type="number" value="${p.mat}" style="width:90px" onchange="setPrice('${k}','mat',this.value)"></td>
         <td><input class="cell" type="number" value="${p.mo}" style="width:85px" onchange="setPrice('${k}','mo',this.value)"></td>
         <td><input class="cell" type="number" value="${p.eq}" style="width:85px" onchange="setPrice('${k}','eq',this.value)"></td>
-        <td class="num">${clp(p.cd)}</td><td class="num"><b>${clp(p.pu)}</b></td>
-        <td class="num"><b>${clp(tot)}</b></td></tr>`;
+        <td class="num">${clp(p.cd)}</td>
+        <td class="num"><b>${clp(p.pu)}</b><br><span style="font-size:11px;color:var(--mut)">UF ${fmt(p.pu/uf,3)}</span></td>
+        <td class="num"><b>${clp(tot)}</b><br><span style="font-size:11px;color:var(--mut)">UF ${fmt(tot/uf,1)}</span></td></tr>`;
     });
   });
   const cdT=cd, ggT=cdT*gg/100, utT=(cdT+ggT)*ut/100, neto=cdT+ggT+utT, ivaT=neto*iva/100, tot=neto+ivaT;
   const h=`<div class="card"><h2>Análisis de Precios Unitarios</h2>
   <p class="note no-print">Edita Materiales / Mano de Obra / Equipos por unidad (CLP). PU = Costo directo × (1+GG%) × (1+Utilidad%). GG, Utilidad, IVA y valor UF se configuran en Proyecto. Clic en el encabezado de cada sistema para contraer/extender sus partidas (el subtotal queda siempre visible).</p>
   <div style="overflow-x:auto"><table>
-  <tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cant.</th><th>Materiales</th><th>M. Obra</th><th>Equipos</th><th class="num">C. Directo</th><th class="num">P. Unitario</th><th class="num">Total</th></tr>
+  <tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cant.</th><th>Materiales</th><th>M. Obra</th><th>Equipos</th><th class="num">C. Directo</th><th class="num">P. Unitario (CLP · UF)</th><th class="num">Total (CLP · UF)</th></tr>
   ${rows}</table></div>
   <div class="tots">
     <div class="t"><small>Costo directo</small><b>${clp(cdT)}</b></div>
@@ -1119,8 +1120,11 @@ function renderInforme(){
       <td colspan="3" style="background:#dcebf7;font-weight:700;color:var(--navy)"><span id="sis-arrow-${gi}">▾</span> ${sis}</td>
       <td class="num" style="background:#dcebf7;color:var(--mut);font-size:12px">${rows.length} part.</td>
       <td style="background:#dcebf7"></td>
-      <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}</td></tr>`;
-    rows.forEach(r=>{qtyRows+=`<tr class="sisrow-${gi}"><td></td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td><td class="num">${clp(puOf(r.key).pu)}</td><td class="num">${clp(puOf(r.key).pu*r.qty)}</td></tr>`;});
+      <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}<br><span style="font-size:11px;font-weight:600;color:var(--mut)">UF ${fmt(sub/uf,1)}</span></td></tr>`;
+    rows.forEach(r=>{const pu=puOf(r.key).pu, tt=pu*r.qty;
+      qtyRows+=`<tr class="sisrow-${gi}"><td></td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td>
+      <td class="num">${clp(pu)}<br><span style="font-size:10.5px;color:var(--mut)">UF ${fmt(pu/uf,3)}</span></td>
+      <td class="num">${clp(tt)}<br><span style="font-size:10.5px;color:var(--mut)">UF ${fmt(tt/uf,1)}</span></td></tr>`;});
   });
   document.getElementById("rep-body").innerHTML=`
   <div class="rep-head">
@@ -1152,7 +1156,7 @@ function renderInforme(){
   </div>
   <h2 style="margin-top:22px">3. Cubicación y Presupuesto por Partida
     <span class="no-print" style="font-size:11.5px;font-weight:400;color:var(--mut);margin-left:10px">(clic en cada sistema para contraer/extender)</span></h2>
-  <div id="partidas-wrap"><table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (CLP)</th><th class="num">Total (CLP)</th></tr>${qtyRows}</table></div>
+  <div id="partidas-wrap"><table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (CLP · UF)</th><th class="num">Total (CLP · UF)</th></tr>${qtyRows}</table></div>
   <h2 style="margin-top:22px">4. Observaciones</h2>
   <p style="font-size:13px;line-height:1.7;color:var(--txt)">
   Cubicación desarrollada según metodología de planilla de ingeniería Ngenco.
