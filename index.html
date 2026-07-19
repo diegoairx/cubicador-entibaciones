@@ -1259,6 +1259,15 @@ async function nubeGuardar(){
     nubeMsg("✔ Proyecto guardado en la base de datos");nubeListar();
   }catch(e){nubeMsg("Error al guardar: "+e.message,1);}
 }
+function haceRato(iso){
+  if(!iso)return "";
+  const d=new Date(iso), min=Math.round((Date.now()-d.getTime())/60000);
+  if(min<1)return "recién";
+  if(min<60)return "hace "+min+" min";
+  if(min<1440)return "hace "+Math.round(min/60)+" h";
+  const dias=Math.round(min/1440);
+  return dias===1?"ayer":"hace "+dias+" días";
+}
 async function nubeListar(){
   const el=document.getElementById("nube-lista");
   try{
@@ -1267,12 +1276,13 @@ async function nubeListar(){
     const rows=await r.json();
     if(!rows.length){el.innerHTML='<p class="note">Sin proyectos guardados aún. Usa "Guardar proyecto actual".</p>';return;}
     el.innerHTML=`<div style="overflow-x:auto"><table>
-    <tr><th>N°</th><th>Proyecto</th><th>Cliente</th><th>Ubicación</th><th>Estado</th><th class="num">Neto CLP</th><th class="num">UF</th><th>Actualizado</th><th></th></tr>
+    <tr><th>N°</th><th>Proyecto</th><th>Cliente</th><th>Ubicación</th><th>Estado</th><th class="num">Neto CLP</th><th class="num">UF</th><th>Última actualización</th><th></th></tr>
     ${rows.map(p=>`<tr ${S.cloudId===p.id?'style="outline:2px solid var(--sky)"':""}>
       <td>${p.proyecto_num||""}</td><td><b>${p.nombre||""}</b></td><td>${p.cliente||"—"}</td>
       <td>${p.ubicacion||""}</td><td>${p.estado||""}</td>
       <td class="num">${p.total_neto_clp?clp(p.total_neto_clp):"—"}</td>
-      <td class="num">${p.total_uf?fmt(p.total_uf,1):"—"}</td><td>${p.actualizado||""}</td>
+      <td class="num">${p.total_uf?fmt(p.total_uf,1):"—"}</td>
+      <td style="white-space:nowrap">${(p.actualizado||"").replace(" ","<br>")}<br><span style="font-size:10.5px;color:var(--mut)">${haceRato(p.actualizado_en)}</span></td>
       <td style="white-space:nowrap">
         <button class="btn sm" onclick="nubeCargar('${p.id}')">Abrir</button>
         <button class="btn warn sm" onclick="nubeEliminar('${p.id}','${(p.nombre||"").replace(/'/g,"")}')">✕</button>
@@ -1345,7 +1355,7 @@ async function csvSeguimiento(){
     const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:await getSH()});
     if(!r.ok)throw new Error(await r.text());
     const rows=await r.json();
-    const filas=[["Proyecto N°","Nombre","Cliente","Ubicación","Ingeniero","Rev.","Estado","Total Neto CLP","Total UF","Creado","Actualizado"]];
+    const filas=[["Proyecto N°","Nombre","Cliente","Ubicación","Ingeniero","Rev.","Estado","Total Neto CLP","Total UF","Creado (fecha y hora)","Última actualización (fecha y hora)"]];
     rows.forEach(p=>filas.push([p.proyecto_num,p.nombre,p.cliente,p.ubicacion,p.ingeniero,p.revision,p.estado,p.total_neto_clp,p.total_uf,p.creado,p.actualizado]));
     dlCSV("Seguimiento_Proyectos_Ngenco.csv",filas);
   }catch(e){nubeMsg("Error CSV: "+e.message,1);}
