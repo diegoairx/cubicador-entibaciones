@@ -434,6 +434,7 @@ function resumen(){
   add("Muro Berlinés Anclado","Anclajes postensados inyectados","ml",anc);
   add("Muro Berlinés Anclado",'Cables de acero 0,6" (incl. reserva)',"ml",cabl);
   add("Muro Berlinés Anclado","Cuñas cónicas / mordazas","un",ncab);
+  if(S.mba.length)add("Muro Berlinés Anclado","Movilización / Desmovilización equipo de hinca","gl",1);
   // MBV
   let v20=0,v25=0,perfV={};
   S.mbv.forEach(s=>{const c=calcMBV(s);
@@ -442,6 +443,7 @@ function resumen(){
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,0"',"m²",v20);
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,5"',"m²",v25);
   Object.entries(perfV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Perfil "+p+" hincado/retirado","ml",v));
+  if(S.mbv.length)add("Muro Berlinés en Voladizo","Movilización / Desmovilización equipo de hinca","gl",1);
   // SN
   let shot=0,m3s=0,malla=0,dados=0,plac=0,barb=0,pt={};
   S.sn.forEach(s=>{const c=calcSN(s);shot+=c.aTot;m3s+=c.m3Shot;malla+=c.kgMalla;dados+=c.dados;plac+=c.placas;barb+=c.barb;
@@ -453,6 +455,7 @@ function resumen(){
   add("Soil Nailing","Dados de protección hormigón","un",dados);
   add("Soil Nailing","Placas 220x220x15 A370-240ES","un",plac);
   add("Soil Nailing","Barbacanas 2\" L=450mm","un",barb);
+  if(S.sn.length)add("Soil Nailing","Movilización / Desmovilización equipo shotcrete y perforación","gl",1);
   // MP
   const mp=calcMP(); const byT={};
   mp.det.forEach(d=>{if(d.ml>0)byT[d.tipo]=(byT[d.tipo]||0)+d.ml;});
@@ -461,6 +464,7 @@ function resumen(){
   add("Micropilotes","Hormigón G-25 viga socalzado","m³",mp.m3);
   add("Micropilotes","Acero A630 viga socalzado","kg",mp.kg);
   add("Micropilotes","Moldaje viga socalzado","m²",mp.mold);
+  if(mp.ml>0||mp.m3>0)add("Micropilotes","Movilización / Desmovilización equipo micropilotes","gl",1);
   // FAB anclajes
   const fb=calcFAB().T;
   add("Fabricación de Anclajes",'Cable 0,6" de diámetro',"m",fb.cable);
@@ -486,7 +490,6 @@ function resumen(){
   add("Agotamiento de Napa","Colector de succión/descarga","ml",agColector);
   add("Agotamiento de Napa","Instalación y retiro equipo de bombeo","un",agInst);
   add("Agotamiento de Napa","Arriendo equipo de bombeo","eq-mes",agEqMes);
-  add("Agotamiento de Napa","Energía/combustible bombeo","eq-mes",agEqMes);
   add("Agotamiento de Napa","Operación y mantención del sistema","mes",agMeses);
   add("Agotamiento de Napa","Dren horizontal de captación","ml",agDrenes);
   add("Agotamiento de Napa","Sentina/pozo de achique","un",agSent);
@@ -495,6 +498,7 @@ function resumen(){
   const mt=calcMT();
   add("Movimiento de Tierra","Excavación masiva y retiro","m³",mt.m3);
   add("Movimiento de Tierra","Mejoramiento Arena Biobío","m³",mt.mej);
+  if(mt.m3>0||mt.mej>0)add("Movimiento de Tierra","Movilización / Desmovilización maquinaria de tierra","gl",1);
   return R;
 }
 
@@ -534,8 +538,11 @@ const PBASE={
  'Colector de succión/descarga':{mat:8500,mo:3500,eq:2000},
  'Instalación y retiro equipo de bombeo':{mat:25000,mo:65000,eq:70000},
  'Arriendo equipo de bombeo':{mat:0,mo:120000,eq:680000},
- 'Energía/combustible bombeo':{mat:0,mo:0,eq:390000},
  'Operación y mantención del sistema':{mat:60000,mo:950000,eq:180000},
+ 'Movilización / Desmovilización equipo de hinca':{mat:100000,mo:400000,eq:1300000},
+ 'Movilización / Desmovilización equipo shotcrete y perforación':{mat:80000,mo:350000,eq:950000},
+ 'Movilización / Desmovilización equipo micropilotes':{mat:80000,mo:350000,eq:1100000},
+ 'Movilización / Desmovilización maquinaria de tierra':{mat:50000,mo:250000,eq:750000},
  'Dren horizontal de captación':{mat:12000,mo:8500,eq:15000},
  'Sentina/pozo de achique':{mat:65000,mo:85000,eq:110000},
  'Monitoreo piezométrico':{mat:45000,mo:35000,eq:38000},
