@@ -78,20 +78,25 @@ input.cell:hover{border-color:var(--line);background:#fff}
 .sig{display:flex;gap:60px;margin-top:50px;justify-content:center}
 .sig div{text-align:center;border-top:1.5px solid var(--txt);padding-top:6px;width:220px;font-size:12.5px}
 footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
-.pdf-mode{font-size:10px}
-.pdf-mode table{font-size:8.5px}
-.pdf-mode th{padding:3px 6px;font-size:8.5px}
-.pdf-mode td{padding:2px 6px}
-.pdf-mode h2{font-size:13px}
+/* Modo PDF: una sola hoja A4, layout compacto y de alta resolución */
+.pdf-mode{width:940px!important;background:#fff;padding:14px 18px!important;font-size:11px}
+.pdf-mode table{font-size:9.5px;page-break-inside:auto;border-collapse:collapse}
+.pdf-mode th{padding:3px 6px;font-size:9px;line-height:1.15}
+.pdf-mode td{padding:2.5px 6px;line-height:1.2}
+.pdf-mode h2{font-size:13.5px;margin:10px 0 6px}
+.pdf-mode .rep-head{padding-bottom:8px;margin-bottom:10px}
 .pdf-mode .rep-head h2{font-size:16px}
-.pdf-mode .tots .t{padding:8px 12px;min-width:140px}
-.pdf-mode .tots .t b{font-size:15px}
+.pdf-mode .rep-meta{font-size:11px;line-height:1.45}
+.pdf-mode .logo-img{height:46px}
+.pdf-mode .tots{gap:8px;margin:8px 0}
+.pdf-mode .tots .t{padding:7px 11px;min-width:120px;border-radius:8px}
+.pdf-mode .tots .t b{font-size:14px;margin-top:2px}
+.pdf-mode .tots .t small{font-size:9.5px}
 .pdf-mode #sec-graficos{display:none!important}
-.pdf-mode table{page-break-inside:auto}
-.pdf-mode tr{page-break-inside:avoid}
-.pdf-mode .sig{margin-top:20px}
+.pdf-mode .sig{margin-top:26px;gap:70px}
+.pdf-mode .sig div{font-size:10.5px;width:190px}
 .pdf-mode .no-print{display:none!important}
-.pdf-mode p{font-size:9.5px!important}
+.pdf-mode p{font-size:9.5px!important;line-height:1.4!important}
 .help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--sky);color:#fff;font-size:10px;font-weight:700;cursor:help;margin-left:5px;vertical-align:middle}
 .login-bg{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy),var(--navy2));display:flex;align-items:center;justify-content:center;z-index:999}
 .login-card{background:#fff;border-radius:14px;padding:30px 34px;width:360px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.4);text-align:center}
@@ -254,7 +259,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
 <!-- ══════════ INFORME ══════════ -->
 <section id="view-informe" class="view" style="display:none">
   <div class="no-print" style="text-align:right;margin-bottom:12px">
-    <button class="btn" id="btn-pdf" onclick="descargarPDF()">⬇ Descargar PDF (máx. 2 páginas)</button>
+    <button class="btn" id="btn-pdf" onclick="descargarPDF()">⬇ Descargar PDF (1 hoja A4)</button>
   </div>
   <div id="rep-body" class="card"></div>
 </section>
@@ -1377,23 +1382,27 @@ async function descargarPDF(){
     const hp=document.getElementById("h-partidas"),ho=document.getElementById("h-obs");
     if(hp)hp.querySelector(".secn").textContent="2.";   // renumera al excluir los gráficos
     if(ho)ho.querySelector(".secn").textContent="3.";
-    await new Promise(r=>setTimeout(r,250));
-    const worker=html2pdf().set({
-      margin:[7,7,7,7],
-      filename:`Informe_Ejecutivo_${(val("p_num")||"proyecto").replace(/\s/g,"_")}.pdf`,
-      image:{type:"jpeg",quality:0.95},
-      html2canvas:{scale:2,useCORS:true,logging:false},
-      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
-      pagebreak:{mode:["css","legacy"]}
-    }).from(el).toPdf();
-    const pdf=await worker.get("pdf");
-    while(pdf.internal.getNumberOfPages()>2)pdf.deletePage(pdf.internal.getNumberOfPages()); // máx. 2 páginas
-    await worker.save();
+    await new Promise(r=>setTimeout(r,300));
+    // Captura de alta resolución y ajuste automático a UNA hoja A4
+    const canvas=await html2canvas(el,{scale:3,useCORS:true,logging:false,backgroundColor:"#ffffff",
+      windowWidth:el.scrollWidth,width:el.scrollWidth,height:el.scrollHeight});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
+    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight(), M=8;
+    const availW=PW-2*M, availH=PH-2*M;
+    const k=Math.min(availW/canvas.width,availH/canvas.height); // encuadre por ancho y por alto
+    const w=canvas.width*k, h=canvas.height*k;
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.97),"JPEG",(PW-w)/2,M,w,h,undefined,"FAST");
+    pdf.save(`Informe_Ejecutivo_${(val("p_num")||"proyecto").replace(/\s/g,"_")}.pdf`);
     el.classList.remove("pdf-mode");
     if(hp)hp.querySelector(".secn").textContent="3.";
     if(ho)ho.querySelector(".secn").textContent="4.";
+    // aviso si el encuadre reduce demasiado la legibilidad
+    const escala=h/availH;
+    if(canvas.height/canvas.width>availH/availW*1.35)
+      setTimeout(()=>alert("El informe se ajustó a una hoja, pero el contenido es extenso y quedó en tamaño reducido.\n\nSugerencia: contrae con un clic los sistemas menos relevantes en la sección de partidas (sus subtotales se mantienen visibles) y vuelve a descargar."),300);
   }catch(e){alert("Error al generar PDF: "+e.message);}
-  btn.disabled=false;btn.textContent="⬇ Descargar PDF (máx. 2 páginas)";
+  btn.disabled=false;btn.textContent="⬇ Descargar PDF (1 hoja A4)";
 }
 async function fabPDF(){
   const c=calcFAB(); const f=S.fab;
