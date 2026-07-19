@@ -7,6 +7,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --navy:#0b2a4a; --navy2:#004080; --blue:#1d6fb8; --sky:#35a7de; --sky2:#7fc8ec;
@@ -1374,34 +1376,59 @@ function toggleSis(i){
   const a=document.getElementById("sis-arrow-"+i);
   if(a)a.textContent=ocultar?"▸":"▾";
 }
+// Resolución robusta de librerías (según cómo las exponga el CDN)
+function getJsPDF(){
+  return (window.jspdf&&(window.jspdf.jsPDF||window.jspdf.default))||window.jsPDF||null;
+}
+function getH2C(){
+  return (typeof html2canvas==="function")?html2canvas:(window.html2canvas||null);
+}
 async function descargarPDF(){
   const btn=document.getElementById("btn-pdf");btn.disabled=true;btn.textContent="Generando PDF…";
+  const el=document.getElementById("rep-body");
+  const hp=document.getElementById("h-partidas"),ho=document.getElementById("h-obs");
+  const restaurar=()=>{el.classList.remove("pdf-mode");
+    if(hp)hp.querySelector(".secn").textContent="3.";
+    if(ho)ho.querySelector(".secn").textContent="4.";};
   try{
-    const el=document.getElementById("rep-body");
-    el.classList.add("pdf-mode");          // oculta análisis gráfico y compacta tipografía
-    const hp=document.getElementById("h-partidas"),ho=document.getElementById("h-obs");
+    const H2C=getH2C(), JsPDF=getJsPDF();
+    if(!H2C||!JsPDF)throw new Error("No se pudieron cargar las librerías de PDF. Verifica tu conexión a internet y recarga la página (F5).");
+    el.classList.add("pdf-mode");                       // oculta gráficos y compacta el layout
     if(hp)hp.querySelector(".secn").textContent="2.";   // renumera al excluir los gráficos
     if(ho)ho.querySelector(".secn").textContent="3.";
-    await new Promise(r=>setTimeout(r,300));
-    // Captura de alta resolución y ajuste automático a UNA hoja A4
-    const canvas=await html2canvas(el,{scale:3,useCORS:true,logging:false,backgroundColor:"#ffffff",
-      windowWidth:el.scrollWidth,width:el.scrollWidth,height:el.scrollHeight});
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
+    await new Promise(r=>setTimeout(r,350));
+    // Escala de captura acotada a los límites de canvas del navegador
+    const W=el.scrollWidth||940, H=el.scrollHeight||1200;
+    const esc=Math.max(1,Math.min(3,12000/W,12000/H,Math.sqrt(20e6/(W*H))));
+    const opts={scale:esc,useCORS:true,allowTaint:false,logging:false,backgroundColor:"#ffffff",imageTimeout:8000};
+    let canvas,dataUrl;
+    try{
+      canvas=await H2C(el,opts);
+      dataUrl=canvas.toDataURL("image/jpeg",0.96);
+    }catch(err){                                        // canvas contaminado por el logo remoto: reintenta sin él
+      const imgs=[...el.querySelectorAll(".logo-img")];
+      imgs.forEach(i=>i.style.visibility="hidden");
+      try{
+        canvas=await H2C(el,opts);
+        dataUrl=canvas.toDataURL("image/jpeg",0.96);
+      }finally{imgs.forEach(i=>i.style.visibility="");}
+    }
+    if(!canvas||!canvas.width||!canvas.height)throw new Error("La captura del informe quedó vacía. Intenta contraer algunos sistemas y reintentar.");
+    const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
     const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight(), M=8;
     const availW=PW-2*M, availH=PH-2*M;
     const k=Math.min(availW/canvas.width,availH/canvas.height); // encuadre por ancho y por alto
     const w=canvas.width*k, h=canvas.height*k;
-    pdf.addImage(canvas.toDataURL("image/jpeg",0.97),"JPEG",(PW-w)/2,M,w,h,undefined,"FAST");
+    pdf.addImage(dataUrl,"JPEG",(PW-w)/2,M,w,h,undefined,"FAST");
     pdf.save(`Informe_Ejecutivo_${(val("p_num")||"proyecto").replace(/\s/g,"_")}.pdf`);
-    el.classList.remove("pdf-mode");
-    if(hp)hp.querySelector(".secn").textContent="3.";
-    if(ho)ho.querySelector(".secn").textContent="4.";
-    // aviso si el encuadre reduce demasiado la legibilidad
-    const escala=h/availH;
+    restaurar();
     if(canvas.height/canvas.width>availH/availW*1.35)
       setTimeout(()=>alert("El informe se ajustó a una hoja, pero el contenido es extenso y quedó en tamaño reducido.\n\nSugerencia: contrae con un clic los sistemas menos relevantes en la sección de partidas (sus subtotales se mantienen visibles) y vuelve a descargar."),300);
-  }catch(e){alert("Error al generar PDF: "+e.message);}
+  }catch(e){
+    restaurar();
+    console.error(e);
+    alert("Error al generar PDF: "+(e&&e.message?e.message:e));
+  }
   btn.disabled=false;btn.textContent="⬇ Descargar PDF (1 hoja A4)";
 }
 async function fabPDF(){
@@ -1440,17 +1467,21 @@ async function fabPDF(){
     <div style="border-top:1.5px solid #1c2b3a;width:200px;text-align:center;padding-top:4px">Solicitado por<br>NGENCO SpA</div>
     <div style="border-top:1.5px solid #1c2b3a;width:200px;text-align:center;padding-top:4px">Recibido por<br>Fabricante</div>
   </div>`;
+  el.style.position="fixed";el.style.left="-10000px";el.style.top="0";
   document.body.appendChild(el);
   try{
-    await html2pdf().set({
-      margin:[6,6,6,6],
-      filename:`Solicitud_Fabricacion_Anclajes_N${f.num??1}_${(val("p_num")||"").replace(/\s/g,"_")}.pdf`,
-      image:{type:"jpeg",quality:0.95},
-      html2canvas:{scale:2,useCORS:true,logging:false},
-      jsPDF:{unit:"mm",format:"a4",orientation:"landscape"},
-      pagebreak:{mode:["css","legacy"]}
-    }).from(el).save();
-  }catch(e){alert("Error al generar PDF: "+e.message);}
+    const H2C=getH2C(), JsPDF=getJsPDF();
+    if(!H2C||!JsPDF)throw new Error("No se pudieron cargar las librerías de PDF. Verifica tu conexión y recarga la página (F5).");
+    const W=el.scrollWidth||1050, H=el.scrollHeight||700;
+    const esc=Math.max(1,Math.min(3,12000/W,12000/H,Math.sqrt(20e6/(W*H))));
+    const canvas=await H2C(el,{scale:esc,useCORS:true,logging:false,backgroundColor:"#ffffff"});
+    const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"landscape",compress:true});
+    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight(), M=7;
+    const k=Math.min((PW-2*M)/canvas.width,(PH-2*M)/canvas.height);
+    const w=canvas.width*k, h=canvas.height*k;
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.96),"JPEG",(PW-w)/2,M,w,h,undefined,"FAST");
+    pdf.save(`Solicitud_Fabricacion_Anclajes_N${f.num??1}_${(val("p_num")||"").replace(/\s/g,"_")}.pdf`);
+  }catch(e){console.error(e);alert("Error al generar PDF: "+(e&&e.message?e.message:e));}
   el.remove();
 }
 
