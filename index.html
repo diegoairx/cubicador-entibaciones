@@ -520,15 +520,16 @@ function resumen(){
 
 /* ═════════ PRECIOS REFERENCIALES (CLP/unidad, editables) ═════════ */
 const PBASE={
- 'Entibación tablones 2,0"':{mat:14000,mo:9000,eq:5000},
- 'Entibación tablones 2,5"':{mat:17500,mo:9500,eq:5500},
- 'Perfil':{mat:0,mo:8000,eq:14000,kg:1550},
- 'Extensiones W200x26.6':{mat:41000,mo:9000,eq:6000},
- 'Vigas de amarre':{mat:120000,mo:60000,eq:40000},
- 'Cabezales de anclaje (4 cables)':{mat:95000,mo:45000,eq:30000},
- 'Anclajes postensados inyectados':{mat:38000,mo:26000,eq:31000},
- 'Cables de acero 0,6" (incl. reserva)':{mat:4200,mo:800,eq:500},
- 'Cuñas cónicas / mordazas':{mat:4800,mo:700,eq:0},
+ /* Precios base = promedio de proyectos reales guardados (Ed. Castellón 41 + Ed. Nexxo) */
+ 'Entibación tablones 2,0"':{mat:5080,mo:18474,eq:7907},
+ 'Entibación tablones 2,5"':{mat:16483,mo:9500,eq:5500},
+ 'Perfil':{mat:0,mo:7500,eq:16600,kg:1232},
+ 'Extensiones W200x26.6':{mat:101332,mo:8668,eq:3500},
+ 'Vigas de amarre':{mat:52947,mo:34168,eq:20500},
+ 'Cabezales de anclaje (4 cables)':{mat:0,mo:0,eq:0},
+ 'Anclajes postensados inyectados':{mat:21540,mo:24921,eq:16454},
+ 'Cables de acero 0,6" (incl. reserva)':{mat:0,mo:0,eq:0},
+ 'Cuñas cónicas / mordazas':{mat:0,mo:0,eq:0},
  'Shotcrete G-25 proyectado':{mat:38000,mo:22000,eq:25000},
  'Hormigón proyectado G-25 (vol.)':{mat:0,mo:0,eq:0},
  'Malla acero (doble malla)':{mat:1250,mo:450,eq:150},
@@ -545,7 +546,7 @@ const PBASE={
  'Hormigón G-25 viga socalzado':{mat:115000,mo:45000,eq:20000},
  'Acero A630 viga socalzado':{mat:1250,mo:450,eq:100},
  'Moldaje viga socalzado':{mat:12000,mo:9000,eq:2000},
- 'Excavación masiva y retiro':{mat:0,mo:2200,eq:7300},
+ 'Excavación masiva y retiro':{mat:0,mo:1752,eq:2876},
  'Mejoramiento Arena Biobío':{mat:14500,mo:2500,eq:5000},
  'Perforación Auger Ø160mm para pozos':{mat:4500,mo:8500,eq:14000},
  'Perforación Auger Ø250mm para pozos':{mat:6000,mo:9500,eq:17500},
@@ -555,10 +556,10 @@ const PBASE={
  'Instalación y retiro equipo de bombeo':{mat:25000,mo:65000,eq:70000},
  'Arriendo equipo de bombeo':{mat:0,mo:120000,eq:680000},
  'Operación y mantención del sistema':{mat:60000,mo:950000,eq:180000},
- 'Movilización / Desmovilización equipo de hinca':{mat:100000,mo:400000,eq:1300000},
+ 'Movilización / Desmovilización equipo de hinca':{mat:505836,mo:700000,eq:1940252},
  'Movilización / Desmovilización equipo shotcrete y perforación':{mat:80000,mo:350000,eq:950000},
  'Movilización / Desmovilización equipo micropilotes':{mat:80000,mo:350000,eq:1100000},
- 'Movilización / Desmovilización maquinaria de tierra':{mat:50000,mo:250000,eq:750000},
+ 'Movilización / Desmovilización maquinaria de tierra':{mat:0,mo:0,eq:0},
  'Dren horizontal de captación':{mat:12000,mo:8500,eq:15000},
  'Sentina/pozo de achique':{mat:65000,mo:85000,eq:110000},
  'Monitoreo piezométrico':{mat:45000,mo:35000,eq:38000},
@@ -591,6 +592,12 @@ function puOf(key){
   return{...p,cd,pu:cd*(1+gg)*(1+ut)};
 }
 const val=id=>document.getElementById(id)?.value??0;
+/* Ajuste comercial del sistema MBA: factor que escala proporcionalmente todas sus partidas */
+function adjSis(sis){return sis==="Muro Berlinés Anclado"?(+S.mbaAdj||1):1;}
+function ajMBA(d){
+  S.mbaAdj=d===0?1:Math.round(Math.max(0.5,Math.min(1.5,(+S.mbaAdj||1)+d))*1000)/1000;
+  if(curV==="apu")renderAPU(); else renderInforme();
+}
 
 /* ═════════════════ NAVEGACIÓN ═════════════════ */
 let curV="proyecto",curS="mba";
@@ -630,6 +637,7 @@ function clearMod(m){
     S.mt={areas:[],mej:{A:0,h:0}};
     S.fab={num:1,dias:5,rows:[]};
     S.ag=[];
+    S.mbaAdj=1;
   }
   renderSub();
 }
@@ -990,17 +998,18 @@ function renderAPU(){
   const grupos={};
   R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
   Object.entries(grupos).forEach(([sis,rs],gi)=>{
+    const adj=adjSis(sis);
     let sub=0;
-    rs.forEach(r=>{const p=puOf(r.key);sub+=p.pu*r.qty;cd+=p.cd*r.qty;});
+    rs.forEach(r=>{const p=puOf(r.key);sub+=p.pu*adj*r.qty;cd+=p.cd*r.qty;});
     bySis[sis]=sub;
     const col=apuCol.has(gi);
     rows+=`<tr style="cursor:pointer" onclick="toggleApu(${gi})" title="Clic para contraer/extender">
-      <td colspan="3" style="background:#dcebf7;font-weight:700;color:var(--navy)">${col?"▸":"▾"} ${sis}</td>
+      <td colspan="3" style="background:#dcebf7;font-weight:700;color:var(--navy)">${col?"▸":"▾"} ${sis}${adj!==1?` <span style="font-weight:600;font-size:11px;color:var(--accent)">(ajuste ${adj>1?"+":""}${fmt((adj-1)*100,1)}%)</span>`:""}</td>
       <td class="num" style="background:#dcebf7;color:var(--mut);font-size:12px">${rs.length} part.</td>
       <td colspan="5" style="background:#dcebf7"></td>
       <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}<br><span style="font-size:11px;font-weight:600;color:var(--mut)">UF ${fmt(sub/uf,1)}</span></td></tr>`;
     if(!col)rs.forEach(r=>{
-      const p=puOf(r.key), tot=p.pu*r.qty;
+      const p=puOf(r.key), puA=p.pu*adj, tot=puA*r.qty;
       const k=r.key.replace(/'/g,"\\'").replace(/"/g,"&quot;");
       rows+=`<tr><td></td><td>${r.key}</td><td>${r.unit}</td>
         <td class="num">${fmt(r.qty)}</td>
@@ -1008,11 +1017,11 @@ function renderAPU(){
         <td><input class="cell" type="number" value="${p.mo}" style="width:85px" onchange="setPrice('${k}','mo',this.value)"></td>
         <td><input class="cell" type="number" value="${p.eq}" style="width:85px" onchange="setPrice('${k}','eq',this.value)"></td>
         <td class="num">${clp(p.cd)}</td>
-        <td class="num"><b>${clp(p.pu)}</b><br><span style="font-size:11px;color:var(--mut)">UF ${fmt(p.pu/uf,3)}</span></td>
+        <td class="num"><b>${clp(puA)}</b><br><span style="font-size:11px;color:var(--mut)">UF ${fmt(puA/uf,3)}</span></td>
         <td class="num"><b>${clp(tot)}</b><br><span style="font-size:11px;color:var(--mut)">UF ${fmt(tot/uf,1)}</span></td></tr>`;
     });
   });
-  const cdT=cd, ggT=cdT*gg/100, utT=(cdT+ggT)*ut/100, neto=cdT+ggT+utT, ivaT=neto*iva/100, tot=neto+ivaT;
+  const cdT=cd, neto=Object.values(bySis).reduce((a,b)=>a+b,0), margenT=neto-cdT, ivaT=neto*iva/100, tot=neto+ivaT;
   const h=`<div class="card"><h2>Análisis de Precios Unitarios</h2>
   <p class="note no-print">Edita Materiales / Mano de Obra / Equipos por unidad (CLP). PU = Costo directo × (1+GG%) × (1+Utilidad%). GG, Utilidad, IVA y valor UF se configuran en Proyecto. Clic en el encabezado de cada sistema para contraer/extender sus partidas (el subtotal queda siempre visible).</p>
   <div style="overflow-x:auto"><table>
@@ -1020,7 +1029,7 @@ function renderAPU(){
   ${rows}</table></div>
   <div class="tots">
     <div class="t"><small>Costo directo</small><b>${clp(cdT)}</b></div>
-    <div class="t"><small>GG ${gg}% + Utilidad ${ut}%</small><b>${clp(ggT+utT)}</b></div>
+    <div class="t"><small>GG ${gg}% + Utilidad ${ut}%${(+S.mbaAdj||1)!==1?" + ajuste MBA":""}</small><b>${clp(margenT)}</b></div>
     <div class="t alt"><small>Neto</small><b>${clp(neto)}</b></div>
     <div class="t alt"><small>IVA ${iva}%</small><b>${clp(ivaT)}</b></div>
     <div class="t" style="background:linear-gradient(135deg,#0b3a1e,var(--ok))"><small>TOTAL CLP</small><b>${clp(tot)}</b></div>
@@ -1128,15 +1137,24 @@ function wpqCard(){
 /* ═════════════════ INFORME EJECUTIVO ═════════════════ */
 let ch1,ch2;
 function renderInforme(){
-  const R=resumen().filter(r=>r.sis!=="Fabricación de Anclajes"); // excluida del informe ejecutivo
+  let R=resumen().filter(r=>r.sis!=="Fabricación de Anclajes"); // excluida del informe ejecutivo
+  // Partidas componentes del anclaje: no se muestran en el informe (su costo se fusiona en "Anclajes postensados")
+  const OCULTAS=["Cabezales de anclaje (4 cables)",'Cables de acero 0,6" (incl. reserva)',"Cuñas cónicas / mordazas"];
+  let extraAnc=0;
+  R.filter(r=>OCULTAS.includes(r.key)).forEach(r=>{extraAnc+=puOf(r.key).pu*r.qty;});
+  R=R.filter(r=>!OCULTAS.includes(r.key));
+  const puEff=r=>{let pu=puOf(r.key).pu;
+    if(r.key==="Anclajes postensados inyectados"&&r.qty>0)pu+=extraAnc/r.qty;
+    return pu*adjSis(r.sis);};
   const uf=+val("p_uf")||39500;
   const gg=+val("p_gg"),ut=+val("p_ut"),iva=+val("p_iva");
   let bySis={},tot=0;
-  R.forEach(r=>{const t=puOf(r.key).pu*r.qty;bySis[r.sis]=(bySis[r.sis]||0)+t;tot+=t;});
+  R.forEach(r=>{const t=puEff(r)*r.qty;bySis[r.sis]=(bySis[r.sis]||0)+t;tot+=t;});
   const m2mba=S.mba.reduce((t,s)=>t+calcMBA(s).area,0);
   const costoMBA=bySis["Muro Berlinés Anclado"]||0;
+  const adjM=+S.mbaAdj||1;
   const ivaT=tot*iva/100, totIva=tot+ivaT;
-  const top=[...R].map(r=>({...r,t:puOf(r.key).pu*r.qty})).sort((a,b)=>b.t-a.t).slice(0,8);
+  const top=[...R].map(r=>({...r,t:puEff(r)*r.qty})).sort((a,b)=>b.t-a.t).slice(0,8);
   const hoy=val("p_fec")||new Date().toISOString().slice(0,10);
   const sisRows=Object.entries(bySis).map(([s,v])=>
     `<tr><td>${s}</td><td class="num">${clp(v)}</td><td class="num">UF ${fmt(v/uf,1)}</td><td class="num">${fmt(v/tot*100,1)}%</td></tr>`).join("");
@@ -1144,13 +1162,13 @@ function renderInforme(){
   const grupos={};
   R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
   Object.entries(grupos).forEach(([sis,rows],gi)=>{
-    const sub=rows.reduce((t,r)=>t+puOf(r.key).pu*r.qty,0);
+    const sub=rows.reduce((t,r)=>t+puEff(r)*r.qty,0);
     qtyRows+=`<tr style="cursor:pointer" onclick="toggleSis(${gi})" title="Clic para contraer/extender">
       <td colspan="3" style="background:#dcebf7;font-weight:700;color:var(--navy)"><span id="sis-arrow-${gi}">▾</span> ${sis}</td>
       <td class="num" style="background:#dcebf7;color:var(--mut);font-size:12px">${rows.length} part.</td>
       <td style="background:#dcebf7"></td>
       <td class="num" style="background:#dcebf7;font-weight:700;color:var(--navy)">${clp(sub)}<br><span style="font-size:11px;font-weight:600;color:var(--mut)">UF ${fmt(sub/uf,1)}</span></td></tr>`;
-    rows.forEach(r=>{const pu=puOf(r.key).pu, tt=pu*r.qty;
+    rows.forEach(r=>{const pu=puEff(r), tt=pu*r.qty;
       qtyRows+=`<tr class="sisrow-${gi}"><td></td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td>
       <td class="num">${clp(pu)}<br><span style="font-size:10.5px;color:var(--mut)">UF ${fmt(pu/uf,3)}</span></td>
       <td class="num">${clp(tt)}<br><span style="font-size:10.5px;color:var(--mut)">UF ${fmt(tt/uf,1)}</span></td></tr>`;});
@@ -1174,7 +1192,12 @@ function renderInforme(){
     <div class="t alt"><small>IVA ${iva}%</small><b>${clp(ivaT)}</b></div>
     <div class="t" style="background:linear-gradient(135deg,#0b3a1e,var(--ok))"><small>Total con IVA</small><b>${clp(totIva)}</b></div>
     <div class="t" style="background:linear-gradient(135deg,#5a3a00,var(--accent))"><small>Total Neto UF</small><b>UF ${fmt(tot/uf,1)}</b></div>
-    ${m2mba>0?`<div class="t alt"><small>Entibación MBA — neto por m²</small><b>UF ${fmt(costoMBA/m2mba/uf,2)}/m²</b><span style="font-size:11.5px;opacity:.85">${clp(costoMBA/m2mba)}/m² · ${fmt(m2mba)} m²</span></div>`:""}
+    ${m2mba>0?`<div class="t alt"><small>Entibación MBA — neto por m²${adjM!==1?` · ajuste ${adjM>1?"+":""}${fmt((adjM-1)*100,1)}%`:""}</small><b>UF ${fmt(costoMBA/m2mba/uf,2)}/m²</b><span style="font-size:11.5px;opacity:.85">${clp(costoMBA/m2mba)}/m² · ${fmt(m2mba)} m²</span>
+      <span class="no-print" style="display:flex;gap:6px;margin-top:7px;align-items:center">
+        <button onclick="ajMBA(-0.025)" title="Bajar 2,5% el valor del sistema MBA" style="background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:6px;padding:2px 9px;cursor:pointer;font-size:11.5px">▼ −2,5%</button>
+        <button onclick="ajMBA(0.025)" title="Subir 2,5% el valor del sistema MBA" style="background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:6px;padding:2px 9px;cursor:pointer;font-size:11.5px">▲ +2,5%</button>
+        ${adjM!==1?`<button onclick="ajMBA(0)" title="Quitar ajuste" style="background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:6px;padding:2px 9px;cursor:pointer;font-size:11.5px">↺</button>`:""}
+      </span></div>`:""}
   </div>
   <table><tr><th>Sistema de entibación</th><th class="num">Neto CLP</th><th class="num">Neto UF</th><th class="num">Incidencia</th></tr>${sisRows}
   <tr class="res"><td>TOTAL NETO</td><td class="num">${clp(tot)}</td><td class="num">UF ${fmt(tot/uf,1)}</td><td class="num">100%</td></tr></table>
@@ -1249,7 +1272,7 @@ function nubeMsg(t,err){const e=document.getElementById("nube-status");
   setTimeout(()=>e.style.display="none",5000);}
 function totalesActuales(){
   const R=resumen();let tot=0;
-  R.forEach(r=>tot+=puOf(r.key).pu*r.qty);
+  R.forEach(r=>tot+=puOf(r.key).pu*adjSis(r.sis)*r.qty);
   const uf=+val("p_uf")||39500;
   return{neto:Math.round(tot),uf:rnd(tot/uf,1)};
 }
@@ -1380,8 +1403,8 @@ function csvActual(){
    ["Cliente",val("p_cli"),"","Ubicación",val("p_ubi"),"","Fecha",val("p_fec")],[],
    ["Sistema","Partida","Unidad","Cantidad","Materiales CLP","M.Obra CLP","Equipos CLP","Costo Directo","P.Unitario CLP","Total CLP"]];
   let tot=0,cd=0;
-  R.forEach(r=>{const p=puOf(r.key);tot+=p.pu*r.qty;cd+=p.cd*r.qty;
-    filas.push([r.sis,r.key,r.unit,r.qty,p.mat,p.mo,p.eq,p.cd,Math.round(p.pu),Math.round(p.pu*r.qty)]);});
+  R.forEach(r=>{const p=puOf(r.key), puA=p.pu*adjSis(r.sis);tot+=puA*r.qty;cd+=p.cd*r.qty;
+    filas.push([r.sis,r.key,r.unit,r.qty,p.mat,p.mo,p.eq,p.cd,Math.round(puA),Math.round(puA*r.qty)]);});
   filas.push([],["","","","","","","","Costo Directo",Math.round(cd)],
    ["","","","","","","","GG "+gg+"% + Util "+ut+"%",Math.round(tot-cd)],
    ["","","","","","","","NETO",Math.round(tot)],
