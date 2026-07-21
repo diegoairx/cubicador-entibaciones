@@ -314,6 +314,9 @@ function calcMBA(s){
   const mlPerf=rnd(s.Lp*nPerf);                  // D20 =D18*D19
   let ancTot=0,mlAnc=0,nCables=0,mlCab=0,det=[];
   const lr=(s.lr===""||s.lr==null)?1.5:+s.lr;    // reserva por cable (Nota Técnica Nexxo: Lr=1,5 m)
+  // Parámetros de diseño de anclajes (MC Pangea 22 0326: Bustamante + ASTM A416 Gr270)
+  const rs=+s.rs||135, dd=+s.dd||150, ll=(s.ll===""||s.ll==null)?4.5:+s.ll;
+  const ALFA=1.2, FSB=1.8, FSC=1.5, FY_CABLE=235; // IGU · FS bulbo · FS cables · fluencia kN (15,2mm, 140mm²)
   (s.anc||[]).forEach(a=>{
     const auto=up(nPerf/2);                      // D30 =D19/2 (automático)
     const manual=(a.cant!==""&&a.cant!=null&&+a.cant>0);
@@ -321,7 +324,12 @@ function calcMBA(s){
     const ml=a.len>0?rnd(cant*a.len):0;          // La = Na·Lt
     const nc=+a.nc||0;
     const cab=a.len>0?rnd(cant*nc*(+a.len+lr)):0; // Lc = Na·nc·(Lt+Lr)  [NT Nexxo ec. 5.6]
-    det.push({...a,cant,auto,manual,ml,cab}); ancTot+=cant; mlAnc+=ml;
+    // Sugerencias de diseño según la memoria de cálculo:
+    const kn=+a.kn||0;
+    const sugNc=kn>0?up(kn*FSC/FY_CABLE):0;                       // n = T·FS/(Ac·Fy)
+    const lb=kn>0?kn*FSB/(Math.PI*ALFA*(dd/1000)*rs):0;           // Ls = T·FS/(π·α·Dd·Rs)
+    const sugLt=kn>0?rnd(Math.ceil((ll+lb)*2)/2,1):0;             // Lt = Ll + Lb (redondeo a 0,5 m)
+    det.push({...a,cant,auto,manual,ml,cab,sugNc,lb:rnd(lb,1),sugLt}); ancTot+=cant; mlAnc+=ml;
     nCables+=cant*nc; mlCab+=cab;
   });
   const vigas=ancTot, cabez=ancTot;              // D22=D36 ; D26=D36
@@ -665,13 +673,19 @@ function renderMBA(){
       <div><label>Reserva cable Lr (m)${helpIco("Longitud adicional por cable para desarrollo, manipulación y tensado. Nota Técnica de referencia (MBA Ed. Nexxo, Pewen): Lr = 1,5 m por cable. Cables totales = Σ N°anclajes × cables/anclaje × (Lt + Lr).")}</label>${inp(`mba.${i}.lr`,s.lr??1.5)}</div>
     </div>
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de anclaje</b>${helpIco("Cantidad automática = perfiles ÷ 2 (un anclaje cada 2 perfiles, c/"+rnd(s.esp*2)+" m según planilla). Puedes escribir otra cantidad para agregar o quitar unidades; deja el campo vacío para volver al cálculo automático.")}
-    <table style="margin-top:6px"><tr><th>Línea</th><th>N° cables</th><th>Capacidad (kN)</th><th>Longitud (m)</th><th>Cantidad (editable)</th><th class="num">ml totales</th><th></th></tr>
+    <div class="grid g4" style="margin:8px 0 4px">
+      <div><label>Rs bulbo (kN/m²)${helpIco("Fricción lateral unitaria del estrato del bulbo, según mecánica de suelos. Referencia MC Pangea 22 0326 (Ed. DÚO): 135 para SM/CL sueltos (N<10), 200 para SM denso (N>10).")}</label>${inp(`mba.${i}.rs`,s.rs??135,5)}</div>
+      <div><label>Ø perforación Dd (mm)</label>${inp(`mba.${i}.dd`,s.dd??150,5)}</div>
+      <div><label>Long. libre Ll (m)${helpIco("Longitud libre mínima 4,5 m para anclajes de cable, debe desarrollar el bulbo fuera de la zona de falla (MC Pangea 22 0326).")}</label>${inp(`mba.${i}.ll`,s.ll??4.5,0.5)}</div>
+    </div>
+    <table style="margin-top:6px"><tr><th>Línea</th><th>N° cables</th><th>Capacidad (kN)</th><th>Longitud (m)</th><th>Cantidad (editable)</th><th class="num">ml totales</th><th>Sugerido MC${helpIco("Calculado con la metodología de la MC Pangea 22 0326: n° cables = REDONDEAR.ARRIBA(To×1,5 ÷ 235 kN) con cable 15,2 mm ASTM A416 Gr270; Lb = To×1,8 ÷ (π×1,2×Dd×Rs) por Bustamante con inyección IGU; Lt = Ll + Lb redondeado a 0,5 m. Es una sugerencia de cubicación preliminar — la memoria de cálculo del proyecto manda.")}</th><th></th></tr>
     ${c.det.map((a,j)=>`<tr><td>${j+1}</td>
       <td>${inp(`mba.${i}.anc.${j}.nc`,a.nc,1,55)}</td>
       <td>${inp(`mba.${i}.anc.${j}.kn`,a.kn,5,70)}</td>
       <td>${inp(`mba.${i}.anc.${j}.len`,a.len,0.5,70)}</td>
       <td><input class="cell" type="number" step="1" min="0" value="${a.manual?a.cant:""}" placeholder="auto: ${a.auto}" style="width:85px" title="Vacío = automático (perfiles/2)" onchange="setv('mba.${i}.anc.${j}.cant',this.value)">${a.manual?"":`<span style="font-size:11px;color:var(--mut)"> ${a.cant}</span>`}</td>
       <td class="num">${fmt(a.ml,1)}</td>
+      <td style="font-size:12px;color:${(a.sugNc>+a.nc||a.sugLt>+a.len)?"var(--danger)":"var(--mut)"}">${a.sugNc>0?`${a.sugNc} cables · Lt ${fmt(a.sugLt,1)} m <span style="font-size:10.5px">(Lb ${fmt(a.lb,1)})</span>`:"–"}</td>
       <td><button class="btn warn sm" onclick="S.mba[${i}].anc.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
     </table>
     <button class="btn ghost sm" style="margin-top:6px" onclick="S.mba[${i}].anc.push({nc:2,kn:190,len:10});renderSub()">+ Línea de anclaje</button></div>
