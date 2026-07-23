@@ -324,11 +324,15 @@ let S={
 function calcMBA(s){
   const area=rnd(s.H*s.L);                       // D15 =D12*D13
   const nPerf=up(s.L/s.esp)+(+s.extra);          // D19 =ROUNDUP(L/esp,0)+extra
-  const mlPerf=rnd(s.Lp*nPerf);                  // D20 =D18*D19
+  // Perfiles de misma sección con distintos largos: grupos opcionales que sustituyen parte del conteo
+  const grupos=(s.perfL||[]).filter(g=>+g.n>0&&+g.Lp>0);
+  const nExtra=grupos.reduce((t,g)=>t+Math.round(+g.n),0);
+  const nBase=Math.max(0,nPerf-nExtra);          // perfiles al largo principal Lp
+  const mlPerf=rnd(s.Lp*nBase+grupos.reduce((t,g)=>t+Math.round(+g.n)*(+g.Lp),0)); // ml totales (misma sección)
   let ancTot=0,mlAnc=0,nCables=0,mlCab=0,det=[];
   const lr=(s.lr===""||s.lr==null)?1.5:+s.lr;    // reserva por cable (Nota Técnica Nexxo: Lr=1,5 m)
   // Parámetros de diseño de anclajes (MC Pangea 22 0326 + planilla Ferrara 2201034: Bustamante + ASTM A416 Gr270)
-  const rs=+s.rs||150, dd=+s.dd||123, ll=(s.ll===""||s.ll==null)?4.5:+s.ll;
+  const rs=+s.rs||150, dd=+s.dd||117, ll=(s.ll===""||s.ll==null)?4.5:+s.ll;
   const alfaB=+s.alfaB||1.25;                     // α: 1,25 IGU · 1,30 IRS (Ferrara) · 1,20 IGU conservador (Pangea)
   const FSB=1.8, FSC=1.5, FY_CABLE=235, KG_CABLE=1.10; // FS bulbo · FS cables · fluencia kN · kg/m cable 0,6"
   const fv=Math.PI*alfaB*(dd/1000)*rs/FSB;        // Fv adm (kN/m): capacidad admisible de bulbo por metro
@@ -348,10 +352,13 @@ function calcMBA(s){
     nCables+=cant*nc; mlCab+=cab;
   });
   const kgCables=rnd(mlCab*KG_CABLE,1);           // peso acero cables: 1,10 kg/m (validado planilla Ferrara)
-  const vigas=ancTot, cabez=ancTot;              // D22=D36 ; D26=D36
-  const mlExt=rnd(s.ext*vigas*2);                // D25 =D24*D22*2
+  // Vigas de amarre (longuerinas): pueden servir a 1 o más anclajes
+  const ancViga=Math.max(1,Math.round(+s.ancViga||1)); // n° de anclajes por viga de amarre
+  const vigas=ancViga>0?up(ancTot/ancViga):ancTot;
+  const cabez=ancTot;                            // un cabezal por anclaje
+  const mlExt=rnd(s.ext*vigas*2);                // extensiones = long. extensión × vigas × 2
   const tAcero=rnd(mlPerf*kgm(s.perfil)/1000,2); // M = L·μWF  [NT Nexxo ec. 5.2]
-  return{area,nPerf,mlPerf,vigas,cabez,mlExt,mlAnc,mlCab:rnd(mlCab),nCables,kgCables,fv:rnd(fv,1),tAcero,lr,det};
+  return{area,nPerf,nBase,nExtra,grupos,mlPerf,vigas,ancViga,cabez,mlExt,mlAnc,mlCab:rnd(mlCab),nCables,kgCables,fv:rnd(fv,1),tAcero,lr,det};
 }
 function calcMBV(s){
   const area=rnd(s.H*s.L);
@@ -502,16 +509,15 @@ function resumen(){
   S.sn.forEach(s=>{const c=calcSN(s);shot+=c.aTot;m3s+=c.m3Shot;dados+=c.dados;plac+=c.placas;coplas+=c.coplas;
     if(c.tipoMalla==="acma")mallaAcma+=c.m2Malla; else mallaKg+=c.kgMalla;
     Object.entries(c.byTipo).forEach(([t,v])=>pt[t]=(pt[t]||0)+v);
-    const bk='Barbacanas Ø'+fmt(s.barbD??2,1)+'" L='+fmt(s.barbL??450,0)+'mm'; barbG[bk]=(barbG[bk]||0)+c.barb;
+    const bk='Barbacanas Ø'+fmt(s.barbD??2,1)+'" L='+fmt(s.barbL??45,0)+'cm'; barbG[bk]=(barbG[bk]||0)+c.barb;
     if(c.refOn){const rk='Refuerzo barras FE '+c.refFi+'mm'; refML[rk]=(refML[rk]||0)+c.mlRef;}});
-  add("Soil Nailing","Shotcrete G-25 proyectado","m²",shot);
-  add("Soil Nailing","Hormigón proyectado G-25 (vol.)","m³",m3s);
+  add("Soil Nailing","Shotcrete proyectado","m²",shot);
+  add("Soil Nailing","Hormigón proyectado (vol.)","m³",m3s);
   add("Soil Nailing","Malla ACMA C335 (2,60x5,00)","m²",mallaAcma);
   add("Soil Nailing","Malla electrosoldada acero","kg",mallaKg);
   Object.entries(pt).forEach(([t,v])=>add("Soil Nailing","Pernos autoperforantes "+t,"ml",v));
   add("Soil Nailing","Coplas de empalme pernos","un",coplas);
   Object.entries(refML).forEach(([k,v])=>add("Soil Nailing",k,"ml",v));
-  add("Soil Nailing","Dados de protección hormigón","un",dados);
   add("Soil Nailing","Placas 220x220x15 A370-240ES","un",plac);
   Object.entries(barbG).forEach(([k,v])=>add("Soil Nailing",k,"un",v));
   if(S.sn.length)add("Soil Nailing","Movilización / Desmovilización equipo shotcrete y perforación","gl",1);
@@ -573,8 +579,8 @@ const PBASE={
  'Anclajes postensados inyectados':{mat:21540,mo:24921,eq:16454},
  'Cables de acero 0,6" (incl. reserva)':{mat:0,mo:0,eq:0},
  'Cuñas cónicas / mordazas':{mat:0,mo:0,eq:0},
- 'Shotcrete G-25 proyectado':{mat:38000,mo:22000,eq:25000},
- 'Hormigón proyectado G-25 (vol.)':{mat:0,mo:0,eq:0},
+ 'Shotcrete proyectado':{mat:38000,mo:22000,eq:25000},
+ 'Hormigón proyectado (vol.)':{mat:0,mo:0,eq:0},
  'Malla acero (doble malla)':{mat:1250,mo:450,eq:150},
  'Malla ACMA C335 (2,60x5,00)':{mat:3200,mo:900,eq:300},
  'Malla electrosoldada acero':{mat:1250,mo:450,eq:150},
@@ -724,18 +730,25 @@ function renderMBA(){
       <div><label>Longitud L (m)</label>${inp(`mba.${i}.L`,s.L)}</div>
       <div><label>Espaciamiento (m)</label>${inp(`mba.${i}.esp`,s.esp)}</div>
       <div><label>Perfiles extra (+)${helpIco(HELP_EXTRA)}</label>${inp(`mba.${i}.extra`,s.extra,1)}</div>
-      <div><label>Long. perfil H+d (m)</label>${inp(`mba.${i}.Lp`,s.Lp)}</div>
+      <div><label>Long. perfil H+d (m)${helpIco("Largo principal de los perfiles. Si en el diseño hay perfiles de la misma sección con distintos largos, agrégalos en 'Perfiles de otro largo' más abajo.")}</label>${inp(`mba.${i}.Lp`,s.Lp)}</div>
       <div><label>Tablones</label><select onchange="setvs('mba.${i}.tab',this.value)">
         <option ${String(s.tab)!=="2.5"?"selected":""} value="2.0">2,0"</option><option ${String(s.tab)==="2.5"?"selected":""} value="2.5">2,5"</option></select></div>
       <div><label>Perfil</label><select onchange="setvs('mba.${i}.perfil',this.value)">
         ${perfiles().map(p=>`<option ${s.perfil===p?"selected":""}>${p}</option>`).join("")}</select></div>
-      <div><label>Long. extensión (m)</label>${inp(`mba.${i}.ext`,s.ext)}</div>
+      <div><label>Long. extensión (m)</label>${inp(`mba.${i}.ext`,s.ext??0.35)}</div>
+      <div><label>Anclajes por viga amarre${helpIco("Longuerinas: n° de anclajes que comparten una misma viga de amarre. 1 = una viga por anclaje (estándar). En proyectos con longuerinas continuas, 2 o más anclajes por viga reduce el número de vigas.")}</label>${inp(`mba.${i}.ancViga`,s.ancViga??1,1)}</div>
       <div><label>Reserva cable Lr (m)${helpIco("Longitud adicional por cable para desarrollo, manipulación y tensado. Nota Técnica de referencia (MBA Ed. Nexxo, Pewen): Lr = 1,5 m por cable. Cables totales = Σ N°anclajes × cables/anclaje × (Lt + Lr).")}</label>${inp(`mba.${i}.lr`,s.lr??1.5)}</div>
     </div>
+    <div style="margin-top:10px"><b style="font-size:12.5px;color:var(--navy)">Perfiles de otro largo (misma sección ${s.perfil})</b>${helpIco("Para diseños donde algunos perfiles de la misma sección tienen distinto largo. Estos grupos sustituyen parte del conteo total: el resto va al 'Long. perfil H+d' principal. Total de perfiles se mantiene = "+c.nPerf+".")}
+    ${(s.perfL&&s.perfL.length)?`<table style="margin-top:4px;max-width:420px"><tr><th>Cantidad</th><th>Largo (m)</th><th></th></tr>
+    ${s.perfL.map((g,k)=>`<tr><td>${inp(`mba.${i}.perfL.${k}.n`,g.n,1,70)}</td><td>${inp(`mba.${i}.perfL.${k}.Lp`,g.Lp,0.5,70)}</td>
+      <td><button class="btn warn sm" onclick="S.mba[${i}].perfL.splice(${k},1);renderSub()">✕</button></td></tr>`).join("")}
+    <tr class="res"><td>${c.nBase} al largo principal (${fmt(s.Lp,1)} m)</td><td colspan="2">${fmt(c.mlPerf,1)} ml totales</td></tr></table>`:""}
+    <button class="btn ghost sm" style="margin-top:5px" onclick="(S.mba[${i}].perfL=S.mba[${i}].perfL||[]).push({n:1,Lp:${s.Lp}});renderSub()">+ Grupo de perfiles con otro largo</button></div>
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de anclaje</b>${helpIco("Cantidad automática = perfiles ÷ 2 (un anclaje cada 2 perfiles, c/"+rnd(s.esp*2)+" m según planilla). Puedes escribir otra cantidad para agregar o quitar unidades; deja el campo vacío para volver al cálculo automático.")}
     <div class="grid g4" style="margin:8px 0 4px">
       <div><label>qs bulbo (kN/m²)${helpIco("Fricción lateral unitaria del estrato del bulbo, según mecánica de suelos y N-SPT. Referencias: planilla Ferrara — arena N≈15: 75 (IRS) · arena N≈30: 150 · arena densa N≈40: 200. MC Pangea Ed. DÚO — SM/CL sueltos N<10: 135 · SM denso: 200.")}</label>${inp(`mba.${i}.rs`,s.rs??150,5)}</div>
-      <div><label>Ø perforación Dd (mm)${helpIco("Ferrara: 123 mm en IGU, 76 mm en IRS autoperforante. Pangea Ed. DÚO: 150 mm.")}</label>${inp(`mba.${i}.dd`,s.dd??123,5)}</div>
+      <div><label>Ø perforación Dd (mm)${helpIco("Estándar Ngenco 117 mm. Referencias: Ferrara 123 mm en IGU, 76 mm en IRS autoperforante; Pangea Ed. DÚO 150 mm.")}</label>${inp(`mba.${i}.dd`,s.dd??117,1)}</div>
       <div><label>Inyección (α)${helpIco("Factor de mayoración del diámetro de bulbo Ds = α·Dd según tipo de inyección (Bustamante). IGU (inyección global única): α=1,25 · IRS (repetitiva selectiva): α=1,30 · valor conservador MC Pangea: α=1,20.")}</label><select onchange="setv('mba.${i}.alfaB',this.value)">
         <option value="1.25" ${(+s.alfaB||1.25)===1.25?"selected":""}>IGU — α 1,25</option>
         <option value="1.3" ${+s.alfaB===1.3?"selected":""}>IRS — α 1,30</option>
@@ -756,9 +769,9 @@ function renderMBA(){
     <button class="btn ghost sm" style="margin-top:6px" onclick="S.mba[${i}].anc.push({nc:2,kn:190,len:10});renderSub()">+ Línea de anclaje</button></div>
     <div class="kpi">
       <div><b>${fmt(c.area)}</b><span>m² entibación ${s.tab}"</span></div>
-      <div><b>${c.nPerf}</b><span>perfiles ${s.perfil}</span></div>
+      <div><b>${c.nPerf}</b><span>perfiles ${s.perfil}${c.nExtra>0?` (${c.nBase}+${c.nExtra})`:""}</span></div>
       <div><b>${fmt(c.mlPerf,1)}</b><span>ml perfiles</span></div>
-      <div><b>${c.vigas}</b><span>vigas amarre</span></div>
+      <div><b>${c.vigas}</b><span>vigas amarre${c.ancViga>1?` (${c.ancViga} anc./viga)`:""}</span></div>
       <div><b>${c.cabez}</b><span>cabezales</span></div>
       <div><b>${fmt(c.mlExt,1)}</b><span>ml extensiones</span></div>
       <div><b>${fmt(c.mlAnc,1)}</b><span>ml anclajes</span></div>
@@ -768,7 +781,7 @@ function renderMBA(){
       <div><b>${fmt(c.tAcero)}</b><span>t acero perfiles</span></div>
     </div></div>`;
   });
-  h+=`<button class="btn" onclick="S.mba.push({nom:'Nueva sección',H:3.6,L:12,esp:1.6,extra:4,Lp:5.5,tab:'2.0',perfil:'W200x31.3',ext:0.5,anc:[{nc:2,kn:190,len:10.5}]});renderSub()">+ Agregar sección</button>
+  h+=`<button class="btn" onclick="S.mba.push({nom:'Nueva sección',H:3.6,L:12,esp:1.6,extra:4,Lp:5.5,tab:'2.0',perfil:'W200x31.3',ext:0.35,ancViga:1,dd:117,rs:150,anc:[{nc:2,kn:190,len:10.5}]});renderSub()">+ Agregar sección</button>
   <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>`;
   document.getElementById("sub-mba").innerHTML=`<div class="card">${modHead("Muro Berlinés Anclado Temporal","mba")}${h}</div>`;
 }
@@ -852,7 +865,7 @@ function renderSN(){
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Barbacanas y refuerzos</b>
     <div class="grid g4" style="margin-top:6px">
       <div><label>Barbacana Ø (")</label>${inp(`sn.${i}.barbD`,s.barbD??2,0.5)}</div>
-      <div><label>Barbacana largo (mm)</label>${inp(`sn.${i}.barbL`,s.barbL??450,50)}</div>
+      <div><label>Barbacana largo (cm)</label>${inp(`sn.${i}.barbL`,s.barbL??45,5)}</div>
       <div><label>Barbacana: 1 cada (m²)</label>${inp(`sn.${i}.barbSep`,s.barbSep??4,0.5)}</div>
       <div></div>
       <div><label>Refuerzo de pernos con FE${helpIco("Barras de refuerzo en la cabeza de cada perno. Cubicación en ml = n° de pernos × barras por perno × largo de barra. Ej: 478 pernos × 4 barras FE16 × 1,5 m = 2.868 ml (239 barras de 12 m).")}</label><select onchange="setv('sn.${i}.refOn',this.value==='si'?1:0)">
@@ -879,7 +892,7 @@ function renderSN(){
       ${c.refOn?`<div><b>${fmt(c.mlRef,0)}</b><span>ml refuerzo FE${c.refFi} (${c.nRef} barras · ${c.nBarra12} de 12m)</span></div>`:""}
     </div></div>`;
   });
-  h+=`<button class="btn" onclick="S.sn.push({nom:'Nuevo tramo',H:5,inc:84,Lpl:15,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,mallaTipo:'acma',capas:2,barMax:3,barbD:2,barbL:450,barbSep:4,per:[{tipo:'R32S',cant:8,len:9.5}]});renderSub()">+ Agregar tramo</button>`;
+  h+=`<button class="btn" onclick="S.sn.push({nom:'Nuevo tramo',H:5,inc:84,Lpl:15,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,mallaTipo:'acma',capas:2,barMax:3,barbD:2,barbL:45,barbSep:4,per:[{tipo:'R32S',cant:8,len:9.5}]});renderSub()">+ Agregar tramo</button>`;
   document.getElementById("sub-sn").innerHTML=`<div class="card">${modHead("Soil Nailing","sn")}${h}</div>`;
 }
 
