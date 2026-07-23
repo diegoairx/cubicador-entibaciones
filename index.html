@@ -81,6 +81,13 @@ input.cell:hover{border-color:var(--line);background:#fff}
 .sig div{text-align:center;border-top:1.5px solid var(--txt);padding-top:6px;width:220px;font-size:12.5px}
 footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
 /* Modo PDF: una sola hoja A4, layout compacto y de alta resolución */
+.res-cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.res-cols table{font-size:12.5px}
+#resumen-print.pdf-res{width:1450px;background:#fff;padding:16px 20px}
+.pdf-res .res-cols{gap:30px}
+.pdf-res table{font-size:12px}
+.pdf-res th{padding:4px 8px;font-size:11px}
+.pdf-res td{padding:3px 8px}
 .pdf-mode{width:940px!important;background:#fff;padding:14px 18px!important;font-size:11px}
 .pdf-mode table{font-size:9.5px;page-break-inside:auto;border-collapse:collapse}
 .pdf-mode th{padding:3px 6px;font-size:9px;line-height:1.15}
@@ -1075,14 +1082,54 @@ function renderMT(){
 /* ═════════════════ RENDER: RESUMEN ═════════════════ */
 function renderResumen(){
   const R=resumen();
-  let h=`<table><tr><th>Sistema</th><th>Partida</th><th>Unidad</th><th class="num">Cantidad</th></tr>`;
-  let last="";
-  R.forEach(r=>{
-    h+=`<tr><td>${r.sis!==last?"<b>"+r.sis+"</b>":""}</td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td></tr>`;
-    last=r.sis;
-  });
-  h+="</table>";
-  document.getElementById("sub-resumen").innerHTML=`<div class="card"><h2>Cuadro Resumen de Cubicación</h2>${h}</div>`;
+  // Reparte en 2 columnas para aprovechar el formato horizontal
+  const grupos={}; R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
+  const bloques=Object.entries(grupos);
+  const mitad=Math.ceil(R.length/2); let acc=0, corte=bloques.length;
+  for(let k=0;k<bloques.length;k++){acc+=bloques[k][1].length; if(acc>=mitad){corte=k+1;break;}}
+  const colTabla=arr=>{let t=`<table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th></tr>`;
+    arr.forEach(([sis,rows])=>rows.forEach((r,idx)=>{
+      t+=`<tr><td>${idx===0?`<b>${sis}</b>`:""}</td><td>${r.key}</td><td>${r.unit}</td><td class="num">${fmt(r.qty)}</td></tr>`;}));
+    return t+"</table>";};
+  const dosCols=R.length>14
+    ?`<div class="res-cols"><div>${colTabla(bloques.slice(0,corte))}</div><div>${colTabla(bloques.slice(corte))}</div></div>`
+    :colTabla(bloques);
+  const vacio=!R.length;
+  document.getElementById("sub-resumen").innerHTML=`<div class="card">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <h2 style="margin-bottom:0">Cuadro Resumen de Cubicación</h2>
+      <button class="btn no-print" style="margin-left:auto" onclick="imprimirResumen()" ${vacio?"disabled":""}>🖨 Imprimir / PDF (1 hoja horizontal)</button>
+    </div>
+    <div id="resumen-print">
+      <div id="resumen-head" style="display:none"></div>
+      ${vacio?'<p class="note">Aún no hay partidas cubicadas. Ingresa datos en los sistemas de la pestaña Cubicación.</p>':dosCols}
+    </div></div>`;
+}
+async function imprimirResumen(){
+  const R=resumen(); if(!R.length){alert("No hay partidas para imprimir.");return;}
+  const H2C=getH2C(), JsPDF=getJsPDF();
+  if(!H2C||!JsPDF){alert("No se pudieron cargar las librerías de PDF. Recarga la página (F5).");return;}
+  const cont=document.getElementById("resumen-print");
+  const head=document.getElementById("resumen-head");
+  head.innerHTML=`<div style="border-bottom:3px solid var(--navy);padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-end">
+    <div><div style="font-size:20px;font-weight:800;color:var(--navy)">CUADRO RESUMEN DE CUBICACIÓN</div>
+    <div style="font-size:14px;color:var(--txt);margin-top:2px"><b>${val("p_nom")||"Proyecto sin nombre"}</b>${val("p_num")?" · N° "+val("p_num"):""}${val("p_ubi")?" · "+val("p_ubi"):""}</div></div>
+    <div style="text-align:right;font-size:12px;color:var(--mut)"><b>NGENCO SpA</b><br>${val("p_cli")?"Cliente: "+val("p_cli")+"<br>":""}Fecha: ${val("p_fec")||new Date().toISOString().slice(0,10)}${val("p_revn")?" · Rev. "+val("p_revn"):""}</div>
+  </div>`;
+  cont.classList.add("pdf-res"); head.style.display="block";
+  try{
+    await new Promise(r=>setTimeout(r,250));
+    const W=cont.scrollWidth||1400, Hh=cont.scrollHeight||900;
+    const esc=Math.max(1,Math.min(3,12000/W,12000/Hh,Math.sqrt(20e6/(W*Hh))));
+    const canvas=await H2C(cont,{scale:esc,useCORS:true,logging:false,backgroundColor:"#ffffff"});
+    const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"landscape",compress:true});
+    const PW=pdf.internal.pageSize.getWidth(),PH=pdf.internal.pageSize.getHeight(),M=8;
+    const k=Math.min((PW-2*M)/canvas.width,(PH-2*M)/canvas.height);
+    const w=canvas.width*k,hh=canvas.height*k;
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.96),"JPEG",(PW-w)/2,M,w,hh,undefined,"FAST");
+    pdf.save(`Resumen_Cubicacion_${(val("p_num")||val("p_nom")||"proyecto").replace(/\s/g,"_")}.pdf`);
+  }catch(e){console.error(e);alert("Error al generar PDF: "+(e&&e.message?e.message:e));}
+  cont.classList.remove("pdf-res"); head.style.display="none";
 }
 
 /* ═════════════════ RENDER: APU ═════════════════ */
