@@ -390,15 +390,17 @@ function calcSN(s){
   // Barbacanas: espaciamiento editable (1 cada X m²)
   const barbSep=+s.barbSep||4;
   const barb=barbSep>0?up(aTot/barbSep):0;
-  // Refuerzo con barras FE (Ø, espaciamiento, largo — cubicado en ml)
+  // Refuerzo de pernos con barras FE (por cabeza de perno — cubicado en ml)
   const refOn=!!s.refOn;
-  const refSep=+s.refSep||0.2, refLen=+s.refLen||1.6;
-  const nRef=(refOn&&refSep>0)?up(aTot/(refSep*refSep)):0;  // 1 barra por celda refSep×refSep
-  const mlRef=refOn?rnd(nRef*refLen):0;
+  const refBar=(s.refBar===""||s.refBar==null)?4:+s.refBar;  // barras por perno
+  const refLen=+s.refLen||1.5;                               // largo de cada barra (m)
+  const nRef=refOn?nPer*refBar:0;                            // n° total de barras = pernos × barras/perno
+  const mlRef=refOn?rnd(nRef*refLen):0;                      // ml refuerzo = n° barras × largo
+  const nBarra12=refOn?up(mlRef/12):0;                       // barras comerciales de 12 m
   const m3Shot=rnd(aTot*s.e/100);
   return{Lm:rnd(Lm),aEf,aTot,perd:rnd(perd,1),m2Malla:m2conP,tipoMalla,nPaneles,capas,
     kgMalla,nMallas,det,nPer,mlPer,byTipo,coplas,barMax,dados,placas,barb,barbSep,
-    refOn,refFi:+s.refFi||16,nRef,mlRef,refLen,m3Shot};
+    refOn,refFi:+s.refFi||16,refBar,nRef,mlRef,nBarra12,refLen,m3Shot};
 }
 function calcMP(){
   const m=S.mp; let det=[],ml=0,n=0;
@@ -853,13 +855,13 @@ function renderSN(){
       <div><label>Barbacana largo (mm)</label>${inp(`sn.${i}.barbL`,s.barbL??450,50)}</div>
       <div><label>Barbacana: 1 cada (m²)</label>${inp(`sn.${i}.barbSep`,s.barbSep??4,0.5)}</div>
       <div></div>
-      <div><label>Refuerzo con barras FE</label><select onchange="setv('sn.${i}.refOn',this.value==='si'?1:0)">
+      <div><label>Refuerzo de pernos con FE${helpIco("Barras de refuerzo en la cabeza de cada perno. Cubicación en ml = n° de pernos × barras por perno × largo de barra. Ej: 478 pernos × 4 barras FE16 × 1,5 m = 2.868 ml (239 barras de 12 m).")}</label><select onchange="setv('sn.${i}.refOn',this.value==='si'?1:0)">
         <option value="no" ${!s.refOn?'selected':''}>No</option><option value="si" ${s.refOn?'selected':''}>Sí</option></select></div>
       ${s.refOn?`
       <div><label>FE Ø (mm)</label><select onchange="setv('sn.${i}.refFi',this.value)">
         <option ${(+s.refFi||16)===12?'selected':''} value="12">12</option><option ${(+s.refFi||16)===16?'selected':''} value="16">16</option></select></div>
-      <div><label>Espac. refuerzo (m)</label>${inp(`sn.${i}.refSep`,s.refSep??0.2,0.05)}</div>
-      <div><label>Largo fierro (m)</label>${inp(`sn.${i}.refLen`,s.refLen??1.6,0.1)}</div>`:""}
+      <div><label>Barras por perno</label>${inp(`sn.${i}.refBar`,s.refBar??4,1)}</div>
+      <div><label>Largo barra (m)</label>${inp(`sn.${i}.refLen`,s.refLen??1.5,0.1)}</div>`:""}
     </div></div>
     <div class="kpi">
       <div><b>${fmt(c.Lm)}</b><span>m long. muro SN</span></div>
@@ -874,7 +876,7 @@ function renderSN(){
       <div><b>${c.dados}</b><span>dados protección</span></div>
       <div><b>${c.placas}</b><span>placas 220x220</span></div>
       <div><b>${c.barb}</b><span>barbacanas Ø${fmt(s.barbD??2,1)}" (1@${fmt(c.barbSep,1)}m²)</span></div>
-      ${c.refOn?`<div><b>${fmt(c.mlRef,0)}</b><span>ml refuerzo FE${c.refFi}</span></div>`:""}
+      ${c.refOn?`<div><b>${fmt(c.mlRef,0)}</b><span>ml refuerzo FE${c.refFi} (${c.nRef} barras · ${c.nBarra12} de 12m)</span></div>`:""}
     </div></div>`;
   });
   h+=`<button class="btn" onclick="S.sn.push({nom:'Nuevo tramo',H:5,inc:84,Lpl:15,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,mallaTipo:'acma',capas:2,barMax:3,barbD:2,barbL:450,barbSep:4,per:[{tipo:'R32S',cant:8,len:9.5}]});renderSub()">+ Agregar tramo</button>`;
