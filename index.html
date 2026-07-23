@@ -289,7 +289,18 @@ function addPerfil(){
   renderSub();
 }
 const kgm=p=>parseFloat(p.split("x")[1]);
-const PERNOS=["R32S","R32N","R38N","R51N","T76N"];
+const PERNOS_BASE=["R32S","R32N","R38N","R51N","T76N","T40/16","T40/20","T30/11","T30/16","T52/26","T73/56"];
+function pernos(){return [...PERNOS_BASE,...(S.pernCustom||[])];}
+const PERNOS=PERNOS_BASE; // compat.
+function addPerno(){
+  const v=prompt('Nuevo tipo de perno autoperforante (ej: T40/16, T52/26, R38N):');
+  if(!v)return;
+  const t=v.trim().toUpperCase();
+  if(!/^[RT]\d{2,3}([\/x]\d{1,2})?[SN]?$/.test(t)){alert("Formato inválido. Ejemplos: T40/16 · R38N · T52/26");return;}
+  S.pernCustom=S.pernCustom||[];
+  if(!pernos().includes(t))S.pernCustom.push(t);
+  renderSub();
+}
 const rnd=(v,d=2)=>Math.round(v*10**d)/10**d;
 const up=v=>Math.ceil(v-1e-9);
 const fmt=(v,d=2)=>isFinite(v)?v.toLocaleString("es-CL",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";
@@ -355,21 +366,39 @@ function calcSN(s){
   const aTot=rnd(aEf+s.emp*s.Lpl);                          // D19
   const ab=s.lb*s.hb, aper=s.hb*s.tras*2+s.lb*s.tras*2;     // D25,D26
   const perd=ab>0?aper/ab*100:0;                            // D27
-  const mFierro=(s.lb/s.sep+1)*s.hb+(s.hb/s.sep+1)*s.lb;    // D30
-  const kgMalla1=Math.PI*(s.fi/1000)**2*0.25*7850*mFierro;  // D31
-  const m2Malla=(1+perd/100)*aTot;                          // D32
-  const nMallas=(s.H>0)?up(m2Malla/s.lb/s.hb)*2:0;          // D33 (doble malla)
-  const kgMalla=rnd(kgMalla1*nMallas);                      // D34
-  let det=[],nPer=0,mlPer=0,byTipo={};
+  const capas=+s.capas||2;                                 // n° de capas de malla (doble por defecto)
+  const m2conP=rnd((1+perd/100)*aTot*capas);               // m² de malla con pérdida por traslape
+  // Malla: ACMA C335 (m²) o electrosoldada φ (kg)
+  const tipoMalla=s.mallaTipo||"acma";
+  const PANEL_ACMA=2.60*5.00;                              // panel C335 = 13,0 m²
+  const nPaneles=tipoMalla==="acma"?up(m2conP/PANEL_ACMA):0;
+  const mFierro=(s.lb/s.sep+1)*s.hb+(s.hb/s.sep+1)*s.lb;
+  const kgMalla1=Math.PI*(s.fi/1000)**2*0.25*7850*mFierro;
+  const nMallas=(s.H>0&&s.lb>0&&s.hb>0)?up((1+perd/100)*aTot/s.lb/s.hb)*capas:0;
+  const kgMalla=tipoMalla==="electro"?rnd(kgMalla1*nMallas):0;
+  // Pernos + coplas (barra máx. 3 m)
+  const barMax=+s.barMax||3;
+  let det=[],nPer=0,mlPer=0,byTipo={},coplas=0;
   (s.per||[]).forEach(p=>{
     const ml=(p.len>0&&p.cant>0)?up(p.cant*p.len):0;        // F39 ROUNDUP
-    det.push({...p,ml}); nPer+=+p.cant; mlPer+=ml;
+    const copPorPerno=(p.len>0&&barMax>0)?Math.max(0,up(p.len/barMax)-1):0; // uniones = tramos − 1
+    const cop=copPorPerno*(+p.cant||0);
+    det.push({...p,ml,cop}); nPer+=+p.cant; mlPer+=ml; coplas+=cop;
     byTipo[p.tipo]=(byTipo[p.tipo]||0)+ml;
   });
   const dados=nPer, placas=nPer;                            // D49,D50
-  const barb=up(aTot/4);                                    // D51 (1@4m2)
+  // Barbacanas: espaciamiento editable (1 cada X m²)
+  const barbSep=+s.barbSep||4;
+  const barb=barbSep>0?up(aTot/barbSep):0;
+  // Refuerzo con barras FE (Ø, espaciamiento, largo — cubicado en ml)
+  const refOn=!!s.refOn;
+  const refSep=+s.refSep||0.2, refLen=+s.refLen||1.6;
+  const nRef=(refOn&&refSep>0)?up(aTot/(refSep*refSep)):0;  // 1 barra por celda refSep×refSep
+  const mlRef=refOn?rnd(nRef*refLen):0;
   const m3Shot=rnd(aTot*s.e/100);
-  return{Lm:rnd(Lm),aEf,aTot,perd:rnd(perd,1),kgMalla,nMallas,det,nPer,mlPer,byTipo,dados,placas,barb,m3Shot};
+  return{Lm:rnd(Lm),aEf,aTot,perd:rnd(perd,1),m2Malla:m2conP,tipoMalla,nPaneles,capas,
+    kgMalla,nMallas,det,nPer,mlPer,byTipo,coplas,barMax,dados,placas,barb,barbSep,
+    refOn,refFi:+s.refFi||16,nRef,mlRef,refLen,m3Shot};
 }
 function calcMP(){
   const m=S.mp; let det=[],ml=0,n=0;
@@ -467,16 +496,22 @@ function resumen(){
   Object.entries(perfV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Perfil "+p+" hincado/retirado","ml",v));
   if(S.mbv.length)add("Muro Berlinés en Voladizo","Movilización / Desmovilización equipo de hinca","gl",1);
   // SN
-  let shot=0,m3s=0,malla=0,dados=0,plac=0,barb=0,pt={};
-  S.sn.forEach(s=>{const c=calcSN(s);shot+=c.aTot;m3s+=c.m3Shot;malla+=c.kgMalla;dados+=c.dados;plac+=c.placas;barb+=c.barb;
-    Object.entries(c.byTipo).forEach(([t,v])=>pt[t]=(pt[t]||0)+v);});
+  let shot=0,m3s=0,mallaAcma=0,mallaKg=0,dados=0,plac=0,pt={},coplas=0,refML={},barbG={};
+  S.sn.forEach(s=>{const c=calcSN(s);shot+=c.aTot;m3s+=c.m3Shot;dados+=c.dados;plac+=c.placas;coplas+=c.coplas;
+    if(c.tipoMalla==="acma")mallaAcma+=c.m2Malla; else mallaKg+=c.kgMalla;
+    Object.entries(c.byTipo).forEach(([t,v])=>pt[t]=(pt[t]||0)+v);
+    const bk='Barbacanas Ø'+fmt(s.barbD??2,1)+'" L='+fmt(s.barbL??450,0)+'mm'; barbG[bk]=(barbG[bk]||0)+c.barb;
+    if(c.refOn){const rk='Refuerzo barras FE '+c.refFi+'mm'; refML[rk]=(refML[rk]||0)+c.mlRef;}});
   add("Soil Nailing","Shotcrete G-25 proyectado","m²",shot);
   add("Soil Nailing","Hormigón proyectado G-25 (vol.)","m³",m3s);
-  add("Soil Nailing","Malla acero (doble malla)","kg",malla);
+  add("Soil Nailing","Malla ACMA C335 (2,60x5,00)","m²",mallaAcma);
+  add("Soil Nailing","Malla electrosoldada acero","kg",mallaKg);
   Object.entries(pt).forEach(([t,v])=>add("Soil Nailing","Pernos autoperforantes "+t,"ml",v));
+  add("Soil Nailing","Coplas de empalme pernos","un",coplas);
+  Object.entries(refML).forEach(([k,v])=>add("Soil Nailing",k,"ml",v));
   add("Soil Nailing","Dados de protección hormigón","un",dados);
   add("Soil Nailing","Placas 220x220x15 A370-240ES","un",plac);
-  add("Soil Nailing","Barbacanas 2\" L=450mm","un",barb);
+  Object.entries(barbG).forEach(([k,v])=>add("Soil Nailing",k,"un",v));
   if(S.sn.length)add("Soil Nailing","Movilización / Desmovilización equipo shotcrete y perforación","gl",1);
   // MP
   const mp=calcMP(); const byT={};
@@ -539,6 +574,11 @@ const PBASE={
  'Shotcrete G-25 proyectado':{mat:38000,mo:22000,eq:25000},
  'Hormigón proyectado G-25 (vol.)':{mat:0,mo:0,eq:0},
  'Malla acero (doble malla)':{mat:1250,mo:450,eq:150},
+ 'Malla ACMA C335 (2,60x5,00)':{mat:3200,mo:900,eq:300},
+ 'Malla electrosoldada acero':{mat:1250,mo:450,eq:150},
+ 'Coplas de empalme pernos':{mat:8500,mo:1500,eq:500},
+ 'Refuerzo barras FE 12mm':{mat:1050,mo:600,eq:150},
+ 'Refuerzo barras FE 16mm':{mat:1850,mo:700,eq:150},
  'Pernos autoperforantes R32S':{mat:28000,mo:14000,eq:13000},
  'Pernos autoperforantes R32N':{mat:30000,mo:14000,eq:13000},
  'Pernos autoperforantes R38N':{mat:36000,mo:15000,eq:14000},
@@ -589,6 +629,10 @@ function basePrice(key){
     return{mat:Math.round(PBASE.Perfil.kg*w),mo:PBASE.Perfil.mo,eq:PBASE.Perfil.eq};
   }
   if(key.startsWith("Placa"))return{mat:15000,mo:3000,eq:800};
+  if(key.startsWith("Pernos autoperforantes"))return{mat:36000,mo:15000,eq:14000};
+  if(key.startsWith("Barbacanas"))return{mat:5500,mo:3500,eq:1000};
+  if(key.startsWith("Refuerzo barras FE 12"))return {...PBASE['Refuerzo barras FE 12mm']};
+  if(key.startsWith("Refuerzo barras FE"))return {...PBASE['Refuerzo barras FE 16mm']};
   return{mat:0,mo:0,eq:0};
 }
 function priceOf(key){ return S.apu[key]?{...S.apu[key]}:basePrice(key); }
@@ -773,37 +817,67 @@ function renderSN(){
       <div><label>Long. en planta (m)</label>${inp(`sn.${i}.Lpl`,s.Lpl)}</div>
       <div><label>Empotramiento (m)</label>${inp(`sn.${i}.emp`,s.emp)}</div>
       <div><label>Espesor shotcrete (cm)</label>${inp(`sn.${i}.e`,s.e,1)}</div>
-      <div><label>Malla φ (mm)</label><select onchange="setv('sn.${i}.fi',this.value)">
-        <option ${s.fi==10?"selected":""} value="10">φ10</option><option ${s.fi==12?"selected":""} value="12">φ12</option></select></div>
-      <div><label>Espac. fierros (m)</label>${inp(`sn.${i}.sep`,s.sep,0.05)}</div>
-      <div><label>Traslape (m)</label>${inp(`sn.${i}.tras`,s.tras,0.05)}</div>
+      <div><label>Traslape malla (m)</label>${inp(`sn.${i}.tras`,s.tras,0.05)}</div>
       <div><label>Largo batache (m)</label>${inp(`sn.${i}.lb`,s.lb)}</div>
       <div><label>Altura batache (m)</label>${inp(`sn.${i}.hb`,s.hb)}</div>
     </div>
-    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de pernos</b>
-    <table style="margin-top:6px"><tr><th>Línea</th><th>Tipo</th><th>Cantidad</th><th>Longitud (m)</th><th class="num">ml totales</th><th></th></tr>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Malla</b>${helpIco("ACMA C335: panel 2,60×5,00 = 13,0 m², cubicado en m². Electrosoldada φ: cubicada en kg según diámetro y espaciamiento de fierros.")}
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Tipo de malla</label><select onchange="setvs('sn.${i}.mallaTipo',this.value)">
+        <option value="acma" ${(s.mallaTipo||'acma')==='acma'?'selected':''}>ACMA C335 (m²)</option>
+        <option value="electro" ${s.mallaTipo==='electro'?'selected':''}>Electrosoldada φ (kg)</option></select></div>
+      <div><label>N° de capas</label><select onchange="setv('sn.${i}.capas',this.value)">
+        <option value="1" ${(+s.capas||2)===1?'selected':''}>Simple</option>
+        <option value="2" ${(+s.capas||2)===2?'selected':''}>Doble</option></select></div>
+      ${(s.mallaTipo||'acma')==='electro'?`
+      <div><label>Malla φ (mm)</label><select onchange="setv('sn.${i}.fi',this.value)">
+        <option ${s.fi==10?"selected":""} value="10">φ10</option><option ${s.fi==12?"selected":""} value="12">φ12</option></select></div>
+      <div><label>Espac. fierros (m)</label>${inp(`sn.${i}.sep`,s.sep,0.05)}</div>`:""}
+    </div></div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Líneas de pernos</b>${helpIco("Coplas: uniones = REDONDEAR.ARRIBA(longitud ÷ largo máx. de barra) − 1, por perno. Largo máx. de barra editable (3 m por defecto).")}
+    <div class="grid g4" style="margin:6px 0"><div><label>Largo máx. barra perno (m)</label>${inp(`sn.${i}.barMax`,s.barMax??3,0.5)}</div></div>
+    <table style="margin-top:2px"><tr><th>Línea</th><th>Tipo</th><th>Cantidad</th><th>Longitud (m)</th><th class="num">ml totales</th><th class="num">coplas</th><th></th></tr>
     ${c.det.map((p,j)=>`<tr><td>${j+1}</td>
-      <td><select style="width:90px" onchange="setv('sn.${i}.per.${j}.tipo',this.value)">${PERNOS.map(t=>`<option ${p.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+      <td><select style="width:95px" onchange="setvs('sn.${i}.per.${j}.tipo',this.value)">${pernos().map(t=>`<option ${p.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
       <td>${inp(`sn.${i}.per.${j}.cant`,p.cant,1,60)}</td>
       <td>${inp(`sn.${i}.per.${j}.len`,p.len,0.5,70)}</td>
       <td class="num">${fmt(p.ml,0)}</td>
+      <td class="num">${p.cop}</td>
       <td><button class="btn warn sm" onclick="S.sn[${i}].per.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
     </table>
-    <button class="btn ghost sm" style="margin-top:6px" onclick="S.sn[${i}].per.push({tipo:'R38N',cant:8,len:10.5});renderSub()">+ Línea de pernos</button></div>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="S.sn[${i}].per.push({tipo:'R38N',cant:8,len:10.5});renderSub()">+ Línea de pernos</button>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="addPerno()">+ Tipo de perno (T40/16, etc.)</button></div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Barbacanas y refuerzos</b>
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Barbacana Ø (")</label>${inp(`sn.${i}.barbD`,s.barbD??2,0.5)}</div>
+      <div><label>Barbacana largo (mm)</label>${inp(`sn.${i}.barbL`,s.barbL??450,50)}</div>
+      <div><label>Barbacana: 1 cada (m²)</label>${inp(`sn.${i}.barbSep`,s.barbSep??4,0.5)}</div>
+      <div></div>
+      <div><label>Refuerzo con barras FE</label><select onchange="setv('sn.${i}.refOn',this.value==='si'?1:0)">
+        <option value="no" ${!s.refOn?'selected':''}>No</option><option value="si" ${s.refOn?'selected':''}>Sí</option></select></div>
+      ${s.refOn?`
+      <div><label>FE Ø (mm)</label><select onchange="setv('sn.${i}.refFi',this.value)">
+        <option ${(+s.refFi||16)===12?'selected':''} value="12">12</option><option ${(+s.refFi||16)===16?'selected':''} value="16">16</option></select></div>
+      <div><label>Espac. refuerzo (m)</label>${inp(`sn.${i}.refSep`,s.refSep??0.2,0.05)}</div>
+      <div><label>Largo fierro (m)</label>${inp(`sn.${i}.refLen`,s.refLen??1.6,0.1)}</div>`:""}
+    </div></div>
     <div class="kpi">
       <div><b>${fmt(c.Lm)}</b><span>m long. muro SN</span></div>
       <div><b>${fmt(c.aTot)}</b><span>m² shotcrete G-25 e=${s.e}cm</span></div>
       <div><b>${fmt(c.m3Shot)}</b><span>m³ hormigón proyectado</span></div>
       <div><b>${fmt(c.perd,1)}%</b><span>pérdida traslape</span></div>
-      <div><b>${c.nMallas}</b><span>mallas (doble)</span></div>
-      <div><b>${fmt(c.kgMalla,0)}</b><span>kg malla φ${s.fi}@${s.sep*100}</span></div>
+      ${c.tipoMalla==="acma"
+        ?`<div><b>${fmt(c.m2Malla)}</b><span>m² malla ACMA C335</span></div><div><b>${c.nPaneles}</b><span>paneles 2,6×5,0</span></div>`
+        :`<div><b>${c.nMallas}</b><span>mallas φ${s.fi} (${c.capas===1?'simple':'doble'})</span></div><div><b>${fmt(c.kgMalla,0)}</b><span>kg malla</span></div>`}
       <div><b>${fmt(c.mlPer,0)}</b><span>ml pernos</span></div>
+      <div><b>${c.coplas}</b><span>coplas (barra ${fmt(c.barMax,1)} m)</span></div>
       <div><b>${c.dados}</b><span>dados protección</span></div>
       <div><b>${c.placas}</b><span>placas 220x220</span></div>
-      <div><b>${c.barb}</b><span>barbacanas (1@4m²)</span></div>
+      <div><b>${c.barb}</b><span>barbacanas Ø${fmt(s.barbD??2,1)}" (1@${fmt(c.barbSep,1)}m²)</span></div>
+      ${c.refOn?`<div><b>${fmt(c.mlRef,0)}</b><span>ml refuerzo FE${c.refFi}</span></div>`:""}
     </div></div>`;
   });
-  h+=`<button class="btn" onclick="S.sn.push({nom:'Nuevo tramo',H:5,inc:84,Lpl:15,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,per:[{tipo:'R32S',cant:8,len:9.5}]});renderSub()">+ Agregar tramo</button>`;
+  h+=`<button class="btn" onclick="S.sn.push({nom:'Nuevo tramo',H:5,inc:84,Lpl:15,emp:0.5,e:25,fi:10,sep:0.2,tras:0.35,lb:5,hb:3,mallaTipo:'acma',capas:2,barMax:3,barbD:2,barbL:450,barbSep:4,per:[{tipo:'R32S',cant:8,len:9.5}]});renderSub()">+ Agregar tramo</button>`;
   document.getElementById("sub-sn").innerHTML=`<div class="card">${modHead("Soil Nailing","sn")}${h}</div>`;
 }
 
