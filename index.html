@@ -372,7 +372,12 @@ function calcMBV(s){
   const nPerf=up(s.L/s.esp)+(+s.extra);
   const mlPerf=rnd(s.Lp*nPerf);
   const tAcero=rnd(mlPerf*kgm(s.perfil)/1000,2); // M = L·μWF
-  return{area,nPerf,mlPerf,tAcero};
+  // Viga continua de coronación (opcional): perfil W + ml a instalar
+  const vcOn=!!s.vcOn;
+  const vcML=vcOn?(+s.vcML||0):0;
+  const vcPerfil=s.vcPerfil||"W200x35.9";
+  const vcTon=vcOn?rnd(vcML*kgm(vcPerfil)/1000,2):0;
+  return{area,nPerf,mlPerf,tAcero,vcOn,vcML,vcPerfil,vcTon};
 }
 function calcSN(s){
   const Lm=s.inc>0?s.H/Math.sin(s.inc*Math.PI/180):0;      // D14
@@ -503,13 +508,15 @@ function resumen(){
   add("Muro Berlinés Anclado","Cuñas cónicas / mordazas","un",ncab);
   if(S.mba.length)add("Muro Berlinés Anclado","Movilización / Desmovilización equipo de hinca","gl",1);
   // MBV
-  let v20=0,v25=0,perfV={};
+  let v20=0,v25=0,perfV={},vcV={};
   S.mbv.forEach(s=>{const c=calcMBV(s);
     if(String(s.tab)==="2.5")v25+=c.area; else v20+=c.area;
-    perfV[s.perfil]=(perfV[s.perfil]||0)+c.mlPerf;});
+    perfV[s.perfil]=(perfV[s.perfil]||0)+c.mlPerf;
+    if(c.vcOn&&c.vcML>0)vcV[c.vcPerfil]=(vcV[c.vcPerfil]||0)+c.vcML;});
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,0"',"m²",v20);
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,5"',"m²",v25);
   Object.entries(perfV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Perfil "+p+" hincado/retirado","ml",v));
+  Object.entries(vcV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Viga continua de coronación "+p,"ml",v));
   if(S.mbv.length)add("Muro Berlinés en Voladizo","Movilización / Desmovilización equipo de hinca","gl",1);
   // SN
   let shot=0,m3s=0,mallaAcma=0,mallaKg=0,dados=0,plac=0,pt={},coplas=0,refML={},barbG={};
@@ -642,6 +649,10 @@ function basePrice(key){
   if(key.startsWith("Perfil ")){
     const w=kgm(key.split(" ")[1]);
     return{mat:Math.round(PBASE.Perfil.kg*w),mo:PBASE.Perfil.mo,eq:PBASE.Perfil.eq};
+  }
+  if(key.startsWith("Viga continua de coronación")){
+    const w=kgm(key.split(" ").pop());
+    return{mat:Math.round(PBASE.Perfil.kg*w),mo:9000,eq:4000}; // suministro + soldadura en coronamiento
   }
   if(key.startsWith("Placa"))return{mat:15000,mo:3000,eq:800};
   if(key.startsWith("Pernos autoperforantes"))return{mat:36000,mo:15000,eq:14000};
@@ -812,15 +823,26 @@ function renderMBV(){
       <div><label>Perfil</label><select onchange="setvs('mbv.${i}.perfil',this.value)">
         ${perfiles().map(p=>`<option ${s.perfil===p?"selected":""}>${p}</option>`).join("")}</select></div>
     </div>
+    <div style="margin-top:10px"><b style="font-size:12.5px;color:var(--navy)">Viga continua de coronación</b>${helpIco("Perfil W soldado en el coronamiento que une la cabeza de los perfiles verticales y da rigidez al conjunto. Selecciona el perfil e indica los ml a instalar (habitualmente ≈ longitud L del muro).")}
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Incluir viga de coronación</label><select onchange="setv('mbv.${i}.vcOn',this.value==='si'?1:0)">
+        <option value="no" ${!s.vcOn?'selected':''}>No</option><option value="si" ${s.vcOn?'selected':''}>Sí</option></select></div>
+      ${s.vcOn?`
+      <div><label>Perfil viga coronación</label><select onchange="setvs('mbv.${i}.vcPerfil',this.value)">
+        ${perfiles().map(p=>`<option ${(s.vcPerfil||'W200x35.9')===p?"selected":""}>${p}</option>`).join("")}</select></div>
+      <div><label>ml a instalar${helpIco("Metros lineales de viga de coronación. Botón de sugerencia: usar la longitud L del muro ("+fmt(s.L,1)+" m).")}</label>${inp(`mbv.${i}.vcML`,s.vcML??s.L,0.5)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('mbv.${i}.vcML',${s.L})">= L (${fmt(s.L,1)} m)</button></div>`:""}
+    </div></div>
     <div class="kpi">
       <div><b>${fmt(c.area)}</b><span>m² entibación ${s.tab}"</span></div>
       <div><b>${c.nPerf}</b><span>perfiles ${s.perfil}</span></div>
       <div><b>${fmt(c.mlPerf,1)}</b><span>ml perfiles</span></div>
       <div><b>${fmt(c.tAcero)}</b><span>t acero perfiles</span></div>
+      ${c.vcOn?`<div><b>${fmt(c.vcML,1)}</b><span>ml viga coron. ${c.vcPerfil}</span></div><div><b>${fmt(c.vcTon)}</b><span>t acero viga coron.</span></div>`:""}
     </div>
     <p class="note">Voladizo: sin anclajes ni puntales. La ficha (empotramiento d) se controla con "Longitud de perfil H+d"; verificar d ≥ 1,5–2,0·H según memoria de cálculo (empuje pasivo espacial Weissenbach y verificación GGU-RETAIN). Espaciamiento típico de perfiles en muro berlinés: 1,5 a 3,5 m; perfiles laminados tipo H/W o HEB (curso GGU-Retain).</p></div>`;
   });
-  h+=`<button class="btn" onclick="S.mbv.push({nom:'Nueva sección',H:3,L:15,esp:1.2,extra:2,Lp:7,tab:'2.0',perfil:'W250x32.7'});renderSub()">+ Agregar sección</button>
+  h+=`<button class="btn" onclick="S.mbv.push({nom:'Nueva sección',H:3,L:15,esp:1.2,extra:2,Lp:7,tab:'2.0',perfil:'W250x32.7',vcOn:0,vcPerfil:'W200x35.9'});renderSub()">+ Agregar sección</button>
   <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>`;
   document.getElementById("sub-mbv").innerHTML=`<div class="card">${modHead("Muro Berlinés en Voladizo","mbv")}${h}</div>`;
 }
