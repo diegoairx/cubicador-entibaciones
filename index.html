@@ -485,7 +485,9 @@ function calcMT(){
   let m3=0,det=[];
   S.mt.areas.forEach(a=>{const v=up(a.A*a.L);det.push({...a,m3:v});m3+=v;}); // C11 =ROUNDUP(A*L,0)
   const mej=up(S.mt.mej.A*S.mt.mej.h);
-  return{det,m3,mej};
+  const escarpe=up((+(S.mt.escarpe||0)));                 // m² escarpe/limpieza
+  const demol=up((+(S.mt.demol||0)));                     // m³ demolición
+  return{det,m3,mej,escarpe,demol};
 }
 
 /* ═════════ RESUMEN GLOBAL (partidas) ═════════ */
@@ -575,9 +577,11 @@ function resumen(){
   add("Agotamiento de Napa","Monitoreo piezométrico","un",agPiez);
   // MT
   const mt=calcMT();
+  add("Movimiento de Tierra","Escarpe o limpieza de terreno","m²",mt.escarpe);
+  add("Movimiento de Tierra","Demolición","m³",mt.demol);
   add("Movimiento de Tierra","Excavación masiva y retiro","m³",mt.m3);
   add("Movimiento de Tierra","Mejoramiento Arena Biobío","m³",mt.mej);
-  if(mt.m3>0||mt.mej>0)add("Movimiento de Tierra","Movilización / Desmovilización maquinaria de tierra","gl",1);
+  if(mt.m3>0||mt.mej>0||mt.escarpe>0||mt.demol>0)add("Movimiento de Tierra","Movilización / Desmovilización maquinaria de tierra","gl",1);
   return R;
 }
 
@@ -614,10 +618,12 @@ const PBASE={
  'Hormigón G-25 viga socalzado':{mat:115000,mo:45000,eq:20000},
  'Acero A630 viga socalzado':{mat:1250,mo:450,eq:100},
  'Moldaje viga socalzado':{mat:12000,mo:9000,eq:2000},
+ 'Escarpe o limpieza de terreno':{mat:0,mo:900,eq:1400},
+ 'Demolición':{mat:0,mo:8000,eq:12000},
  'Excavación masiva y retiro':{mat:0,mo:1752,eq:2876},
  'Mejoramiento Arena Biobío':{mat:14500,mo:2500,eq:5000},
- 'Perforación Auger Ø160mm para pozos':{mat:4500,mo:8500,eq:14000},
  'Perforación Auger Ø250mm para pozos':{mat:6000,mo:9500,eq:17500},
+ 'Perforación Auger Ø350mm para pozos':{mat:8500,mo:11500,eq:22000},
  'Habilitación pozo (PVC ranurado + filtro gravilla)':{mat:9500,mo:4500,eq:2000},
  'Lanza well point instalada':{mat:18000,mo:8000,eq:6000},
  'Colector de succión/descarga':{mat:8500,mo:3500,eq:2000},
@@ -1027,7 +1033,7 @@ function renderAG(){
         <input class="cell" type="number" step="1" min="0" value="${c.manual?c.n:""}" placeholder="auto: ${c.autoN}" style="width:100%;text-align:right" onchange="setv('ag.${i}.cant',this.value)"></div>
       <div><label>Prof. pozo (m)</label>${inp(`ag.${i}.prof`,s.prof)}</div>
       <div><label>Ø perforación (mm)</label><select onchange="setv('ag.${i}.diam',this.value)">
-        <option ${+s.diam===160?"selected":""}>160</option><option ${+s.diam===250?"selected":""}>250</option></select></div>
+        <option ${(+s.diam!==350)?"selected":""}>250</option><option ${+s.diam===350?"selected":""}>350</option></select></div>
       <div><label>N° equipos bombeo</label>${inp(`ag.${i}.bombas`,s.bombas,1)}</div>
       <div><label>Meses de operación</label>${inp(`ag.${i}.meses`,s.meses,0.5)}</div>
       <div><label>Drenes horiz. (ml)</label>${inp(`ag.${i}.drenes`,s.drenes,1)}</div>
@@ -1097,7 +1103,16 @@ function renderMT(){
     <div><label>Área planta (m²)</label>${inp('mt.mej.A',S.mt.mej.A)}</div>
     <div><label>Altura promedio (m)</label>${inp('mt.mej.h',S.mt.mej.h,0.05)}</div>
   </div>
-  <div class="kpi"><div><b>${fmt(c.mej,0)}</b><span>m³ mejoramiento</span></div></div>`;
+  <div class="kpi"><div><b>${fmt(c.mej,0)}</b><span>m³ mejoramiento</span></div></div>
+  <h2 style="margin-top:20px">Otras partidas</h2>
+  <div class="grid g4">
+    <div><label>Escarpe / limpieza de terreno (m²)${helpIco("Retiro de capa vegetal, escombros y limpieza superficial del terreno antes de excavar.")}</label>${inp('mt.escarpe',S.mt.escarpe??0,1)}</div>
+    <div><label>Demolición (m³)${helpIco("Volumen de demolición de estructuras, pavimentos, radieres u obras existentes.")}</label>${inp('mt.demol',S.mt.demol??0,1)}</div>
+  </div>
+  <div class="kpi">
+    <div><b>${fmt(c.escarpe,0)}</b><span>m² escarpe/limpieza</span></div>
+    <div><b>${fmt(c.demol,0)}</b><span>m³ demolición</span></div>
+  </div>`;
   document.getElementById("sub-mt").innerHTML=`<div class="card">${modHead("Movimiento de Tierra","mt")}${h}</div>`;
 }
 
@@ -1117,9 +1132,13 @@ function renderResumen(){
     ?`<div class="res-cols"><div>${colTabla(bloques.slice(0,corte))}</div><div>${colTabla(bloques.slice(corte))}</div></div>`
     :colTabla(bloques);
   const vacio=!R.length;
+  const nomProy=val("p_nom")||"Proyecto sin nombre";
+  const subProy=[val("p_num")?"N° "+val("p_num"):"",val("p_ubi"),val("p_cli")?"Cliente: "+val("p_cli"):""].filter(Boolean).join(" · ");
   document.getElementById("sub-resumen").innerHTML=`<div class="card">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-      <h2 style="margin-bottom:0">Cuadro Resumen de Cubicación</h2>
+    <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div><h2 style="margin-bottom:2px">Cuadro Resumen de Cubicación</h2>
+        <div style="font-size:14px;font-weight:700;color:var(--navy)">${nomProy}</div>
+        ${subProy?`<div style="font-size:12px;color:var(--mut)">${subProy}</div>`:""}</div>
       <button class="btn no-print" style="margin-left:auto" onclick="imprimirResumen()" ${vacio?"disabled":""}>🖨 Imprimir / PDF (1 hoja horizontal)</button>
     </div>
     <div id="resumen-print">
