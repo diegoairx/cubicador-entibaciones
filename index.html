@@ -565,7 +565,7 @@ function resumen(){
     agLanzas+=c.lanzas; agColector+=c.colector; agInst+=(+s.bombas||0);
     agEqMes+=c.eqMes; agMeses+=(+s.meses||0);
     agDrenes+=(+s.drenes||0); agSent+=(+s.sentinas||0); agPiez+=(+s.piez||0);});
-  Object.entries(agPerf).forEach(([d,v])=>add("Agotamiento de Napa","Perforación Auger Ø"+d+"mm para pozos","ml",v));
+  Object.entries(agPerf).forEach(([d,v])=>add("Agotamiento de Napa","Perforación Ø"+d+"mm para pozos","ml",v));
   add("Agotamiento de Napa","Habilitación pozo (PVC ranurado + filtro gravilla)","ml",agHab);
   add("Agotamiento de Napa","Lanza well point instalada","un",agLanzas);
   add("Agotamiento de Napa","Colector de succión/descarga","ml",agColector);
@@ -622,8 +622,11 @@ const PBASE={
  'Demolición':{mat:0,mo:8000,eq:12000},
  'Excavación masiva y retiro':{mat:0,mo:1752,eq:2876},
  'Mejoramiento Arena Biobío':{mat:14500,mo:2500,eq:5000},
- 'Perforación Auger Ø250mm para pozos':{mat:6000,mo:9500,eq:17500},
- 'Perforación Auger Ø350mm para pozos':{mat:8500,mo:11500,eq:22000},
+ 'Perforación Ø50mm para pozos':{mat:2500,mo:5000,eq:7500},
+ 'Perforación Ø110mm para pozos':{mat:3800,mo:7000,eq:11500},
+ 'Perforación Ø160mm para pozos':{mat:4500,mo:8500,eq:14000},
+ 'Perforación Ø250mm para pozos':{mat:6000,mo:9500,eq:17500},
+ 'Perforación Ø350mm para pozos':{mat:8500,mo:11500,eq:22000},
  'Habilitación pozo (PVC ranurado + filtro gravilla)':{mat:9500,mo:4500,eq:2000},
  'Lanza well point instalada':{mat:18000,mo:8000,eq:6000},
  'Colector de succión/descarga':{mat:8500,mo:3500,eq:2000},
@@ -1033,7 +1036,7 @@ function renderAG(){
         <input class="cell" type="number" step="1" min="0" value="${c.manual?c.n:""}" placeholder="auto: ${c.autoN}" style="width:100%;text-align:right" onchange="setv('ag.${i}.cant',this.value)"></div>
       <div><label>Prof. pozo (m)</label>${inp(`ag.${i}.prof`,s.prof)}</div>
       <div><label>Ø perforación (mm)</label><select onchange="setv('ag.${i}.diam',this.value)">
-        <option ${(+s.diam!==350)?"selected":""}>250</option><option ${+s.diam===350?"selected":""}>350</option></select></div>
+        ${[50,110,160,250,350].map(d=>`<option ${+s.diam===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>N° equipos bombeo</label>${inp(`ag.${i}.bombas`,s.bombas,1)}</div>
       <div><label>Meses de operación</label>${inp(`ag.${i}.meses`,s.meses,0.5)}</div>
       <div><label>Drenes horiz. (ml)</label>${inp(`ag.${i}.drenes`,s.drenes,1)}</div>
