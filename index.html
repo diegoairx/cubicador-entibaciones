@@ -227,6 +227,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-s="mp" onclick="goSub('mp')">Micropilotes</button>
     <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
     <button data-s="ag" onclick="goSub('ag')">💧 Agotamiento</button>
+    <button data-s="dca" onclick="goSub('dca')">💧 Drenes Cal.</button>
     <button data-s="mt" onclick="goSub('mt')">Mov. de Tierra</button>
     <button data-s="resumen" onclick="goSub('resumen')">📋 Cuadro Resumen</button>
   </div>
@@ -236,6 +237,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div id="sub-mp" style="display:none"></div>
   <div id="sub-fab" style="display:none"></div>
   <div id="sub-ag" style="display:none"></div>
+  <div id="sub-dca" style="display:none"></div>
   <div id="sub-mt" style="display:none"></div>
   <div id="sub-resumen" style="display:none"></div>
 </section>
@@ -322,6 +324,7 @@ let S={
  mt:{areas:[],mej:{A:0,h:0}},
  fab:{num:1,dias:5,rows:[]},
  ag:[],
+ dca:[],
  perfCustom:[],
  wpq:{m2:1500,prof:6.5,mes:8,mej:"NO",rec:30,mg:20,par:2,eval:0},
  apu:{}  // overrides {key:{mat,mo,eq}}
@@ -481,6 +484,13 @@ function calcAGH(s,c){
     Qm3h:rnd(Q*3600,1),Qbehm3h:rnd(Qbeh*3600,1),Qbehls:rnd(Qbeh*1000,1),
     qPozo:c.n>0?rnd(Qbeh*1000/c.n,2):0};
 }
+/* Drenes californianos (drenes horizontales de alivio) */
+function calcDCA(s){
+  const cant=Math.round(+s.cant||0);
+  const largo=+s.largo||0;                    // largo unitario de perforación (m)
+  const ml=rnd(cant*largo);                   // ml perforación = unidades × largo
+  return{cant,largo,ml,diam:+s.diam||90};
+}
 function calcMT(){
   let m3=0,det=[];
   S.mt.areas.forEach(a=>{const v=up(a.A*a.L);det.push({...a,m3:v});m3+=v;}); // C11 =ROUNDUP(A*L,0)
@@ -575,6 +585,12 @@ function resumen(){
   add("Agotamiento de Napa","Dren horizontal de captación","ml",agDrenes);
   add("Agotamiento de Napa","Sentina/pozo de achique","un",agSent);
   add("Agotamiento de Napa","Monitoreo piezométrico","un",agPiez);
+  // Drenes Californianos
+  let dcaUn=0, dcaPerf={};
+  (S.dca||[]).forEach(s=>{const c=calcDCA(s);dcaUn+=c.cant;
+    if(c.ml>0)dcaPerf[c.diam]=(dcaPerf[c.diam]||0)+c.ml;});
+  Object.entries(dcaPerf).forEach(([d,v])=>add("Drenes Californianos","Perforación dren californiano Ø"+d+"mm","ml",v));
+  add("Drenes Californianos","Dren californiano habilitado (tubería ranurada + geotextil)","un",dcaUn);
   // MT
   const mt=calcMT();
   add("Movimiento de Tierra","Escarpe o limpieza de terreno","m²",mt.escarpe);
@@ -627,6 +643,10 @@ const PBASE={
  'Perforación Ø160mm para pozos':{mat:4500,mo:8500,eq:14000},
  'Perforación Ø250mm para pozos':{mat:6000,mo:9500,eq:17500},
  'Perforación Ø350mm para pozos':{mat:8500,mo:11500,eq:22000},
+ 'Perforación dren californiano Ø75mm':{mat:3200,mo:6500,eq:9500},
+ 'Perforación dren californiano Ø90mm':{mat:3800,mo:7000,eq:11000},
+ 'Perforación dren californiano Ø110mm':{mat:4500,mo:7800,eq:13000},
+ 'Dren californiano habilitado (tubería ranurada + geotextil)':{mat:14000,mo:8000,eq:2500},
  'Habilitación pozo (PVC ranurado + filtro gravilla)':{mat:9500,mo:4500,eq:2000},
  'Lanza well point instalada':{mat:18000,mo:8000,eq:6000},
  'Colector de succión/descarga':{mat:8500,mo:3500,eq:2000},
@@ -697,11 +717,11 @@ function go(v){curV=v;
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","fab","ag","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","sn","mp","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,fab:renderFAB,ag:renderAG,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
@@ -715,6 +735,7 @@ function clearMod(m){
   else if(m==="mt")S.mt={areas:[],mej:{A:0,h:0}};
   else if(m==="fab")S.fab={num:1,dias:5,rows:[]};
   else if(m==="ag")S.ag=[];
+  else if(m==="dca")S.dca=[];
   else if(m==="apu"){S.apu={};renderAPU();return;}
   else if(m==="todo"){
     S.mba=[];S.mbv=[];S.sn=[];S.apu={};
@@ -722,6 +743,7 @@ function clearMod(m){
     S.mt={areas:[],mej:{A:0,h:0}};
     S.fab={num:1,dias:5,rows:[]};
     S.ag=[];
+    S.dca=[];
     S.mbaAdj=1;
   }
   renderSub();
@@ -1088,6 +1110,29 @@ function renderAG(){
   });
   h+=`<button class="btn" onclick="S.ag.push({nom:'Nueva zona',tipo:'wellpoint',L:30,B:15,esp:3,cant:'',prof:8,diam:250,bombas:1,meses:2,drenes:0,sentinas:1,piez:2,k:0.0005,H:10,t:3,z:0.4,conf:'libre',mEsp:5,alfa:1.1,beta:1.2,Rmode:'sichardt',Rfix:150});renderSub()">+ Agregar zona</button>`;
   document.getElementById("sub-ag").innerHTML=`<div class="card">${modHead("Agotamiento de Napa Freática","ag")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: DRENES CALIFORNIANOS ═════════════════ */
+function renderDCA(){
+  if(!S.dca)S.dca=[];
+  let totUn=0, totML=0;
+  let filas=S.dca.map((s,i)=>{const c=calcDCA(s);totUn+=c.cant;totML+=c.ml;
+    return `<tr>
+      <td><input value="${s.nom||('Dren '+(i+1))}" style="min-width:150px" onchange="setvs('dca.${i}.nom',this.value)"></td>
+      <td>${inp(`dca.${i}.cant`,s.cant,1,70)}</td>
+      <td>${inp(`dca.${i}.largo`,s.largo,0.5,80)}</td>
+      <td><select onchange="setv('dca.${i}.diam',this.value)">
+        ${[75,90,110].map(d=>`<option ${(+s.diam||90)===d?"selected":""}>${d}</option>`).join("")}</select></td>
+      <td class="num">${fmt(c.ml,1)}</td>
+      <td><button class="btn warn sm" onclick="S.dca.splice(${i},1);renderSub()">✕</button></td></tr>`;}).join("");
+  let h=`<p class="note">Drenes horizontales de alivio (drenes californianos): tubería perforada instalada en el talud para captar y evacuar el agua subterránea, reduciendo las presiones intersticiales. ml de perforación = unidades × largo unitario.</p>
+  <div style="overflow-x:auto"><table>
+    <tr><th>Tramo / ubicación</th><th>Unidades (un)</th><th>Largo unitario (m)</th><th>Ø perforación (mm)</th><th class="num">ml perforación</th><th></th></tr>
+    ${filas}
+    ${S.dca.length?`<tr class="res"><td>TOTAL</td><td class="num">${totUn} un</td><td></td><td></td><td class="num">${fmt(totML,1)} ml</td><td></td></tr>`:""}
+  </table></div>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="S.dca.push({nom:'Dren '+(S.dca.length+1),cant:5,largo:12,diam:90});renderSub()">+ Agregar dren</button>`;
+  document.getElementById("sub-dca").innerHTML=`<div class="card">${modHead("Drenes Californianos","dca")}${h}</div>`;
 }
 
 /* ═════════════════ RENDER: MOV TIERRA ═════════════════ */
