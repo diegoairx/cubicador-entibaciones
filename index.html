@@ -375,19 +375,24 @@ function calcMBV(s){
   const nPerf=up(s.L/s.esp)+(+s.extra);
   const mlPerf=rnd(s.Lp*nPerf);
   const tAcero=rnd(mlPerf*kgm(s.perfil)/1000,2); // M = L·μWF
-  // Viga continua de coronación (opcional): perfil W + ml a instalar
+  // Vigas continuas de coronación (varias, distintos perfiles) — ml por perfil
   const vcOn=!!s.vcOn;
-  const vcML=vcOn?(+s.vcML||0):0;
-  const vcPerfil=s.vcPerfil||"W200x35.9";
-  const vcTon=vcOn?rnd(vcML*kgm(vcPerfil)/1000,2):0;
-  // Puntales / esquineros con tubo Yoder (opcional)
+  let vcList=(s.vcList&&s.vcList.length)?s.vcList
+    :(s.vcML>0||s.vcPerfil?[{perfil:s.vcPerfil||"W200x35.9",ml:+s.vcML||0}]:[]); // compat. versión anterior
+  let vcDet=[],vcMLtot=0,vcTon=0;
+  if(vcOn)vcList.forEach(v=>{const ml=+v.ml||0,p=v.perfil||"W200x35.9";
+    const t=rnd(ml*kgm(p)/1000,2); vcDet.push({perfil:p,ml,ton:t}); vcMLtot+=ml; vcTon+=t;});
+  vcMLtot=rnd(vcMLtot); vcTon=rnd(vcTon,2);
+  // Puntales / esquineros con tubo Yoder (varios, distintos diámetros) — ml por Ø
   const ptOn=!!s.ptOn;
-  const ptDiam=+s.ptDiam||6;
-  const ptCant=ptOn?Math.round(+s.ptCant||0):0;
-  const ptLen=ptOn?(+s.ptLen||0):0;
-  const ptML=rnd(ptCant*ptLen);
-  const ptPlacas=ptOn?ptCant*2:0;
-  return{area,nPerf,mlPerf,tAcero,vcOn,vcML,vcPerfil,vcTon,ptOn,ptDiam,ptCant,ptLen,ptML,ptPlacas};
+  let ptList=(s.ptList&&s.ptList.length)?s.ptList
+    :((s.ptCant>0||s.ptLen>0)?[{diam:+s.ptDiam||6,cant:+s.ptCant||0,len:+s.ptLen||0}]:[]); // compat.
+  let ptDet=[],ptML=0,ptPlacas=0,ptCantTot=0;
+  if(ptOn)ptList.forEach(p=>{const c=Math.round(+p.cant||0),l=+p.len||0,d=+p.diam||6;
+    const ml=rnd(c*l); ptDet.push({diam:d,cant:c,len:l,ml}); ptML+=ml; ptCantTot+=c; ptPlacas+=c*2;});
+  ptML=rnd(ptML);
+  return{area,nPerf,mlPerf,tAcero,vcOn,vcList,vcDet,vcML:vcMLtot,vcTon,
+    ptOn,ptList,ptDet,ptCant:ptCantTot,ptML,ptPlacas};
 }
 function calcSN(s){
   const Lm=s.inc>0?s.H/Math.sin(s.inc*Math.PI/180):0;      // D14
@@ -531,8 +536,8 @@ function resumen(){
   S.mbv.forEach(s=>{const c=calcMBV(s);
     if(String(s.tab)==="2.5")v25+=c.area; else v20+=c.area;
     perfV[s.perfil]=(perfV[s.perfil]||0)+c.mlPerf;
-    if(c.vcOn&&c.vcML>0)vcV[c.vcPerfil]=(vcV[c.vcPerfil]||0)+c.vcML;
-    if(c.ptOn&&c.ptML>0){ptV[c.ptDiam]=(ptV[c.ptDiam]||0)+c.ptML;ptPl+=c.ptPlacas;}});
+    if(c.vcOn)c.vcDet.forEach(v=>{if(v.ml>0)vcV[v.perfil]=(vcV[v.perfil]||0)+v.ml;});
+    if(c.ptOn){c.ptDet.forEach(p=>{if(p.ml>0)ptV[p.diam]=(ptV[p.diam]||0)+p.ml;});ptPl+=c.ptPlacas;}});
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,0"',"m²",v20);
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,5"',"m²",v25);
   Object.entries(perfV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Perfil "+p+" hincado/retirado","ml",v));
@@ -850,6 +855,28 @@ function renderMBA(){
 }
 
 /* ═════════════════ RENDER: MB VOLADIZO ═════════════════ */
+function togVC(i,on){ // activar/desactivar vigas de coronación
+  const s=S.mbv[i]; s.vcOn=on?1:0;
+  if(on){ s.vcList=calcMBV(s).vcList.map(v=>({perfil:v.perfil,ml:+v.ml||0}));
+    if(!s.vcList.length)s.vcList=[{perfil:"W200x35.9",ml:+s.L||0}];
+    delete s.vcML; delete s.vcPerfil; }
+  renderSub();
+}
+function togPT(i,on){ // activar/desactivar puntales/esquineros
+  const s=S.mbv[i]; s.ptOn=on?1:0;
+  if(on){ s.ptList=calcMBV(s).ptList.map(p=>({diam:+p.diam||6,cant:+p.cant||0,len:+p.len||0}));
+    if(!s.ptList.length)s.ptList=[{diam:6,cant:2,len:8}];
+    delete s.ptCant; delete s.ptLen; delete s.ptDiam; }
+  renderSub();
+}
+function addVC(i){ // agrega viga de coronación (migra formato antiguo si corresponde)
+  const s=S.mbv[i]; s.vcList=calcMBV(s).vcList.map(v=>({perfil:v.perfil,ml:+v.ml||0}));
+  s.vcList.push({perfil:"W200x35.9",ml:+s.L||0}); delete s.vcML; delete s.vcPerfil; renderSub();
+}
+function addPT(i){ // agrega puntal/esquinero (migra formato antiguo si corresponde)
+  const s=S.mbv[i]; s.ptList=calcMBV(s).ptList.map(p=>({diam:+p.diam||6,cant:+p.cant||0,len:+p.len||0}));
+  s.ptList.push({diam:6,cant:2,len:8}); delete s.ptCant; delete s.ptLen; delete s.ptDiam; renderSub();
+}
 function renderMBV(){
   let h="";
   S.mbv.forEach((s,i)=>{
@@ -868,36 +895,47 @@ function renderMBV(){
       <div><label>Perfil</label><select onchange="setvs('mbv.${i}.perfil',this.value)">
         ${perfiles().map(p=>`<option ${s.perfil===p?"selected":""}>${p}</option>`).join("")}</select></div>
     </div>
-    <div style="margin-top:10px"><b style="font-size:12.5px;color:var(--navy)">Viga continua de coronación</b>${helpIco("Perfil W soldado en el coronamiento que une la cabeza de los perfiles verticales y da rigidez al conjunto. Selecciona el perfil e indica los ml a instalar (habitualmente ≈ longitud L del muro).")}
+    <div style="margin-top:10px"><b style="font-size:12.5px;color:var(--navy)">Vigas continuas de coronación</b>${helpIco("Perfil W soldado en el coronamiento que une la cabeza de los perfiles verticales. Puedes agregar varias vigas con distintos perfiles en la misma sección; cada una se cubica por separado en ml.")}
     <div class="grid g4" style="margin-top:6px">
-      <div><label>Incluir viga de coronación</label><select onchange="setv('mbv.${i}.vcOn',this.value==='si'?1:0)">
+      <div><label>Incluir viga(s) de coronación</label><select onchange="togVC(${i},this.value==='si')">
         <option value="no" ${!s.vcOn?'selected':''}>No</option><option value="si" ${s.vcOn?'selected':''}>Sí</option></select></div>
-      ${s.vcOn?`
-      <div><label>Perfil viga coronación</label><select onchange="setvs('mbv.${i}.vcPerfil',this.value)">
-        ${perfiles().map(p=>`<option ${(s.vcPerfil||'W200x35.9')===p?"selected":""}>${p}</option>`).join("")}</select></div>
-      <div><label>ml a instalar${helpIco("Metros lineales de viga de coronación. Botón de sugerencia: usar la longitud L del muro ("+fmt(s.L,1)+" m).")}</label>${inp(`mbv.${i}.vcML`,s.vcML??s.L,0.5)}</div>
-      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('mbv.${i}.vcML',${s.L})">= L (${fmt(s.L,1)} m)</button></div>`:""}
-    </div></div>
-    <div style="margin-top:10px"><b style="font-size:12.5px;color:var(--navy)">Puntales / esquineros con tubo Yoder</b>${helpIco("Apuntalamiento con tubo Yoder en esquinas o entre caras opuestas de la excavación. Cubicación en ml = n° de puntales × largo unitario. Incluye 2 placas de conexión por puntal.")}
+    </div>
+    ${s.vcOn?`<table style="margin-top:6px;max-width:640px"><tr><th>Perfil</th><th>ml a instalar</th><th class="num">t acero</th><th></th></tr>
+      ${c.vcDet.map((v,k)=>`<tr>
+        <td><select onchange="setvs('mbv.${i}.vcList.${k}.perfil',this.value)">${perfiles().map(p=>`<option ${v.perfil===p?"selected":""}>${p}</option>`).join("")}</select></td>
+        <td>${inp(`mbv.${i}.vcList.${k}.ml`,v.ml,0.5,85)} <button class="btn ghost sm" onclick="setv('mbv.${i}.vcList.${k}.ml',${s.L})" title="Igualar a la longitud del muro">= L</button></td>
+        <td class="num">${fmt(v.ton)}</td>
+        <td><button class="btn warn sm" onclick="S.mbv[${i}].vcList.splice(${k},1);renderSub()">✕</button></td></tr>`).join("")}
+      ${c.vcDet.length>1?`<tr class="res"><td>TOTAL</td><td class="num">${fmt(c.vcML,1)} ml</td><td class="num">${fmt(c.vcTon)}</td><td></td></tr>`:""}
+      </table>
+      <button class="btn ghost sm" style="margin-top:6px" onclick="addVC(${i})">+ Agregar viga de coronación</button>`:""}
+    </div>
+    <div style="margin-top:10px"><b style="font-size:12.5px;color:var(--navy)">Puntales / esquineros con tubo Yoder</b>${helpIco("Apuntalamiento con tubo Yoder en esquinas o entre caras opuestas de la excavación. Puedes agregar varias líneas con distintos diámetros; ml = n° de puntales × largo unitario. Incluye 2 placas de conexión por puntal.")}
     <div class="grid g4" style="margin-top:6px">
-      <div><label>Incluir puntales / esquineros</label><select onchange="setv('mbv.${i}.ptOn',this.value==='si'?1:0)">
+      <div><label>Incluir puntales / esquineros</label><select onchange="togPT(${i},this.value==='si')">
         <option value="no" ${!s.ptOn?'selected':''}>No</option><option value="si" ${s.ptOn?'selected':''}>Sí</option></select></div>
-      ${s.ptOn?`
-      <div><label>Ø tubo Yoder (")</label><select onchange="setv('mbv.${i}.ptDiam',this.value)">
-        ${[4,6,8].map(d=>`<option ${(+s.ptDiam||6)===d?"selected":""} value="${d}">${d}"</option>`).join("")}</select></div>
-      <div><label>N° de puntales (un)</label>${inp(`mbv.${i}.ptCant`,s.ptCant??0,1)}</div>
-      <div><label>Largo unitario (m)</label>${inp(`mbv.${i}.ptLen`,s.ptLen??0,0.5)}</div>`:""}
-    </div></div><div class="kpi">
+    </div>
+    ${s.ptOn?`<table style="margin-top:6px;max-width:640px"><tr><th>Ø tubo Yoder</th><th>N° puntales</th><th>Largo unit. (m)</th><th class="num">ml</th><th></th></tr>
+      ${c.ptDet.map((p,k)=>`<tr>
+        <td><select onchange="setv('mbv.${i}.ptList.${k}.diam',this.value)">${[4,6,8].map(d=>`<option ${p.diam===d?"selected":""} value="${d}">${d}"</option>`).join("")}</select></td>
+        <td>${inp(`mbv.${i}.ptList.${k}.cant`,p.cant,1,70)}</td>
+        <td>${inp(`mbv.${i}.ptList.${k}.len`,p.len,0.5,80)}</td>
+        <td class="num">${fmt(p.ml,1)}</td>
+        <td><button class="btn warn sm" onclick="S.mbv[${i}].ptList.splice(${k},1);renderSub()">✕</button></td></tr>`).join("")}
+      ${c.ptDet.length>1?`<tr class="res"><td>TOTAL</td><td class="num">${c.ptCant} un</td><td></td><td class="num">${fmt(c.ptML,1)} ml</td><td></td></tr>`:""}
+      </table>
+      <button class="btn ghost sm" style="margin-top:6px" onclick="addPT(${i})">+ Agregar puntal / esquinero</button>`:""}
+    </div><div class="kpi">
       <div><b>${fmt(c.area)}</b><span>m² entibación ${s.tab}"</span></div>
       <div><b>${c.nPerf}</b><span>perfiles ${s.perfil}</span></div>
       <div><b>${fmt(c.mlPerf,1)}</b><span>ml perfiles</span></div>
       <div><b>${fmt(c.tAcero)}</b><span>t acero perfiles</span></div>
-      ${c.vcOn?`<div><b>${fmt(c.vcML,1)}</b><span>ml viga coron. ${c.vcPerfil}</span></div><div><b>${fmt(c.vcTon)}</b><span>t acero viga coron.</span></div>`:""}
-      ${c.ptOn&&c.ptML>0?`<div><b>${fmt(c.ptML,1)}</b><span>ml puntal Yoder Ø${c.ptDiam}"</span></div><div><b>${c.ptPlacas}</b><span>placas conexión puntal</span></div>`:""}
+      ${c.vcOn&&c.vcML>0?`<div><b>${fmt(c.vcML,1)}</b><span>ml viga coron. (${c.vcDet.length} tipo${c.vcDet.length>1?"s":""})</span></div><div><b>${fmt(c.vcTon)}</b><span>t acero viga coron.</span></div>`:""}
+      ${c.ptOn&&c.ptML>0?`<div><b>${fmt(c.ptML,1)}</b><span>ml puntal Yoder (${c.ptDet.map(p=>'Ø'+p.diam+'"').join(", ")})</span></div><div><b>${c.ptPlacas}</b><span>placas conexión puntal</span></div>`:""}
     </div>
     <p class="note">Voladizo: sin anclajes ni puntales. La ficha (empotramiento d) se controla con "Longitud de perfil H+d"; verificar d ≥ 1,5–2,0·H según memoria de cálculo (empuje pasivo espacial Weissenbach y verificación GGU-RETAIN). Espaciamiento típico de perfiles en muro berlinés: 1,5 a 3,5 m; perfiles laminados tipo H/W o HEB (curso GGU-Retain).</p></div>`;
   });
-  h+=`<button class="btn" onclick="S.mbv.push({nom:'Nueva sección',H:3,L:15,esp:1.2,extra:2,Lp:7,tab:'2.0',perfil:'W250x32.7',vcOn:0,vcPerfil:'W200x35.9',ptOn:0,ptDiam:6,ptCant:0,ptLen:0});renderSub()">+ Agregar sección</button>
+  h+=`<button class="btn" onclick="S.mbv.push({nom:'Nueva sección',H:3,L:15,esp:1.2,extra:2,Lp:7,tab:'2.0',perfil:'W250x32.7',vcOn:0,vcList:[],ptOn:0,ptList:[]});renderSub()">+ Agregar sección</button>
   <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>`;
   document.getElementById("sub-mbv").innerHTML=`<div class="card">${modHead("Muro Berlinés en Voladizo","mbv")}${h}</div>`;
 }
