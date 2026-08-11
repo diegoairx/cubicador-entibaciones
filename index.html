@@ -500,7 +500,10 @@ function calcAGH(s,c){
     qPozo:c.n>0?rnd(Qbeh*1000/c.n,2):0};
 }
 /* Pilotaje (pilotes de hormigón armado in situ) */
-const DIAM_BARRA=[10,12,16,18,22,25];
+const DIAM_BARRA=[10,12,16,18,22,25,28,32,36];
+/* Traslape de barra longitudinal por diámetro (m) — tabla Ngenco */
+const TRASLAPE={25:0.135,28:0.150,32:0.170,36:0.190};
+const traslapeDe=d=>TRASLAPE[d]??rnd(5.3*d/1000,3);   // fallback ≈5,3·d para otros diámetros
 const DIAM_PIL_BASE=[50,75,90,110,150,200,250,300,350,400,450,500,600,700,800,900,1000,1200,1500];
 function diamPil(){return [...new Set([...DIAM_PIL_BASE,...(S.pilDiam||[]).map(Number)])].sort((a,b)=>a-b);}
 function diamBar(){return [...new Set([...DIAM_BARRA,...(S.barDiam||[]).map(Number)])].sort((a,b)=>a-b);}
@@ -526,9 +529,14 @@ const kgml=d=>rnd(Math.PI*Math.pow(d/1000,2)/4*7850,3);   // kg/m de barra: φ10
 function calcPIL(s){
   const cant=Math.round(+s.cant||0), D=+s.D||600, L=+s.L||0;
   const mlPerf=rnd(cant*L);                                // ml perforación
-  // Armadura longitudinal
+  // Armadura longitudinal (con traslapes por empalme de barras comerciales)
   const nBar=Math.round(+s.nBar||0), dBar=+s.dBar||16, lBar=(+s.lBar||L);
-  const mlLong=rnd(cant*nBar*lBar);
+  const lCom=+s.lCom||12;                                  // largo comercial de barra (m)
+  const tras=(s.tras===""||s.tras==null)?traslapeDe(dBar):+s.tras;
+  const empPorBar=lCom>0?Math.max(0,up(lBar/lCom)-1):0;    // empalmes por barra
+  const nEmp=cant*nBar*empPorBar;                           // total de empalmes
+  const mlTras=rnd(nEmp*tras);                              // ml adicionales por traslape
+  const mlLong=rnd(cant*nBar*lBar+mlTras);                  // ml totales (incluye traslapes)
   const kgLong=rnd(mlLong*kgml(dBar));
   // Estribos: n° por pilote = L/separación (+1), longitud unitaria = π·(D−2·rec) + ganchos
   const sep=+s.sep||0.2, dEst=+s.dEst||10, rec=(s.rec===""||s.rec==null)?7.5:+s.rec, gan=(s.gan===""||s.gan==null)?0.15:+s.gan;
@@ -541,7 +549,7 @@ function calcPIL(s){
   const sobre=(s.sobre===""||s.sobre==null)?10:+s.sobre;   // % sobreconsumo
   const m3Pil=rnd(Math.PI*Math.pow(D/1000,2)/4*L,3);
   const m3=rnd(cant*m3Pil*(1+sobre/100));
-  return{cant,D,L,mlPerf,nBar,dBar,lBar,mlLong,kgLong,
+  return{cant,D,L,mlPerf,nBar,dBar,lBar,lCom,tras,empPorBar,nEmp,mlTras,mlLong,kgLong,
     sep,dEst,rec,gan,nEstPil,nEst,lEst,mlEst,kgEst,
     tipoH:s.tipoH||"G25 90%NC",sobre,m3Pil,m3,kgTot:rnd(kgLong+kgEst)};
 }
@@ -1265,9 +1273,13 @@ function renderPIL(){
       <div><label>N° barras por pilote</label>${inp(`pil.${i}.nBar`,s.nBar??8,1)}</div>
       <div><label>Ø barra (mm)</label><select onchange="setv('pil.${i}.dBar',this.value)">
         ${diamBar().map(d=>`<option ${(+s.dBar||16)===d?"selected":""}>${d}</option>`).join("")}</select></div>
-      <div><label>Largo barra (m)${helpIco("Largo de cada barra longitudinal, habitualmente igual o algo mayor que la longitud de perforación (traslapes y anclaje en cabezal).")}</label>${inp(`pil.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
+      <div><label>Largo barra (m)${helpIco("Largo total de cada barra longitudinal, habitualmente igual o algo mayor que la longitud de perforación (anclaje en cabezal).")}</label>${inp(`pil.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
       <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
-    </div></div>
+      <div><label>Largo comercial barra (m)${helpIco("Largo de las barras que llegan a obra (12 m estándar). Si el largo de la barra supera este valor, se generan empalmes con traslape.")}</label>${inp(`pil.${i}.lCom`,s.lCom??12,0.5)}</div>
+      <div><label>Traslape por empalme (m)${helpIco("Tabla Ngenco: φ25 = 0,135 m · φ28 = 0,150 m · φ32 = 0,170 m · φ36 = 0,190 m. Para otros diámetros se estima ≈5,3·d. Editable.")}</label>${inp(`pil.${i}.tras`,s.tras??traslapeDe(+s.dBar||16),0.005)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.tras',${traslapeDe(+s.dBar||16)})">= tabla φ${+s.dBar||16} (${fmt(traslapeDe(+s.dBar||16),3)} m)</button></div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:4px 0 0">Empalmes por barra: <b>${c.empPorBar}</b> · total empalmes: <b>${c.nEmp}</b> · ml adicionales por traslape: <b>${fmt(c.mlTras,1)}</b></p></div>
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Estribos</b>${helpIco("N° de estribos por pilote = REDONDEAR.ARRIBA(longitud ÷ separación) + 1. Longitud de cada estribo = π × (Ø pilote − 2×recubrimiento) + ganchos.")}
     <div class="grid g4" style="margin-top:6px">
       <div><label>Separación estribos (m)</label>${inp(`pil.${i}.sep`,s.sep??0.2,0.05)}</div>
@@ -1284,7 +1296,7 @@ function renderPIL(){
     <div class="kpi">
       <div><b>${c.cant}</b><span>pilotes Ø${c.D} mm</span></div>
       <div><b>${fmt(c.mlPerf,1)}</b><span>ml perforación</span></div>
-      <div><b>${fmt(c.mlLong,1)}</b><span>ml barra long. φ${c.dBar}</span></div>
+      <div><b>${fmt(c.mlLong,1)}</b><span>ml barra long. φ${c.dBar}${c.mlTras>0?` (incl. ${fmt(c.mlTras,1)} traslape)`:""}</span></div>
       <div><b>${fmt(c.kgLong,0)}</b><span>kg barra long. (${fmt(kgml(c.dBar),3)} kg/m)</span></div>
       <div><b>${c.nEstPil}</b><span>estribos por pilote</span></div>
       <div><b>${fmt(c.mlEst,1)}</b><span>ml estribos φ${c.dEst} (${c.nEst} un)</span></div>
