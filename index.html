@@ -323,7 +323,7 @@ let S={
  mbv:[],
  sn:[],
  mp:{per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}},
- mt:{areas:[],mej:{A:0,h:0}},
+ mt:{areas:[],mej:{A:0,h:0},mejC:[],geo:[]},
  fab:{num:1,dias:5,rows:[]},
  ag:[],
  dca:[],
@@ -504,7 +504,7 @@ const DIAM_BARRA=[10,12,16,18,22,25,28,32,36];
 /* Traslape de barra longitudinal por diámetro (m) — tabla Ngenco */
 const TRASLAPE={25:0.135,28:0.150,32:0.170,36:0.190};
 const traslapeDe=d=>TRASLAPE[d]??rnd(5.3*d/1000,3);   // fallback ≈5,3·d para otros diámetros
-const DIAM_PIL_BASE=[50,75,90,110,150,200,250,300,350,400,450,500,600,700,800,900,1000,1200,1500];
+const DIAM_PIL_BASE=[110,150,200,250,300,350,400,450,500,600,700,800,900,1000,1200,1500];
 function diamPil(){return [...new Set([...DIAM_PIL_BASE,...(S.pilDiam||[]).map(Number)])].sort((a,b)=>a-b);}
 function diamBar(){return [...new Set([...DIAM_BARRA,...(S.barDiam||[]).map(Number)])].sort((a,b)=>a-b);}
 function addDiamBar(){
@@ -560,13 +560,26 @@ function calcDCA(s){
   const ml=rnd(cant*largo);                   // ml perforación = unidades × largo
   return{cant,largo,ml,diam:+s.diam||90};
 }
+/* Materiales de mejoramiento y geosintéticos */
+const MAT_MEJ=["Arena de río lavada","Base estabilizada CBR>50%","Base estabilizada CBR>50% - CBR<70%",
+  "Base estabilizada CBR>80%","Base estabilizada CBR>90%","Gravas","Gravillas","Maicillo","Trumao"];
+const MAT_GEO=["Geogrilla","Geotextil","Geomembrana","Geodrén"];
 function calcMT(){
   let m3=0,det=[];
   S.mt.areas.forEach(a=>{const v=up(a.A*a.L);det.push({...a,m3:v});m3+=v;}); // C11 =ROUNDUP(A*L,0)
-  const mej=up(S.mt.mej.A*S.mt.mej.h);
+  // Capas de mejoramiento por tipo de material (compat. con formato anterior {A,h})
+  let capas=(S.mt.mejC&&S.mt.mejC.length)?S.mt.mejC
+    :((S.mt.mej&&+S.mt.mej.A>0)?[{tipo:"Arena de río lavada",A:+S.mt.mej.A,h:+S.mt.mej.h||0}]:[]);
+  S.mt.mejC=capas;                                        // normaliza el estado (rutas setv estables)
+  let mejDet=[],mej=0;
+  capas.forEach(c=>{const v=up((+c.A||0)*(+c.h||0));mejDet.push({tipo:c.tipo||MAT_MEJ[0],A:+c.A||0,h:+c.h||0,m3:v});mej+=v;});
+  // Geosintéticos entre capas (m²)
+  const geoL=S.mt.geo||[]; S.mt.geo=geoL;
+  let geoDet=[],geoTot=0;
+  geoL.forEach(g=>{const a=up(+g.m2||0);geoDet.push({tipo:g.tipo||MAT_GEO[0],m2:a});geoTot+=a;});
   const escarpe=up((+(S.mt.escarpe||0)));                 // m² escarpe/limpieza
   const demol=up((+(S.mt.demol||0)));                     // m³ demolición
-  return{det,m3,mej,escarpe,demol};
+  return{det,m3,capas,mejDet,mej,geoL,geoDet,geoTot,escarpe,demol};
 }
 
 /* ═════════ RESUMEN GLOBAL (partidas) ═════════ */
@@ -680,7 +693,11 @@ function resumen(){
   add("Movimiento de Tierra","Escarpe o limpieza de terreno","m²",mt.escarpe);
   add("Movimiento de Tierra","Demolición","m³",mt.demol);
   add("Movimiento de Tierra","Excavación masiva y retiro","m³",mt.m3);
-  add("Movimiento de Tierra","Mejoramiento Arena Biobío","m³",mt.mej);
+  const mejG={},geoG={};
+  mt.mejDet.forEach(k=>{if(k.m3>0)mejG[k.tipo]=(mejG[k.tipo]||0)+k.m3;});
+  mt.geoDet.forEach(g=>{if(g.m2>0)geoG[g.tipo]=(geoG[g.tipo]||0)+g.m2;});
+  Object.entries(mejG).forEach(([t,v])=>add("Movimiento de Tierra","Mejoramiento — "+t,"m³",v));
+  Object.entries(geoG).forEach(([t,v])=>add("Movimiento de Tierra",t+" (suministro e instalación)","m²",v));
   if(mt.m3>0||mt.mej>0||mt.escarpe>0||mt.demol>0)add("Movimiento de Tierra","Movilización / Desmovilización maquinaria de tierra","gl",1);
   return R;
 }
@@ -722,6 +739,19 @@ const PBASE={
  'Demolición':{mat:0,mo:8000,eq:12000},
  'Excavación masiva y retiro':{mat:0,mo:1752,eq:2876},
  'Mejoramiento Arena Biobío':{mat:14500,mo:2500,eq:5000},
+ 'Mejoramiento — Arena de río lavada':{mat:14500,mo:2500,eq:5000},
+ 'Mejoramiento — Base estabilizada CBR>50%':{mat:16500,mo:3000,eq:5500},
+ 'Mejoramiento — Base estabilizada CBR>50% - CBR<70%':{mat:18000,mo:3000,eq:5500},
+ 'Mejoramiento — Base estabilizada CBR>80%':{mat:21000,mo:3200,eq:6000},
+ 'Mejoramiento — Base estabilizada CBR>90%':{mat:23500,mo:3200,eq:6000},
+ 'Mejoramiento — Gravas':{mat:13500,mo:2500,eq:5000},
+ 'Mejoramiento — Gravillas':{mat:15000,mo:2500,eq:5000},
+ 'Mejoramiento — Maicillo':{mat:9500,mo:2200,eq:4500},
+ 'Mejoramiento — Trumao':{mat:8000,mo:2200,eq:4500},
+ 'Geogrilla (suministro e instalación)':{mat:4200,mo:900,eq:200},
+ 'Geotextil (suministro e instalación)':{mat:2100,mo:750,eq:150},
+ 'Geomembrana (suministro e instalación)':{mat:5200,mo:1100,eq:250},
+ 'Geodrén (suministro e instalación)':{mat:6800,mo:1300,eq:300},
  'Perforación Ø50mm para pozos':{mat:2500,mo:5000,eq:7500},
  'Perforación Ø110mm para pozos':{mat:3800,mo:7000,eq:11500},
  'Perforación Ø160mm para pozos':{mat:4500,mo:8500,eq:14000},
@@ -827,7 +857,7 @@ function clearMod(m){
   else if(m==="mbv")S.mbv=[];
   else if(m==="sn")S.sn=[];
   else if(m==="mp")S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
-  else if(m==="mt")S.mt={areas:[],mej:{A:0,h:0}};
+  else if(m==="mt")S.mt={areas:[],mej:{A:0,h:0},mejC:[],geo:[]};
   else if(m==="fab")S.fab={num:1,dias:5,rows:[]};
   else if(m==="ag")S.ag=[];
   else if(m==="dca")S.dca=[];
@@ -836,7 +866,7 @@ function clearMod(m){
   else if(m==="todo"){
     S.mba=[];S.mbv=[];S.sn=[];S.apu={};
     S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
-    S.mt={areas:[],mej:{A:0,h:0}};
+    S.mt={areas:[],mej:{A:0,h:0},mejC:[],geo:[]};
     S.fab={num:1,dias:5,rows:[]};
     S.ag=[];
     S.dca=[];
@@ -1003,7 +1033,8 @@ function renderMBV(){
       ${c.ptDet.length>1?`<tr class="res"><td>TOTAL</td><td class="num">${c.ptCant} un</td><td></td><td class="num">${fmt(c.ptML,1)} ml</td><td></td></tr>`:""}
       </table>
       <button class="btn ghost sm" style="margin-top:6px" onclick="addPT(${i})">+ Agregar puntal / esquinero</button>`:""}
-    </div><div class="kpi">
+    </div>
+    <div class="kpi">
       <div><b>${fmt(c.area)}</b><span>m² entibación ${s.tab}"</span></div>
       <div><b>${c.nPerf}</b><span>perfiles ${s.perfil}</span></div>
       <div><b>${fmt(c.mlPerf,1)}</b><span>ml perfiles</span></div>
@@ -1335,6 +1366,12 @@ function renderDCA(){
 }
 
 /* ═════════════════ RENDER: MOV TIERRA ═════════════════ */
+function addMejC(){ // agrega capa de mejoramiento (calcMT ya normalizó el formato antiguo)
+  calcMT(); S.mt.mejC.push({tipo:MAT_MEJ[0],A:0,h:0.3}); S.mt.mej={A:0,h:0}; renderSub();
+}
+function addGeo(){
+  calcMT(); S.mt.geo.push({tipo:MAT_GEO[0],m2:0}); renderSub();
+}
 function renderMT(){
   const c=calcMT();
   let h=`<table><tr><th>Zona</th><th>Área planta (m²)</th><th>Prof. excavación (m)</th><th class="num">m³ (redondeo ↑)</th><th></th></tr>
@@ -1345,18 +1382,36 @@ function renderMT(){
     <td><button class="btn warn sm" onclick="S.mt.areas.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
   <tr class="res"><td colspan="3">TOTAL EXCAVACIÓN</td><td class="num">${fmt(c.m3,0)} m³</td><td></td></tr></table>
   <button class="btn ghost sm" style="margin-top:8px" onclick="S.mt.areas.push({nom:'Nueva zona',A:0,L:0});renderSub()">+ Zona</button>
-  <h2 style="margin-top:20px">Mejoramiento (Arena Biobío)</h2>
-  <div class="grid g4">
-    <div><label>Área planta (m²)</label>${inp('mt.mej.A',S.mt.mej.A)}</div>
-    <div><label>Altura promedio (m)</label>${inp('mt.mej.h',S.mt.mej.h,0.05)}</div>
-  </div>
-  <div class="kpi"><div><b>${fmt(c.mej,0)}</b><span>m³ mejoramiento</span></div></div>
+  <h2 style="margin-top:20px">Mejoramiento de terreno</h2>
+  <p class="note">Cada capa se cubica por tipo de material: m³ = área × espesor (redondeo superior). Entre capas puedes incorporar geosintéticos (m²) para mejorar la capacidad de soporte.</p>
+  <table style="max-width:760px"><tr><th>Material</th><th>Área (m²)</th><th>Espesor (m)</th><th class="num">m³</th><th></th></tr>
+  ${c.mejDet.map((k,j)=>`<tr>
+    <td><select onchange="setvs('mt.mejC.${j}.tipo',this.value)">${MAT_MEJ.map(t=>`<option ${k.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+    <td>${inp(`mt.mejC.${j}.A`,k.A,1,90)}</td>
+    <td>${inp(`mt.mejC.${j}.h`,k.h,0.05,80)}</td>
+    <td class="num">${fmt(k.m3,0)}</td>
+    <td><button class="btn warn sm" onclick="S.mt.mejC.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+  ${c.mejDet.length>1?`<tr class="res"><td colspan="3">TOTAL MEJORAMIENTO</td><td class="num">${fmt(c.mej,0)} m³</td><td></td></tr>`:""}
+  </table>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="addMejC()">+ Capa de mejoramiento</button>
+  <h2 style="margin-top:20px">Geosintéticos entre capas</h2>
+  <table style="max-width:620px"><tr><th>Tipo</th><th>Superficie (m²)</th><th></th></tr>
+  ${c.geoDet.map((g,j)=>`<tr>
+    <td><select onchange="setvs('mt.geo.${j}.tipo',this.value)">${MAT_GEO.map(t=>`<option ${g.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+    <td>${inp(`mt.geo.${j}.m2`,g.m2,1,100)}</td>
+    <td><button class="btn warn sm" onclick="S.mt.geo.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+  ${c.geoDet.length>1?`<tr class="res"><td>TOTAL</td><td class="num">${fmt(c.geoTot,0)} m²</td><td></td></tr>`:""}
+  </table>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="addGeo()">+ Geosintético</button>
   <h2 style="margin-top:20px">Otras partidas</h2>
   <div class="grid g4">
     <div><label>Escarpe / limpieza de terreno (m²)${helpIco("Retiro de capa vegetal, escombros y limpieza superficial del terreno antes de excavar.")}</label>${inp('mt.escarpe',S.mt.escarpe??0,1)}</div>
     <div><label>Demolición (m³)${helpIco("Volumen de demolición de estructuras, pavimentos, radieres u obras existentes.")}</label>${inp('mt.demol',S.mt.demol??0,1)}</div>
   </div>
   <div class="kpi">
+    <div><b>${fmt(c.m3,0)}</b><span>m³ excavación</span></div>
+    <div><b>${fmt(c.mej,0)}</b><span>m³ mejoramiento</span></div>
+    <div><b>${fmt(c.geoTot,0)}</b><span>m² geosintéticos</span></div>
     <div><b>${fmt(c.escarpe,0)}</b><span>m² escarpe/limpieza</span></div>
     <div><b>${fmt(c.demol,0)}</b><span>m³ demolición</span></div>
   </div>`;
