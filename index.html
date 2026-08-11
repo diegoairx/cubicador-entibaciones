@@ -523,7 +523,6 @@ function addDiamPil(){
   renderSub();
 }
 const kgml=d=>rnd(Math.PI*Math.pow(d/1000,2)/4*7850,3);   // kg/m de barra: φ10=0,617 · φ16=1,578 · φ25=3,853
-const kgml=d=>rnd(Math.PI*Math.pow(d/1000,2)/4*7850,3);   // kg/m de barra: φ10=0,617 · φ16=1,578 · φ25=3,853
 function calcPIL(s){
   const cant=Math.round(+s.cant||0), D=+s.D||600, L=+s.L||0;
   const mlPerf=rnd(cant*L);                                // ml perforación
