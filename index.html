@@ -225,6 +225,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-s="mbv" onclick="goSub('mbv')">Berlinés en Voladizo</button>
     <button data-s="sn" onclick="goSub('sn')">Soil Nailing</button>
     <button data-s="mp" onclick="goSub('mp')">Micropilotes</button>
+    <button data-s="pil" onclick="goSub('pil')">Pilotaje</button>
     <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
     <button data-s="ag" onclick="goSub('ag')">💧 Agotamiento</button>
     <button data-s="dca" onclick="goSub('dca')">💧 Drenes Cal.</button>
@@ -235,6 +236,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div id="sub-mbv" style="display:none"></div>
   <div id="sub-sn" style="display:none"></div>
   <div id="sub-mp" style="display:none"></div>
+  <div id="sub-pil" style="display:none"></div>
   <div id="sub-fab" style="display:none"></div>
   <div id="sub-ag" style="display:none"></div>
   <div id="sub-dca" style="display:none"></div>
@@ -325,6 +327,7 @@ let S={
  fab:{num:1,dias:5,rows:[]},
  ag:[],
  dca:[],
+ pil:[],
  perfCustom:[],
  wpq:{m2:1500,prof:6.5,mes:8,mej:"NO",rec:30,mg:20,par:2,eval:0},
  apu:{}  // overrides {key:{mat,mo,eq}}
@@ -496,6 +499,31 @@ function calcAGH(s,c){
     Qm3h:rnd(Q*3600,1),Qbehm3h:rnd(Qbeh*3600,1),Qbehls:rnd(Qbeh*1000,1),
     qPozo:c.n>0?rnd(Qbeh*1000/c.n,2):0};
 }
+/* Pilotaje (pilotes de hormigón armado in situ) */
+const DIAM_BARRA=[10,12,16,18,22,25];
+const kgml=d=>rnd(Math.PI*Math.pow(d/1000,2)/4*7850,3);   // kg/m de barra: φ10=0,617 · φ16=1,578 · φ25=3,853
+function calcPIL(s){
+  const cant=Math.round(+s.cant||0), D=+s.D||600, L=+s.L||0;
+  const mlPerf=rnd(cant*L);                                // ml perforación
+  // Armadura longitudinal
+  const nBar=Math.round(+s.nBar||0), dBar=+s.dBar||16, lBar=(+s.lBar||L);
+  const mlLong=rnd(cant*nBar*lBar);
+  const kgLong=rnd(mlLong*kgml(dBar));
+  // Estribos: n° por pilote = L/separación (+1), longitud unitaria = π·(D−2·rec) + ganchos
+  const sep=+s.sep||0.2, dEst=+s.dEst||10, rec=(s.rec===""||s.rec==null)?7.5:+s.rec, gan=(s.gan===""||s.gan==null)?0.15:+s.gan;
+  const nEstPil=sep>0?up(L/sep)+1:0;
+  const lEst=rnd(Math.PI*Math.max(0,(D-2*rec*10)/1000)+gan,3);  // rec en cm → mm
+  const nEst=cant*nEstPil;
+  const mlEst=rnd(nEst*lEst);
+  const kgEst=rnd(mlEst*kgml(dEst));
+  // Hormigón
+  const sobre=(s.sobre===""||s.sobre==null)?10:+s.sobre;   // % sobreconsumo
+  const m3Pil=rnd(Math.PI*Math.pow(D/1000,2)/4*L,3);
+  const m3=rnd(cant*m3Pil*(1+sobre/100));
+  return{cant,D,L,mlPerf,nBar,dBar,lBar,mlLong,kgLong,
+    sep,dEst,rec,gan,nEstPil,nEst,lEst,mlEst,kgEst,
+    tipoH:s.tipoH||"G25 90%NC",sobre,m3Pil,m3,kgTot:rnd(kgLong+kgEst)};
+}
 /* Drenes californianos (drenes horizontales de alivio) */
 function calcDCA(s){
   const cant=Math.round(+s.cant||0);
@@ -600,6 +628,18 @@ function resumen(){
   add("Agotamiento de Napa","Dren horizontal de captación","ml",agDrenes);
   add("Agotamiento de Napa","Sentina/pozo de achique","un",agSent);
   add("Agotamiento de Napa","Monitoreo piezométrico","un",agPiez);
+  // Pilotaje
+  let pilPerf={},pilH={},pilLong={},pilEst={},pilUn=0;
+  (S.pil||[]).forEach(s=>{const c=calcPIL(s);pilUn+=c.cant;
+    if(c.mlPerf>0)pilPerf[c.D]=(pilPerf[c.D]||0)+c.mlPerf;
+    if(c.m3>0)pilH[c.tipoH]=(pilH[c.tipoH]||0)+c.m3;
+    if(c.kgLong>0)pilLong[c.dBar]=(pilLong[c.dBar]||0)+c.kgLong;
+    if(c.kgEst>0)pilEst[c.dEst]=(pilEst[c.dEst]||0)+c.kgEst;});
+  Object.entries(pilPerf).forEach(([d,v])=>add("Pilotaje","Perforación pilote Ø"+d+"mm","ml",v));
+  Object.entries(pilH).forEach(([t,v])=>add("Pilotaje","Hormigón "+t+" en pilotes","m³",v));
+  Object.entries(pilLong).forEach(([d,v])=>add("Pilotaje","Acero refuerzo longitudinal φ"+d+"mm","kg",v));
+  Object.entries(pilEst).forEach(([d,v])=>add("Pilotaje","Acero estribos φ"+d+"mm","kg",v));
+  if(pilUn>0)add("Pilotaje","Movilización / Desmovilización equipo de pilotaje","gl",1);
   // Drenes Californianos
   let dcaUn=0, dcaPerf={};
   (S.dca||[]).forEach(s=>{const c=calcDCA(s);dcaUn+=c.cant;
@@ -662,6 +702,7 @@ const PBASE={
  'Puntal/esquinero tubo Yoder Ø6"':{mat:42000,mo:11000,eq:8000},
  'Puntal/esquinero tubo Yoder Ø8"':{mat:58000,mo:13000,eq:10000},
  'Placa de conexión puntal':{mat:26000,mo:5000,eq:1500},
+ 'Movilización / Desmovilización equipo de pilotaje':{mat:150000,mo:600000,eq:2200000},
  'Perforación dren californiano Ø75mm':{mat:3200,mo:6500,eq:9500},
  'Perforación dren californiano Ø90mm':{mat:3800,mo:7000,eq:11000},
  'Perforación dren californiano Ø110mm':{mat:4500,mo:7800,eq:13000},
@@ -704,6 +745,12 @@ function basePrice(key){
   }
   if(key.startsWith("Placa"))return{mat:15000,mo:3000,eq:800};
   if(key.startsWith("Pernos autoperforantes"))return{mat:36000,mo:15000,eq:14000};
+  if(key.startsWith("Perforación pilote")){ // escala con el diámetro
+    const d=parseFloat(key.replace(/\D+/g," ").trim())||600;
+    return{mat:0,mo:Math.round(9000+d*22),eq:Math.round(14000+d*45)};
+  }
+  if(key.startsWith("Hormigón G"))return{mat:118000,mo:22000,eq:16000};
+  if(key.startsWith("Acero refuerzo longitudinal")||key.startsWith("Acero estribos"))return{mat:1180,mo:420,eq:120};
   if(key.startsWith("Barbacanas"))return{mat:5500,mo:3500,eq:1000};
   if(key.startsWith("Refuerzo barras FE 12"))return {...PBASE['Refuerzo barras FE 12mm']};
   if(key.startsWith("Refuerzo barras FE"))return {...PBASE['Refuerzo barras FE 16mm']};
@@ -736,11 +783,11 @@ function go(v){curV=v;
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","sn","mp","pil","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,pil:renderPIL,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
@@ -755,6 +802,7 @@ function clearMod(m){
   else if(m==="fab")S.fab={num:1,dias:5,rows:[]};
   else if(m==="ag")S.ag=[];
   else if(m==="dca")S.dca=[];
+  else if(m==="pil")S.pil=[];
   else if(m==="apu"){S.apu={};renderAPU();return;}
   else if(m==="todo"){
     S.mba=[];S.mbv=[];S.sn=[];S.apu={};
@@ -763,6 +811,7 @@ function clearMod(m){
     S.fab={num:1,dias:5,rows:[]};
     S.ag=[];
     S.dca=[];
+    S.pil=[];
     S.mbaAdj=1;
   }
   renderSub();
@@ -1172,6 +1221,59 @@ function renderAG(){
   });
   h+=`<button class="btn" onclick="S.ag.push({nom:'Nueva zona',tipo:'wellpoint',L:30,B:15,esp:3,cant:'',prof:8,diam:250,bombas:1,meses:2,drenes:0,sentinas:1,piez:2,k:0.0005,H:10,t:3,z:0.4,conf:'libre',mEsp:5,alfa:1.1,beta:1.2,Rmode:'sichardt',Rfix:150});renderSub()">+ Agregar zona</button>`;
   document.getElementById("sub-ag").innerHTML=`<div class="card">${modHead("Agotamiento de Napa Freática","ag")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: PILOTAJE ═════════════════ */
+function renderPIL(){
+  if(!S.pil)S.pil=[];
+  let h="";
+  S.pil.forEach((s,i)=>{
+    const c=calcPIL(s);
+    h+=`<div class="sec"><div class="sec-head"><span class="tag">GRUPO ${i+1}</span>
+      <input value="${s.nom||('Pilotes '+(i+1))}" style="max-width:260px" onchange="setvs('pil.${i}.nom',this.value)">
+      <button class="btn warn sm" style="margin-left:auto" onclick="S.pil.splice(${i},1);renderSub()">✕ Eliminar</button></div>
+    <div class="grid g4">
+      <div><label>Cantidad de pilotes (un)</label>${inp(`pil.${i}.cant`,s.cant??0,1)}</div>
+      <div><label>Ø perforación (mm)</label><select onchange="setv('pil.${i}.D',this.value)">
+        ${[400,500,600,700,800,900,1000,1200,1500].map(d=>`<option ${(+s.D||600)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Longitud perforación (m)</label>${inp(`pil.${i}.L`,s.L??0,0.5)}</div>
+      <div><label>Sobreconsumo hormigón (%)${helpIco("Exceso de hormigón sobre el volumen teórico por irregularidad de la perforación. Típico 8–15%.")}</label>${inp(`pil.${i}.sobre`,s.sobre??10,1)}</div>
+    </div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Armadura longitudinal</b>
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>N° barras por pilote</label>${inp(`pil.${i}.nBar`,s.nBar??8,1)}</div>
+      <div><label>Ø barra (mm)</label><select onchange="setv('pil.${i}.dBar',this.value)">
+        ${DIAM_BARRA.map(d=>`<option ${(+s.dBar||16)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Largo barra (m)${helpIco("Largo de cada barra longitudinal, habitualmente igual o algo mayor que la longitud de perforación (traslapes y anclaje en cabezal).")}</label>${inp(`pil.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
+    </div></div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Estribos</b>${helpIco("N° de estribos por pilote = REDONDEAR.ARRIBA(longitud ÷ separación) + 1. Longitud de cada estribo = π × (Ø pilote − 2×recubrimiento) + ganchos.")}
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Separación estribos (m)</label>${inp(`pil.${i}.sep`,s.sep??0.2,0.05)}</div>
+      <div><label>Ø estribo (mm)</label><select onchange="setv('pil.${i}.dEst',this.value)">
+        ${DIAM_BARRA.map(d=>`<option ${(+s.dEst||10)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Recubrimiento (cm)</label>${inp(`pil.${i}.rec`,s.rec??7.5,0.5)}</div>
+      <div><label>Ganchos por estribo (m)</label>${inp(`pil.${i}.gan`,s.gan??0.15,0.05)}</div>
+    </div></div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Hormigón</b>
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Tipo de hormigón</label><select onchange="setvs('pil.${i}.tipoH',this.value)">
+        ${["G25 90%NC","G30 90%NC","G35 90%NC","G20 90%NC"].map(t=>`<option ${(s.tipoH||"G25 90%NC")===t?"selected":""}>${t}</option>`).join("")}</select></div>
+    </div></div>
+    <div class="kpi">
+      <div><b>${c.cant}</b><span>pilotes Ø${c.D} mm</span></div>
+      <div><b>${fmt(c.mlPerf,1)}</b><span>ml perforación</span></div>
+      <div><b>${fmt(c.mlLong,1)}</b><span>ml barra long. φ${c.dBar}</span></div>
+      <div><b>${fmt(c.kgLong,0)}</b><span>kg barra long. (${fmt(kgml(c.dBar),3)} kg/m)</span></div>
+      <div><b>${c.nEstPil}</b><span>estribos por pilote</span></div>
+      <div><b>${fmt(c.mlEst,1)}</b><span>ml estribos φ${c.dEst} (${c.nEst} un)</span></div>
+      <div><b>${fmt(c.kgEst,0)}</b><span>kg estribos</span></div>
+      <div><b>${fmt(c.kgTot,0)}</b><span>kg acero total</span></div>
+      <div><b>${fmt(c.m3,1)}</b><span>m³ hormigón ${c.tipoH} (+${c.sobre}%)</span></div>
+    </div></div>`;
+  });
+  h+=`<button class="btn" onclick="S.pil.push({nom:'Pilotes '+(S.pil.length+1),cant:10,D:600,L:12,sobre:10,nBar:8,dBar:16,lBar:12,sep:0.2,dEst:10,rec:7.5,gan:0.15,tipoH:'G25 90%NC'});renderSub()">+ Agregar grupo de pilotes</button>`;
+  document.getElementById("sub-pil").innerHTML=`<div class="card">${modHead("Pilotaje","pil")}${h}</div>`;
 }
 
 /* ═════════════════ RENDER: DRENES CALIFORNIANOS ═════════════════ */
