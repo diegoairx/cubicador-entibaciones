@@ -1235,7 +1235,7 @@ function renderPIL(){
     <div class="grid g4">
       <div><label>Cantidad de pilotes (un)</label>${inp(`pil.${i}.cant`,s.cant??0,1)}</div>
       <div><label>Ø perforación (mm)</label><select onchange="setv('pil.${i}.D',this.value)">
-        ${[400,500,600,700,800,900,1000,1200,1500].map(d=>`<option ${(+s.D||600)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+        ${[50,75,90,110,150,200,250,300,350,400,450,500,600,700,800,900,1000,1200,1500].map(d=>`<option ${(+s.D||600)===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>Longitud perforación (m)</label>${inp(`pil.${i}.L`,s.L??0,0.5)}</div>
       <div><label>Sobreconsumo hormigón (%)${helpIco("Exceso de hormigón sobre el volumen teórico por irregularidad de la perforación. Típico 8–15%.")}</label>${inp(`pil.${i}.sobre`,s.sobre??10,1)}</div>
     </div>
