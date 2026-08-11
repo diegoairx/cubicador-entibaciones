@@ -501,6 +501,28 @@ function calcAGH(s,c){
 }
 /* Pilotaje (pilotes de hormigón armado in situ) */
 const DIAM_BARRA=[10,12,16,18,22,25];
+const DIAM_PIL_BASE=[50,75,90,110,150,200,250,300,350,400,450,500,600,700,800,900,1000,1200,1500];
+function diamPil(){return [...new Set([...DIAM_PIL_BASE,...(S.pilDiam||[]).map(Number)])].sort((a,b)=>a-b);}
+function diamBar(){return [...new Set([...DIAM_BARRA,...(S.barDiam||[]).map(Number)])].sort((a,b)=>a-b);}
+function addDiamBar(){
+  const v=prompt("Nuevo diámetro de barra/estribo (mm), ej: 8 o 28");
+  if(!v)return;
+  const d=Math.round(+String(v).replace(",","."));
+  if(!(d>0&&d<=60)){alert("Diámetro inválido. Ingresa un número en mm, ej: 28");return;}
+  S.barDiam=S.barDiam||[];
+  if(!diamBar().includes(d))S.barDiam.push(d);
+  renderSub();
+}
+function addDiamPil(){
+  const v=prompt("Nuevo diámetro de perforación (mm), ej: 130");
+  if(!v)return;
+  const d=Math.round(+String(v).replace(",","."));
+  if(!(d>0&&d<=5000)){alert("Diámetro inválido. Ingresa un número en mm, ej: 130");return;}
+  S.pilDiam=S.pilDiam||[];
+  if(!diamPil().includes(d))S.pilDiam.push(d);
+  renderSub();
+}
+const kgml=d=>rnd(Math.PI*Math.pow(d/1000,2)/4*7850,3);   // kg/m de barra: φ10=0,617 · φ16=1,578 · φ25=3,853
 const kgml=d=>rnd(Math.PI*Math.pow(d/1000,2)/4*7850,3);   // kg/m de barra: φ10=0,617 · φ16=1,578 · φ25=3,853
 function calcPIL(s){
   const cant=Math.round(+s.cant||0), D=+s.D||600, L=+s.L||0;
@@ -1235,7 +1257,7 @@ function renderPIL(){
     <div class="grid g4">
       <div><label>Cantidad de pilotes (un)</label>${inp(`pil.${i}.cant`,s.cant??0,1)}</div>
       <div><label>Ø perforación (mm)</label><select onchange="setv('pil.${i}.D',this.value)">
-        ${[50,75,90,110,150,200,250,300,350,400,450,500,600,700,800,900,1000,1200,1500].map(d=>`<option ${(+s.D||600)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+        ${diamPil().map(d=>`<option ${(+s.D||600)===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>Longitud perforación (m)</label>${inp(`pil.${i}.L`,s.L??0,0.5)}</div>
       <div><label>Sobreconsumo hormigón (%)${helpIco("Exceso de hormigón sobre el volumen teórico por irregularidad de la perforación. Típico 8–15%.")}</label>${inp(`pil.${i}.sobre`,s.sobre??10,1)}</div>
     </div>
@@ -1243,7 +1265,7 @@ function renderPIL(){
     <div class="grid g4" style="margin-top:6px">
       <div><label>N° barras por pilote</label>${inp(`pil.${i}.nBar`,s.nBar??8,1)}</div>
       <div><label>Ø barra (mm)</label><select onchange="setv('pil.${i}.dBar',this.value)">
-        ${DIAM_BARRA.map(d=>`<option ${(+s.dBar||16)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+        ${diamBar().map(d=>`<option ${(+s.dBar||16)===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>Largo barra (m)${helpIco("Largo de cada barra longitudinal, habitualmente igual o algo mayor que la longitud de perforación (traslapes y anclaje en cabezal).")}</label>${inp(`pil.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
       <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
     </div></div>
@@ -1251,7 +1273,7 @@ function renderPIL(){
     <div class="grid g4" style="margin-top:6px">
       <div><label>Separación estribos (m)</label>${inp(`pil.${i}.sep`,s.sep??0.2,0.05)}</div>
       <div><label>Ø estribo (mm)</label><select onchange="setv('pil.${i}.dEst',this.value)">
-        ${DIAM_BARRA.map(d=>`<option ${(+s.dEst||10)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+        ${diamBar().map(d=>`<option ${(+s.dEst||10)===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>Recubrimiento (cm)</label>${inp(`pil.${i}.rec`,s.rec??7.5,0.5)}</div>
       <div><label>Ganchos por estribo (m)</label>${inp(`pil.${i}.gan`,s.gan??0.15,0.05)}</div>
     </div></div>
@@ -1272,7 +1294,9 @@ function renderPIL(){
       <div><b>${fmt(c.m3,1)}</b><span>m³ hormigón ${c.tipoH} (+${c.sobre}%)</span></div>
     </div></div>`;
   });
-  h+=`<button class="btn" onclick="S.pil.push({nom:'Pilotes '+(S.pil.length+1),cant:10,D:600,L:12,sobre:10,nBar:8,dBar:16,lBar:12,sep:0.2,dEst:10,rec:7.5,gan:0.15,tipoH:'G25 90%NC'});renderSub()">+ Agregar grupo de pilotes</button>`;
+  h+=`<button class="btn" onclick="S.pil.push({nom:'Pilotes '+(S.pil.length+1),cant:10,D:600,L:12,sobre:10,nBar:8,dBar:16,lBar:12,sep:0.2,dEst:10,rec:7.5,gan:0.15,tipoH:'G25 90%NC'});renderSub()">+ Agregar grupo de pilotes</button>
+  <button class="btn ghost" onclick="addDiamPil()">+ Diámetro de perforación</button>
+  <button class="btn ghost" onclick="addDiamBar()">+ Diámetro de barra/estribo</button>`;
   document.getElementById("sub-pil").innerHTML=`<div class="card">${modHead("Pilotaje","pil")}${h}</div>`;
 }
 
