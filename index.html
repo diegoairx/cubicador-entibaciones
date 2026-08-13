@@ -1780,7 +1780,7 @@ async function nubeGuardar(){
     const proj={};["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"].forEach(id=>proj[id]=val(id));
     const body={proyecto_num:val("p_num"),nombre:val("p_nom"),cliente:val("p_cli"),
       ubicacion:val("p_ubi"),ingeniero:val("p_ing"),revision:val("p_revn"),estado:val("p_est"),
-      total_neto_clp:t.neto,total_uf:t.uf,datos:{S,proj}};
+      total_neto_clp:t.neto,total_uf:t.uf,datos:{S,proj,resumen_partidas:(function(){try{return resumen().map(function(r){return {sis:r.sis,key:r.key,unit:r.unit,qty:r.qty};});}catch(e){return [];}})()}};
     let r;
     if(S.cloudId){
       r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${S.cloudId}`,
