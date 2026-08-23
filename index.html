@@ -272,7 +272,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
 <!-- ══════════ INFORME ══════════ -->
 <section id="view-informe" class="view" style="display:none">
   <div class="no-print" style="text-align:right;margin-bottom:12px">
-    <button class="btn" id="btn-pdf" onclick="descargarPDF()">⬇ Descargar PDF (1 hoja A4)</button>
+    <button class="btn" id="btn-pdf" onclick="descargarPDF()">⬇ Descargar PDF (vectorial)</button>
   </div>
   <div id="rep-body" class="card"></div>
 </section>
@@ -1741,7 +1741,8 @@ function wpqCard(){
 
 /* ═════════════════ INFORME EJECUTIVO ═════════════════ */
 let ch1,ch2;
-function renderInforme(){
+/* Datos del informe ejecutivo — compartidos por la vista en pantalla y el PDF vectorial */
+function infoData(){
   let R=resumen().filter(r=>r.sis!=="Fabricación de Anclajes"); // excluida del informe ejecutivo
   // Partidas componentes del anclaje: no se muestran en el informe (su costo se fusiona en "Anclajes postensados")
   const OCULTAS=["Cabezales de anclaje (4 cables)",'Cables de acero 0,6" (incl. reserva)',"Cuñas cónicas / mordazas"];
@@ -1761,11 +1762,16 @@ function renderInforme(){
   const ivaT=tot*iva/100, totIva=tot+ivaT;
   const top=[...R].map(r=>({...r,t:puEff(r)*r.qty})).sort((a,b)=>b.t-a.t).slice(0,8);
   const hoy=val("p_fec")||new Date().toISOString().slice(0,10);
+  const grupos={};
+  R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
+  return{R,puEff,uf,gg,ut,iva,bySis,tot,m2mba,costoMBA,adjM,ivaT,totIva,top,hoy,grupos};
+}
+function renderInforme(){
+  const D=infoData();
+  const {R,puEff,uf,gg,ut,iva,bySis,tot,m2mba,costoMBA,adjM,ivaT,totIva,top,hoy,grupos}=D;
   const sisRows=Object.entries(bySis).map(([s,v])=>
     `<tr><td>${s}</td><td class="num">${clp(v)}</td><td class="num">UF ${fmt(v/uf,1)}</td><td class="num">${fmt(v/tot*100,1)}%</td></tr>`).join("");
   let qtyRows="";
-  const grupos={};
-  R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
   Object.entries(grupos).forEach(([sis,rows],gi)=>{
     const sub=rows.reduce((t,r)=>t+puEff(r)*r.qty,0);
     qtyRows+=`<tr style="cursor:pointer" onclick="toggleSis(${gi})" title="Clic para contraer/extender">
@@ -2081,53 +2087,154 @@ function getJsPDF(){
 function getH2C(){
   return (typeof html2canvas==="function")?html2canvas:(window.html2canvas||null);
 }
+/* INFORME EJECUTIVO — PDF VECTORIAL NATIVO
+   A4 vertical a ancho completo, multipágina, sin html2canvas: todo el texto se
+   dibuja con jsPDF, por lo que queda seleccionable, buscable y nítido a cualquier zoom. */
 async function descargarPDF(){
-  const btn=document.getElementById("btn-pdf");btn.disabled=true;btn.textContent="Generando PDF…";
-  const el=document.getElementById("rep-body");
-  const hp=document.getElementById("h-partidas"),ho=document.getElementById("h-obs");
-  const restaurar=()=>{el.classList.remove("pdf-mode");
-    if(hp)hp.querySelector(".secn").textContent="3.";
-    if(ho)ho.querySelector(".secn").textContent="4.";};
+  const btn=document.getElementById("btn-pdf"); const lbl=btn?btn.textContent:"";
+  if(btn){btn.disabled=true;btn.textContent="Generando PDF…";}
   try{
-    const H2C=getH2C(), JsPDF=getJsPDF();
-    if(!H2C||!JsPDF)throw new Error("No se pudieron cargar las librerías de PDF. Verifica tu conexión a internet y recarga la página (F5).");
-    el.classList.add("pdf-mode");                       // oculta gráficos y compacta el layout
-    if(hp)hp.querySelector(".secn").textContent="2.";   // renumera al excluir los gráficos
-    if(ho)ho.querySelector(".secn").textContent="3.";
-    await new Promise(r=>setTimeout(r,350));
-    // Escala de captura acotada a los límites de canvas del navegador
-    const W=el.scrollWidth||940, H=el.scrollHeight||1200;
-    const esc=Math.max(1,Math.min(3,12000/W,12000/H,Math.sqrt(20e6/(W*H))));
-    const opts={scale:esc,useCORS:true,allowTaint:false,logging:false,backgroundColor:"#ffffff",imageTimeout:8000};
-    let canvas,dataUrl;
-    try{
-      canvas=await H2C(el,opts);
-      dataUrl=canvas.toDataURL("image/jpeg",0.96);
-    }catch(err){                                        // canvas contaminado por el logo remoto: reintenta sin él
-      const imgs=[...el.querySelectorAll(".logo-img")];
-      imgs.forEach(i=>i.style.visibility="hidden");
-      try{
-        canvas=await H2C(el,opts);
-        dataUrl=canvas.toDataURL("image/jpeg",0.96);
-      }finally{imgs.forEach(i=>i.style.visibility="");}
-    }
-    if(!canvas||!canvas.width||!canvas.height)throw new Error("La captura del informe quedó vacía. Intenta contraer algunos sistemas y reintentar.");
+    const JsPDF=getJsPDF();
+    if(!JsPDF)throw new Error("No se pudo cargar la librería de PDF. Verifica tu conexión y recarga la página (F5).");
+    const D=infoData();
+    const {uf,gg,ut,iva,bySis,tot,m2mba,costoMBA,adjM,ivaT,totIva,hoy,grupos,puEff}=D;
+    if(!tot)throw new Error("No hay partidas cubicadas para incluir en el informe.");
     const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
-    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight(), M=8;
-    const availW=PW-2*M, availH=PH-2*M;
-    const k=Math.min(availW/canvas.width,availH/canvas.height); // encuadre por ancho y por alto
-    const w=canvas.width*k, h=canvas.height*k;
-    pdf.addImage(dataUrl,"JPEG",(PW-w)/2,M,w,h,undefined,"FAST");
-    pdf.save(`Informe_Ejecutivo_${(val("p_num")||"proyecto").replace(/\s/g,"_")}.pdf`);
-    restaurar();
-    if(canvas.height/canvas.width>availH/availW*1.35)
-      setTimeout(()=>alert("El informe se ajustó a una hoja, pero el contenido es extenso y quedó en tamaño reducido.\n\nSugerencia: contrae con un clic los sistemas menos relevantes en la sección de partidas (sus subtotales se mantienen visibles) y vuelve a descargar."),300);
-  }catch(e){
-    restaurar();
-    console.error(e);
-    alert("Error al generar PDF: "+(e&&e.message?e.message:e));
-  }
-  btn.disabled=false;btn.textContent="⬇ Descargar PDF (1 hoja A4)";
+    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight();
+    const M=12, W=PW-2*M;                       // ancho útil completo
+    const NAVY=[11,42,74],SKY=[53,167,222],LINE=[221,222,238],MUT=[95,115,133],TXT=[28,43,58],
+          OK=[39,174,96],ACC=[242,153,74],GRISF=[248,249,252],AZULF=[220,235,247];
+    let pg=1, y=0;
+    const t=s=>pdfTxt(s);
+    const clip=(s,w,sz,bold)=>{pdf.setFont("helvetica",bold?"bold":"normal");pdf.setFontSize(sz);
+      s=t(s); if(pdf.getTextWidth(s)<=w)return s;
+      while(s.length>3&&pdf.getTextWidth(s+"..")>w)s=s.slice(0,-1); return s+"..";};
+    const footer=()=>{
+      pdf.setDrawColor(...LINE);pdf.setLineWidth(0.2);pdf.line(M,PH-11,PW-M,PH-11);
+      pdf.setFont("helvetica","normal");pdf.setFontSize(7.5);pdf.setTextColor(...MUT);
+      pdf.text("Ngenco SpA · www.ngencospa.com",M,PH-7);
+      pdf.text(clip(`${val("p_num")||""} ${val("p_nom")||""}`.trim(),W-90,7.5),PW/2,PH-7,{align:"center"});
+      pdf.setFontSize(7.5);pdf.text("Página "+pg,PW-M,PH-7,{align:"right"});
+    };
+    const header=()=>{
+      pdf.setFillColor(...NAVY);pdf.rect(0,0,PW,3.2,"F");
+      pdf.setFillColor(...SKY);pdf.rect(0,3.2,PW,0.8,"F");
+      pdf.setFillColor(...NAVY);pdf.roundedRect(M,M-1,11,11,2,2,"F");        // marca corporativa vectorial
+      pdf.setFont("helvetica","bold");pdf.setFontSize(13);pdf.setTextColor(255,255,255);
+      pdf.text("N",M+5.5,M+6.6,{align:"center"});
+      pdf.setTextColor(...NAVY);pdf.setFontSize(12.5);
+      pdf.text("INFORME EJECUTIVO DE CUBICACIÓN Y PRESUPUESTO",M+14,M+3.2);
+      pdf.setFont("helvetica","normal");pdf.setFontSize(8);pdf.setTextColor(...MUT);
+      pdf.text("NGENCO SpA · Servicios y Maquinarias",M+14,M+8);
+      pdf.setDrawColor(...NAVY);pdf.setLineWidth(0.5);pdf.line(M,M+13,PW-M,M+13);
+      y=M+18;
+    };
+    const nueva=()=>{pdf.addPage("a4","portrait");pg++;header();footer();};
+    const need=h=>{if(y+h>PH-14)nueva();};
+    const secTitle=(n,txt)=>{need(12);
+      pdf.setFillColor(...NAVY);pdf.rect(M,y,2.6,6,"F");
+      pdf.setFont("helvetica","bold");pdf.setFontSize(10.5);pdf.setTextColor(...NAVY);
+      pdf.text(n+"  "+t(txt),M+5,y+4.6); y+=9.5;};
+    header();footer();
+    /* ── Ficha del proyecto ── */
+    const meta=[["Proyecto",`${val("p_num")||""} — ${val("p_nom")||"Sin nombre"}`],["Cliente",val("p_cli")||"—"],
+                ["Ubicación",val("p_ubi")||"—"],["Fecha",hoy],
+                ["Revisión",val("p_revn")||"—"],["Ingeniero",val("p_ing")||"—"]];
+    const fh=6.5, mh=3*fh+5;
+    pdf.setFillColor(...GRISF);pdf.rect(M,y,W,mh,"F");
+    pdf.setDrawColor(...LINE);pdf.setLineWidth(0.2);pdf.rect(M,y,W,mh,"S");
+    meta.forEach(([k,v],i)=>{
+      const cx=M+3+(i%2)*(W/2), cy=y+5.5+Math.floor(i/2)*fh, lw=20;
+      pdf.setFont("helvetica","bold");pdf.setFontSize(6.8);pdf.setTextColor(...MUT);
+      pdf.text(t(k.toUpperCase()),cx,cy);
+      pdf.setFont("helvetica","bold");pdf.setFontSize(8.5);pdf.setTextColor(...TXT);
+      pdf.text(clip(v,W/2-lw-7,8.5,true),cx+lw,cy);
+    });
+    y+=mh+6;
+    /* ── 1. Resumen económico ── */
+    secTitle("1.","Resumen Económico");
+    const kpis=[["Presupuesto Neto",clp(tot),NAVY],["IVA "+iva+"%",clp(ivaT),[93,115,133]],
+                ["Total con IVA",clp(totIva),OK],["Total Neto UF","UF "+fmt(tot/uf,1),ACC]];
+    if(m2mba>0)kpis.push(["Entibación MBA — neto/m²","UF "+fmt(costoMBA/m2mba/uf,2)+"/m²",[29,111,184]]);
+    const kw=(W-(kpis.length-1)*3)/kpis.length;
+    need(20);
+    kpis.forEach(([lb,vv,col],i)=>{
+      const x=M+i*(kw+3);
+      pdf.setFillColor(...col);pdf.roundedRect(x,y,kw,17,1.6,1.6,"F");
+      pdf.setFont("helvetica","normal");pdf.setFontSize(6.6);pdf.setTextColor(255,255,255);
+      pdf.text(clip(lb,kw-4,6.6),x+2.5,y+5);
+      pdf.setFont("helvetica","bold");pdf.setFontSize(kpis.length>4?9:10);
+      pdf.text(clip(vv,kw-4,kpis.length>4?9:10,true),x+2.5,y+11.5);
+      if(lb.startsWith("Entibación")){pdf.setFont("helvetica","normal");pdf.setFontSize(5.9);
+        pdf.text(clip(clp(costoMBA/m2mba)+"/m² · "+fmt(m2mba,0)+" m²"+(adjM!==1?" · aj. "+(adjM>1?"+":"")+fmt((adjM-1)*100,1)+"%":""),kw-4,5.9),x+2.5,y+15.2);}
+    });
+    y+=22;
+    /* tabla por sistema */
+    const cw1=[W-100,36,32,32];                         // Sistema | Neto CLP | Neto UF | Incidencia
+    const fila=(cs,ws,{bold,fill,color,size}={})=>{
+      const h=5.4; need(h);
+      if(fill){pdf.setFillColor(...fill);pdf.rect(M,y,W,h,"F");}
+      pdf.setFont("helvetica",bold?"bold":"normal");pdf.setFontSize(size||8);
+      pdf.setTextColor(...(color||TXT));
+      let x=M;
+      cs.forEach((c,i)=>{
+        const al=i===0?"left":"right";
+        pdf.text(clip(c,ws[i]-4,size||8,bold),al==="left"?x+2:x+ws[i]-2,y+3.8,{align:al});
+        x+=ws[i];
+      });
+      pdf.setDrawColor(...LINE);pdf.setLineWidth(0.15);pdf.line(M,y+h,PW-M,y+h);
+      y+=h;
+    };
+    fila(["Sistema de entibación","Neto CLP","Neto UF","Incidencia"],cw1,{bold:1,fill:NAVY,color:[255,255,255],size:7.8});
+    Object.entries(bySis).forEach(([s,v],i)=>
+      fila([s,clp(v),"UF "+fmt(v/uf,1),fmt(v/tot*100,1)+"%"],cw1,{fill:i%2?GRISF:null}));
+    fila(["TOTAL NETO",clp(tot),"UF "+fmt(tot/uf,1),"100%"],cw1,{bold:1,fill:AZULF,color:NAVY});
+    y+=8;
+    /* ── 2. Cubicación y presupuesto por partida ── */
+    secTitle("2.","Cubicación y Presupuesto por Partida");
+    const cw2=[W-116,10,22,20,24,18,22];   // Partida | Un | Cantidad | P.U. UF | P.U. CLP | Total UF | Total CLP
+    const encab=()=>fila(["Partida","Un","Cantidad","P.U. UF","P.U. CLP","Total UF","Total CLP"],cw2,{bold:1,fill:NAVY,color:[255,255,255],size:7.5});
+    encab();
+    Object.entries(grupos).forEach(([sis,rows],gi)=>{
+      const col=(document.querySelectorAll(".sisrow-"+gi)[0]||{}).style?.display==="none"; // respeta lo contraído en pantalla
+      const sub=rows.reduce((a,r)=>a+puEff(r)*r.qty,0);
+      if(y+11>PH-14){nueva();encab();}
+      fila([sis+(col?"  (detalle contraído)":""),"","","","","UF "+fmt(sub/uf,1),clp(sub)],cw2,{bold:1,fill:AZULF,color:NAVY,size:8});
+      if(col)return;
+      rows.forEach((r,i)=>{const pu=puEff(r),tt=pu*r.qty;
+        fila(["   "+r.key,r.unit,fmt(r.qty),fmt(pu/uf,3),clp(pu),fmt(tt/uf,1),clp(tt)],cw2,{fill:i%2?GRISF:null,size:7.8});});
+    });
+    y+=8;
+    /* ── 3. Observaciones y firmas ── */
+    secTitle("3.","Observaciones");
+    const obs="Cubicación desarrollada según metodología de planilla de ingeniería Ngenco. Los precios unitarios incluyen "+gg+
+      "% de gastos generales y "+ut+"% de utilidad sobre el costo directo; no incluyen IVA salvo donde se indica. "+
+      "Presupuesto referencial sujeto a validación de terreno, mecánica de suelos e ingeniería de detalle.";
+    pdf.setFont("helvetica","normal");pdf.setFontSize(8.5);pdf.setTextColor(...TXT);
+    const lineas=pdf.splitTextToSize(t(obs),W);
+    need(lineas.length*4.4+4);
+    pdf.text(lineas,M,y+3); y+=lineas.length*4.4+12;
+    need(20);
+    const fw=(W-20)/2;
+    [[val("p_ing")||"Ingeniero de Proyecto","Elaboró"],[val("p_rev")||"Revisor","Revisó / Aprobó"]].forEach(([n,c],i)=>{
+      const x=M+i*(fw+20);
+      pdf.setDrawColor(...MUT);pdf.setLineWidth(0.3);pdf.line(x,y+8,x+fw,y+8);
+      pdf.setFont("helvetica","bold");pdf.setFontSize(9);pdf.setTextColor(...TXT);
+      pdf.text(clip(n,fw,9,true),x+fw/2,y+12.5,{align:"center"});
+      pdf.setFont("helvetica","normal");pdf.setFontSize(7.5);pdf.setTextColor(...MUT);
+      pdf.text(t(c),x+fw/2,y+16.5,{align:"center"});
+    });
+    /* numeración final "Página X de Y" */
+    const tp=pdf.internal.getNumberOfPages();
+    for(let i=1;i<=tp;i++){pdf.setPage(i);
+      pdf.setFillColor(255,255,255);pdf.rect(PW-M-30,PH-10.5,30,5,"F");
+      pdf.setFont("helvetica","normal");pdf.setFontSize(7.5);pdf.setTextColor(...MUT);
+      pdf.text("Página "+i+" de "+tp,PW-M,PH-7,{align:"right"});}
+    pdf.setProperties({title:"Informe Ejecutivo de Cubicación y Presupuesto · "+(val("p_nom")||""),author:"Ngenco SpA",
+      subject:"Cubicación y presupuesto de entibaciones",creator:"Cubicador de Entibaciones · Ngenco SpA"});
+    pdf.save(`Informe_Ejecutivo_${(val("p_num")||val("p_nom")||"proyecto").replace(/\s/g,"_")}.pdf`);
+  }catch(e){console.error(e);alert("Error al generar PDF: "+(e&&e.message?e.message:e));}
+  if(btn){btn.disabled=false;btn.textContent=lbl||"⬇ Descargar PDF (vectorial)";}
 }
 async function fabPDF(){
   const c=calcFAB(); const f=S.fab;
