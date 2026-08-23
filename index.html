@@ -1916,11 +1916,22 @@ function haceRato(iso){
   const dias=Math.round(min/1440);
   return dias===1?"ayer":"hace "+dias+" días";
 }
+function antiguedad(iso){ // tiempo transcurrido desde la creación del proyecto
+  if(!iso)return "";
+  const dias=Math.floor((Date.now()-new Date(iso).getTime())/86400000);
+  if(dias<1)return "hoy";
+  if(dias===1)return "ayer";
+  if(dias<30)return dias+" días";
+  const m=Math.floor(dias/30);
+  if(m<12)return m===1?"1 mes":m+" meses";
+  const a=Math.floor(dias/365), rm=Math.floor((dias%365)/30);
+  return (a===1?"1 año":a+" años")+(rm?" "+rm+" m":"");
+}
 /* ── Ordenamiento de la base de datos de proyectos ──
    Los registros quedan en memoria para reordenar sin volver a consultar. */
 let nubeRows=[], nubeSort={c:"actualizado_en",d:-1};
 const NUBE_NUM=new Set(["total_neto_clp","total_uf"]);          // orden numérico
-const NUBE_FEC=new Set(["actualizado_en"]);                     // orden cronológico
+const NUBE_FEC=new Set(["creado_en","actualizado_en"]);         // orden cronológico
 function nubeOrd(c){
   if(nubeSort.c===c)nubeSort.d=-nubeSort.d;
   else nubeSort={c,d:(NUBE_NUM.has(c)||NUBE_FEC.has(c))?-1:1}; // fechas y montos parten de mayor a menor
@@ -1946,6 +1957,7 @@ function nubePintar(){
   const ind=c=>nubeSort.c===c?`<span style="color:var(--sky)">${nubeSort.d>0?"▲":"▼"}</span>`:'<span style="opacity:.3">⇅</span>';
   const th=(c,t,cls)=>`<th ${cls||""} onclick="nubeOrd('${c}')" style="cursor:pointer;user-select:none" title="Ordenar por ${t}">${t} ${ind(c)}</th>`;
   const OPC=[["actualizado_en|-1","Última actualización (más reciente)"],["actualizado_en|1","Última actualización (más antigua)"],
+             ["creado_en|-1","Fecha de creación (más reciente)"],["creado_en|1","Fecha de creación (más antigua)"],
              ["nombre|1","Proyecto (A → Z)"],["nombre|-1","Proyecto (Z → A)"],
              ["cliente|1","Cliente (A → Z)"],["cliente|-1","Cliente (Z → A)"],
              ["proyecto_num|1","N° proyecto (ascendente)"],["proyecto_num|-1","N° proyecto (descendente)"],
@@ -1962,12 +1974,13 @@ function nubePintar(){
     <span style="font-size:12px;color:var(--mut)">${rows.length} proyecto${rows.length===1?"":"s"} · también puedes hacer clic en los títulos de columna</span>
   </div>
   <div style="overflow-x:auto"><table>
-  <tr>${th("proyecto_num","N°")}${th("nombre","Proyecto")}${th("cliente","Cliente")}${th("ubicacion","Ubicación")}${th("estado","Estado")}${th("total_neto_clp","Neto CLP",'class="num"')}${th("total_uf","UF",'class="num"')}${th("actualizado_en","Última actualización")}<th></th></tr>
+  <tr>${th("proyecto_num","N°")}${th("nombre","Proyecto")}${th("cliente","Cliente")}${th("ubicacion","Ubicación")}${th("estado","Estado")}${th("total_neto_clp","Neto CLP",'class="num"')}${th("total_uf","UF",'class="num"')}${th("creado_en","Creado")}${th("actualizado_en","Última actualización")}<th></th></tr>
   ${rows.map(p=>`<tr ${S.cloudId===p.id?'style="outline:2px solid var(--sky)"':""}>
     <td>${p.proyecto_num||""}</td><td><b>${p.nombre||""}</b></td><td>${p.cliente||"—"}</td>
     <td>${p.ubicacion||""}</td><td>${p.estado||""}</td>
     <td class="num">${p.total_neto_clp?clp(p.total_neto_clp):"—"}</td>
     <td class="num">${p.total_uf?fmt(p.total_uf,1):"—"}</td>
+    <td style="white-space:nowrap">${(p.creado||"—").replace(" ","<br>")}${p.creado_en?`<br><span style="font-size:10.5px;color:var(--mut)">${antiguedad(p.creado_en)}</span>`:""}</td>
     <td style="white-space:nowrap">${(p.actualizado||"").replace(" ","<br>")}<br><span style="font-size:10.5px;color:var(--mut)">${haceRato(p.actualizado_en)}</span></td>
     <td style="white-space:nowrap">
       <button class="btn sm" onclick="nubeCargar('${p.id}')">Abrir</button>
