@@ -1441,38 +1441,125 @@ function renderResumen(){
       <div><h2 style="margin-bottom:2px">Cuadro Resumen de Cubicación</h2>
         <div style="font-size:14px;font-weight:700;color:var(--navy)">${nomProy}</div>
         ${subProy?`<div style="font-size:12px;color:var(--mut)">${subProy}</div>`:""}</div>
-      <button class="btn no-print" style="margin-left:auto" onclick="imprimirResumen()" ${vacio?"disabled":""}>🖨 Imprimir / PDF (1 hoja horizontal)</button>
+      <button class="btn no-print" style="margin-left:auto" onclick="imprimirResumen()" ${vacio?"disabled":""}>🖨 PDF horizontal (vectorial)</button>
     </div>
     <div id="resumen-print">
       <div id="resumen-head" style="display:none"></div>
       ${vacio?'<p class="note">Aún no hay partidas cubicadas. Ingresa datos en los sistemas de la pestaña Cubicación.</p>':dosCols}
     </div></div>`;
 }
+/* PDF VECTORIAL NATIVO del cuadro resumen — A4 horizontal, ancho completo, multipágina.
+   No usa html2canvas: el texto se dibuja con jsPDF, por lo que el archivo es
+   seleccionable, buscable y escala sin pixelarse. */
+function pdfTxt(s){ // caracteres fuera de WinAnsi que las fuentes estándar no resuelven
+  return String(s==null?"":s).replace(/[—–]/g,"-").replace(/≥/g,">=").replace(/≤/g,"<=").replace(/[“”]/g,'"').replace(/[‘’]/g,"'");
+}
 async function imprimirResumen(){
   const R=resumen(); if(!R.length){alert("No hay partidas para imprimir.");return;}
-  const H2C=getH2C(), JsPDF=getJsPDF();
-  if(!H2C||!JsPDF){alert("No se pudieron cargar las librerías de PDF. Recarga la página (F5).");return;}
-  const cont=document.getElementById("resumen-print");
-  const head=document.getElementById("resumen-head");
-  head.innerHTML=`<div style="border-bottom:3px solid var(--navy);padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-end">
-    <div><div style="font-size:20px;font-weight:800;color:var(--navy)">CUADRO RESUMEN DE CUBICACIÓN</div>
-    <div style="font-size:14px;color:var(--txt);margin-top:2px"><b>${val("p_nom")||"Proyecto sin nombre"}</b>${val("p_num")?" · N° "+val("p_num"):""}${val("p_ubi")?" · "+val("p_ubi"):""}</div></div>
-    <div style="text-align:right;font-size:12px;color:var(--mut)"><b>NGENCO SpA</b><br>${val("p_cli")?"Cliente: "+val("p_cli")+"<br>":""}Fecha: ${val("p_fec")||new Date().toISOString().slice(0,10)}${val("p_revn")?" · Rev. "+val("p_revn"):""}</div>
-  </div>`;
-  cont.classList.add("pdf-res"); head.style.display="block";
+  const JsPDF=getJsPDF();
+  if(!JsPDF){alert("No se pudo cargar la librería de PDF. Recarga la página (F5).");return;}
   try{
-    await new Promise(r=>setTimeout(r,250));
-    const W=cont.scrollWidth||1400, Hh=cont.scrollHeight||900;
-    const esc=Math.max(1,Math.min(3,12000/W,12000/Hh,Math.sqrt(20e6/(W*Hh))));
-    const canvas=await H2C(cont,{scale:esc,useCORS:true,logging:false,backgroundColor:"#ffffff"});
     const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"landscape",compress:true});
-    const PW=pdf.internal.pageSize.getWidth(),PH=pdf.internal.pageSize.getHeight(),M=8;
-    const k=Math.min((PW-2*M)/canvas.width,(PH-2*M)/canvas.height);
-    const w=canvas.width*k,hh=canvas.height*k;
-    pdf.addImage(canvas.toDataURL("image/jpeg",0.96),"JPEG",(PW-w)/2,M,w,hh,undefined,"FAST");
+    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight();
+    const M=10, GAP=8;                       // márgenes mínimos → ancho útil completo
+    const colW=(PW-2*M-GAP)/2;               // 2 columnas de igual ancho
+    const wUn=11, wCant=27, wPart=colW-wUn-wCant;
+    const rowH=5.0, headH=21, footH=9;
+    const y0=M+headH;
+    const rowsPerCol=Math.floor((PH-y0-footH)/rowH)-1;   // -1 = encabezado de tabla
+    const NAVY=[11,42,74], SKY=[53,167,222], LINE=[221,222,238], MUT=[95,115,133], TXT=[28,43,58];
+    const nom=val("p_nom")||"Proyecto sin nombre";
+    const sub=[val("p_num")?"N° "+val("p_num"):"",val("p_ubi")].filter(Boolean).join(" · ");
+    const der=[val("p_cli")?"Cliente: "+val("p_cli"):"",
+               "Fecha: "+(val("p_fec")||new Date().toISOString().slice(0,10))+(val("p_revn")?" · Rev. "+val("p_revn"):"")].filter(Boolean);
+    const clip=(s,w,sz)=>{ // recorta al ancho de celda
+      s=pdfTxt(s); pdf.setFontSize(sz);
+      if(pdf.getTextWidth(s)<=w)return s;
+      while(s.length>3&&pdf.getTextWidth(s+"..")>w)s=s.slice(0,-1);
+      return s+"..";
+    };
+    /* ── líneas del cuadro: título de sistema + sus partidas ── */
+    const grupos={}; R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
+    const lines=[];
+    Object.entries(grupos).forEach(([sis,rows])=>{
+      lines.push({t:"g",v:sis});
+      rows.forEach(r=>lines.push({t:"r",p:r.key,u:r.unit,q:r.qty}));
+    });
+    /* ── paginación y reparto balanceado en 2 columnas por hoja ── */
+    const perPage=rowsPerCol*2, pages=[];
+    for(let i=0;i<lines.length;){
+      let take=Math.min(perPage,lines.length-i);
+      if(i+take<lines.length&&lines[i+take-1].t==="g")take--;   // no cerrar hoja con un título
+      pages.push(lines.slice(i,i+take)); i+=take;
+    }
+    const cols=[];
+    pages.forEach(pg=>{
+      let cut=Math.ceil(pg.length/2);                            // columnas de igual altura
+      if(cut<pg.length&&pg[cut-1].t==="g")cut++;                 // ni cerrar columna con un título
+      if(cut>rowsPerCol)cut=rowsPerCol;
+      cols.push(pg.slice(0,cut));
+      cols.push(pg.length>cut?pg.slice(cut):null);
+    });
+    const totPag=Math.max(1,pages.length);
+    /* ── dibujo ── */
+    const drawHeader=()=>{
+      pdf.setFillColor(...NAVY); pdf.rect(0,0,PW,3.2,"F");
+      pdf.setFillColor(...SKY);  pdf.rect(0,3.2,PW,0.8,"F");
+      pdf.setTextColor(...NAVY); pdf.setFont("helvetica","bold"); pdf.setFontSize(14);
+      pdf.text("CUADRO RESUMEN DE CUBICACIÓN",M,M+3.5);
+      pdf.setFontSize(11); pdf.setTextColor(...TXT);
+      pdf.text(clip(nom,PW/2,11),M,M+9.5);
+      if(sub){pdf.setFont("helvetica","normal");pdf.setFontSize(8);pdf.setTextColor(...MUT);
+        pdf.text(clip(sub,PW/2,8),M,M+14);}
+      pdf.setFont("helvetica","bold"); pdf.setFontSize(9.5); pdf.setTextColor(...NAVY);
+      pdf.text("NGENCO SpA",PW-M,M+3.5,{align:"right"});
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(...MUT);
+      der.forEach((d,i)=>pdf.text(clip(d,PW/2.4,8),PW-M,M+9+i*4,{align:"right"}));
+      pdf.setDrawColor(...NAVY); pdf.setLineWidth(0.5); pdf.line(M,M+17,PW-M,M+17);
+    };
+    const drawFooter=(pg)=>{
+      pdf.setDrawColor(...LINE); pdf.setLineWidth(0.2); pdf.line(M,PH-M+1,PW-M,PH-M+1);
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(7.5); pdf.setTextColor(...MUT);
+      pdf.text("Ngenco SpA · Servicios y Maquinarias · www.ngencospa.com",M,PH-M+5);
+      pdf.text("Página "+pg+" de "+totPag,PW-M,PH-M+5,{align:"right"});
+    };
+    const drawCol=(x,items)=>{
+      let y=y0;
+      pdf.setFillColor(...NAVY); pdf.rect(x,y,colW,rowH,"F");
+      pdf.setFont("helvetica","bold"); pdf.setFontSize(7.8); pdf.setTextColor(255,255,255);
+      pdf.text("PARTIDA",x+2,y+3.5);
+      pdf.text("UN",x+wPart+wUn/2,y+3.5,{align:"center"});
+      pdf.text("CANTIDAD",x+colW-2,y+3.5,{align:"right"});
+      y+=rowH;
+      items.forEach((it,i)=>{
+        if(it.t==="g"){
+          pdf.setFillColor(226,233,242); pdf.rect(x,y,colW,rowH,"F");
+          pdf.setFont("helvetica","bold"); pdf.setFontSize(8); pdf.setTextColor(...NAVY);
+          pdf.text(clip(it.v,colW-4,8),x+2,y+3.5);
+        }else{
+          if(i%2===1){pdf.setFillColor(248,249,252); pdf.rect(x,y,colW,rowH,"F");}
+          pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(...TXT);
+          pdf.text(clip(it.p,wPart-3,8),x+2,y+3.5);
+          pdf.setTextColor(...MUT);
+          pdf.text(pdfTxt(it.u),x+wPart+wUn/2,y+3.5,{align:"center"});
+          pdf.setFont("helvetica","bold"); pdf.setTextColor(...TXT);
+          pdf.text(fmt(it.q),x+colW-2,y+3.5,{align:"right"});
+          pdf.setDrawColor(...LINE); pdf.setLineWidth(0.15); pdf.line(x,y+rowH,x+colW,y+rowH);
+        }
+        y+=rowH;
+      });
+      pdf.setDrawColor(...LINE); pdf.setLineWidth(0.25);
+      pdf.rect(x,y0,colW,y-y0,"S");
+    };
+    for(let p=0;p<totPag;p++){
+      if(p>0)pdf.addPage("a4","landscape");
+      drawHeader(); drawFooter(p+1);
+      if(cols[p*2])drawCol(M,cols[p*2]);
+      if(cols[p*2+1])drawCol(M+colW+GAP,cols[p*2+1]);
+    }
+    pdf.setProperties({title:"Cuadro Resumen de Cubicación · "+nom,author:"Ngenco SpA",subject:"Cubicación de entibaciones",creator:"Cubicador de Entibaciones · Ngenco SpA"});
     pdf.save(`Resumen_Cubicacion_${(val("p_num")||val("p_nom")||"proyecto").replace(/\s/g,"_")}.pdf`);
   }catch(e){console.error(e);alert("Error al generar PDF: "+(e&&e.message?e.message:e));}
-  cont.classList.remove("pdf-res"); head.style.display="none";
 }
 
 /* ═════════════════ RENDER: APU ═════════════════ */
