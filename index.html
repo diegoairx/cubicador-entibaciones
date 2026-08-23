@@ -1574,6 +1574,23 @@ function setPriceUF(key,field,v){ // el usuario edita en UF; se almacena en CLP
   S.apu[key][field]=Math.round((+v||0)*uf);
   renderAPU();
 }
+/* Fija manualmente el P. Unitario de una partida y reparte el costo directo
+   resultante entre Materiales / M. Obra / Equipos manteniendo su proporción.
+   PU = CD × (1+GG) × (1+Utilidad) × ajuste  ⇒  CD objetivo = PU ÷ ese factor. */
+function setPU(key,v,unidad,adj){
+  const uf=+val("p_uf")||39500, gg=+val("p_gg")/100, ut=+val("p_ut")/100;
+  const f=(1+gg)*(1+ut)*(+adj||1);
+  const puObj=Math.max(0,(+v||0)*(unidad==="uf"?uf:1));
+  const cdObj=f>0?puObj/f:0;
+  const p=priceOf(key), cd=p.mat+p.mo+p.eq;
+  let n;
+  if(cd>0){const k=cdObj/cd; n={mat:Math.round(p.mat*k),mo:Math.round(p.mo*k),eq:Math.round(p.eq*k)};}
+  else n={mat:Math.round(cdObj*0.40),mo:Math.round(cdObj*0.35),eq:Math.round(cdObj*0.25)}; // sin precio base: reparto típico
+  const dif=Math.round(cdObj)-(n.mat+n.mo+n.eq);   // corrige el residuo de redondeo
+  if(dif){const m=n.mat>=n.mo&&n.mat>=n.eq?"mat":(n.mo>=n.eq?"mo":"eq"); n[m]=Math.max(0,n[m]+dif);}
+  S.apu[key]=n;
+  renderAPU();
+}
 let apuCol=new Set();
 function toggleApu(i){apuCol.has(i)?apuCol.delete(i):apuCol.add(i);renderAPU();}
 function renderAPU(){
@@ -1596,19 +1613,22 @@ function renderAPU(){
     if(!col)rs.forEach(r=>{
       const p=puOf(r.key), puA=p.pu*adj, tot=puA*r.qty;
       const k=r.key.replace(/'/g,"\\'").replace(/"/g,"&quot;");
-      rows+=`<tr><td></td><td>${r.key}</td><td>${r.unit}</td>
+      const edit=S.apu[r.key]?` <span title="Precio ajustado manualmente" style="color:var(--accent);font-weight:700">✎</span>`:"";
+      rows+=`<tr><td></td><td>${r.key}${edit}</td><td>${r.unit}</td>
         <td class="num">${fmt(r.qty)}</td>
         <td class="num"><input class="cell" type="number" step="0.0001" value="${rnd(p.mat/uf,4)}" style="width:82px;text-align:right" title="Materiales en UF" onchange="setPriceUF('${k}','mat',this.value)"><br><span style="font-size:10px;color:var(--mut)">${clp(p.mat)}</span></td>
         <td class="num"><input class="cell" type="number" step="0.0001" value="${rnd(p.mo/uf,4)}" style="width:82px;text-align:right" title="Mano de obra en UF" onchange="setPriceUF('${k}','mo',this.value)"><br><span style="font-size:10px;color:var(--mut)">${clp(p.mo)}</span></td>
         <td class="num"><input class="cell" type="number" step="0.0001" value="${rnd(p.eq/uf,4)}" style="width:82px;text-align:right" title="Equipos en UF" onchange="setPriceUF('${k}','eq',this.value)"><br><span style="font-size:10px;color:var(--mut)">${clp(p.eq)}</span></td>
         <td class="num"><b>UF ${fmt(p.cd/uf,4)}</b><br><span style="font-size:10px;color:var(--mut)">${clp(p.cd)}</span></td>
-        <td class="num"><b>UF ${fmt(puA/uf,3)}</b><br><span style="font-size:11px;color:var(--mut)">${clp(puA)}</span></td>
+        <td class="num" style="background:#fdf6ec">
+          <input class="cell" type="number" step="0.001" value="${rnd(puA/uf,3)}" style="width:86px;text-align:right;font-weight:700" title="P. Unitario en UF — al editarlo, Materiales / M. Obra / Equipos se recalculan proporcionalmente" onchange="setPU('${k}',this.value,'uf',${adj})">
+          <br><input class="cell" type="number" step="100" value="${Math.round(puA)}" style="width:86px;text-align:right;font-size:10px;color:var(--mut);padding:1px 4px" title="P. Unitario en CLP — al editarlo, Materiales / M. Obra / Equipos se recalculan proporcionalmente" onchange="setPU('${k}',this.value,'clp',${adj})"></td>
         <td class="num"><b>UF ${fmt(tot/uf,1)}</b><br><span style="font-size:11px;color:var(--mut)">${clp(tot)}</span></td></tr>`;
     });
   });
   const cdT=cd, neto=Object.values(bySis).reduce((a,b)=>a+b,0), margenT=neto-cdT, ivaT=neto*iva/100, tot=neto+ivaT;
   const h=`<div class="card"><h2>Análisis de Precios Unitarios</h2>
-  <p class="note no-print">Edita Materiales / Mano de Obra / Equipos por unidad en <b>UF</b> (el equivalente en CLP se muestra bajo cada valor). PU = Costo directo × (1+GG%) × (1+Utilidad%). GG, Utilidad, IVA y valor UF se configuran en Proyecto. Clic en el encabezado de cada sistema para contraer/extender sus partidas (el subtotal queda siempre visible).</p>
+  <p class="note no-print">Edita Materiales / Mano de Obra / Equipos por unidad en <b>UF</b> (el equivalente en CLP se muestra bajo cada valor). También puedes fijar directamente el <b>P. Unitario</b> —en UF o en CLP—: la app calcula el costo directo que corresponde a ese precio y reparte Materiales / M. Obra / Equipos <b>manteniendo su proporción actual</b> (si la partida no tiene precio base usa 40 % / 35 % / 25 %). Las partidas con precio ajustado a mano quedan marcadas con ✎. PU = Costo directo × (1+GG%) × (1+Utilidad%). GG, Utilidad, IVA y valor UF se configuran en Proyecto. Clic en el encabezado de cada sistema para contraer/extender sus partidas (el subtotal queda siempre visible).</p>
   <div style="overflow-x:auto"><table>
   <tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cant.</th><th class="num">Materiales (UF)</th><th class="num">M. Obra (UF)</th><th class="num">Equipos (UF)</th><th class="num">C. Directo (UF · CLP)</th><th class="num">P. Unitario (UF · CLP)</th><th class="num">Total (UF · CLP)</th></tr>
   ${rows}</table></div>
