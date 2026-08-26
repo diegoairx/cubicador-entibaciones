@@ -225,6 +225,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-s="mbv" onclick="goSub('mbv')">Berlinés en Voladizo</button>
     <button data-s="sn" onclick="goSub('sn')">Soil Nailing</button>
     <button data-s="mp" onclick="goSub('mp')">Micropilotes</button>
+    <button data-s="msa" onclick="goSub('msa')">Socalzado Anclado</button>
     <button data-s="pil" onclick="goSub('pil')">Pilotaje</button>
     <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
     <button data-s="ag" onclick="goSub('ag')">💧 Agotamiento</button>
@@ -236,6 +237,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div id="sub-mbv" style="display:none"></div>
   <div id="sub-sn" style="display:none"></div>
   <div id="sub-mp" style="display:none"></div>
+  <div id="sub-msa" style="display:none"></div>
   <div id="sub-pil" style="display:none"></div>
   <div id="sub-fab" style="display:none"></div>
   <div id="sub-ag" style="display:none"></div>
@@ -328,6 +330,7 @@ let S={
  ag:[],
  dca:[],
  pil:[],
+ msa:[],
  perfCustom:[],
  wpq:{m2:1500,prof:6.5,mes:8,mej:"NO",rec:30,mg:20,par:2,eval:0},
  apu:{}  // overrides {key:{mat,mo,eq}}
@@ -553,6 +556,55 @@ function calcPIL(s){
     sep,dEst,rec,gan,nEstPil,nEst,lEst,mlEst,kgEst,
     tipoH:s.tipoH||"G25 90%NC",sobre,m3Pil,m3,kgTot:rnd(kgLong+kgEst)};
 }
+/* ═════ MURO SOCALZADO CON ANCLAJES (pilas de socalzado / underpinning) ═════
+   La pila es un paño rectangular A×B (cm) hormigonado contra el terreno, armado con
+   barras longitudinales, estribos perimetrales y trabas transversales. El anclaje
+   puede ser de cables (torones 0,6") o de perno/barra, según el diseño. */
+const PILA_TIPOS=[{n:"70×70",A:70,B:70},{n:"80×80",A:80,B:80},{n:"90×30",A:90,B:30},{n:"70×50",A:70,B:50}];
+const ARM_ESQ=[{n:'6 φ16 · trabas φ10@40 · estribos φ10@20',nBar:6,dBar:16,sepTra:0.40,sepEst:0.20},
+               {n:'8 φ18 · trabas φ10@25 · estribos φ10@12,5',nBar:8,dBar:18,sepTra:0.25,sepEst:0.125}];
+function calcMSA(s){
+  const cant=Math.round(+s.cant||0);
+  const A=+s.A||70, B=+s.B||70, L=+s.L||0;            // sección en cm, profundidad en m
+  const a=A/100, b=B/100;
+  const m2=rnd(cant*a*L);                              // m² de muro socalzado (cara vista)
+  const m3Exc=rnd(cant*a*b*L,2);                       // m³ excavación de la pila
+  const sobre=(s.sobre===""||s.sobre==null)?8:+s.sobre;
+  const m3=rnd(m3Exc*(1+sobre/100),2);                 // m³ hormigón (incl. sobreconsumo)
+  /* armadura longitudinal */
+  const nBar=Math.round(+s.nBar||6), dBar=+s.dBar||16;
+  const lBar=(s.lBar===""||s.lBar==null)?L:+s.lBar;
+  const lCom=+s.lCom||12;
+  const tras=(s.tras===""||s.tras==null)?traslapeDe(dBar):+s.tras;
+  const empPorBar=lCom>0?Math.max(0,up(lBar/lCom)-1):0;
+  const nEmp=cant*nBar*empPorBar, mlTras=rnd(nEmp*tras);
+  const mlLong=rnd(cant*nBar*lBar+mlTras), kgLong=rnd(mlLong*kgml(dBar));
+  /* estribos perimetrales y trabas transversales */
+  const rec=(s.rec===""||s.rec==null)?5:+s.rec, gan=(s.gan===""||s.gan==null)?0.15:+s.gan;
+  const dEst=+s.dEst||10, sepEst=+s.sepEst||0.20, sepTra=+s.sepTra||0.40;
+  const an=Math.max(0,(A-2*rec)/100), bn=Math.max(0,(B-2*rec)/100);
+  const lEst=rnd(2*(an+bn)+gan,3);                     // estribo cerrado + ganchos
+  const nEstPila=sepEst>0?up(L/sepEst)+1:0;
+  const nEst=cant*nEstPila, mlEst=rnd(nEst*lEst), kgEst=rnd(mlEst*kgml(dEst));
+  const nTraNivel=Math.round(+s.nTra||1);
+  const lTra=rnd(Math.min(an,bn)+gan,3);               // traba = lado menor útil + ganchos
+  const nTraPila=sepTra>0?(up(L/sepTra)+1)*nTraNivel:0;
+  const nTra=cant*nTraPila, mlTra=rnd(nTra*lTra), kgTra=rnd(mlTra*kgml(dEst));
+  /* anclajes: cables o pernos */
+  const anc=s.anc||{}, tipoA=anc.tipo||"Cable";
+  const nAnc=Math.round(+anc.cant||0), lAnc=+anc.L||0, dAnc=+anc.D||117;
+  const mlAnc=rnd(nAnc*lAnc);
+  const nCab=Math.round(+anc.nCab||4), res=(anc.res===""||anc.res==null)?5:+anc.res;
+  const mlCable=tipoA==="Cable"?rnd(nAnc*nCab*lAnc*(1+res/100)):0;
+  const dPerno=+anc.dPerno||32;
+  const mlPerno=tipoA==="Perno"?rnd(nAnc*lAnc):0, kgPerno=tipoA==="Perno"?rnd(mlPerno*kgml(dPerno)):0;
+  return{cant,A,B,L,m2,m3Exc,sobre,m3,tipoH:s.tipoH||"G25 90%NC",
+    nBar,dBar,lBar,lCom,tras,empPorBar,nEmp,mlTras,mlLong,kgLong,
+    rec,gan,dEst,sepEst,sepTra,lEst,nEstPila,nEst,mlEst,kgEst,
+    nTraNivel,lTra,nTraPila,nTra,mlTra,kgTra,
+    kgTot:rnd(kgLong+kgEst+kgTra),
+    tipoA,nAnc,lAnc,dAnc,mlAnc,nCab,res,mlCable,dPerno,mlPerno,kgPerno};
+}
 /* Drenes californianos (drenes horizontales de alivio) */
 function calcDCA(s){
   const cant=Math.round(+s.cant||0);
@@ -682,6 +734,31 @@ function resumen(){
   Object.entries(pilLong).forEach(([d,v])=>add("Pilotaje","Acero refuerzo longitudinal φ"+d+"mm","kg",v));
   Object.entries(pilEst).forEach(([d,v])=>add("Pilotaje","Acero estribos φ"+d+"mm","kg",v));
   if(pilUn>0)add("Pilotaje","Movilización / Desmovilización equipo de pilotaje","gl",1);
+  // Muro Socalzado con Anclajes
+  const SIS_MSA="Muro Socalzado Anclado";
+  let msaExc={},msaH={},msaLong={},msaEst=0,msaTra=0,msaPerf={},msaAncC=0,msaAncP={},msaCable=0,msaTens=0,msaUn=0,msaM2=0;
+  (S.msa||[]).forEach(s=>{const c=calcMSA(s); if(!c.cant&&!c.nAnc)return;
+    msaUn+=c.cant; msaM2+=c.m2;
+    const sec=c.A+"x"+c.B+" cm";
+    if(c.m3Exc>0)msaExc[sec]=(msaExc[sec]||0)+c.m3Exc;
+    if(c.m3>0)msaH[c.tipoH]=(msaH[c.tipoH]||0)+c.m3;
+    if(c.kgLong>0)msaLong[c.dBar]=(msaLong[c.dBar]||0)+c.kgLong;
+    msaEst+=c.kgEst; msaTra+=c.kgTra;
+    if(c.mlAnc>0)msaPerf[c.dAnc]=(msaPerf[c.dAnc]||0)+c.mlAnc;
+    if(c.tipoA==="Cable"){msaAncC+=c.nAnc; msaCable+=c.mlCable;}
+    else if(c.nAnc>0)msaAncP[c.dPerno]=(msaAncP[c.dPerno]||0)+c.nAnc;
+    msaTens+=c.nAnc;});
+  Object.entries(msaExc).forEach(([k,v])=>add(SIS_MSA,"Excavación pila socalzado "+k,"m³",v));
+  Object.entries(msaH).forEach(([t,v])=>add(SIS_MSA,"Hormigón "+t+" en pila socalzado","m³",v));
+  Object.entries(msaLong).forEach(([d,v])=>add(SIS_MSA,"Acero refuerzo longitudinal φ"+d+"mm","kg",v));
+  add(SIS_MSA,"Acero estribos φ10mm pila socalzado","kg",msaEst);
+  add(SIS_MSA,"Acero trabas φ10mm pila socalzado","kg",msaTra);
+  Object.entries(msaPerf).forEach(([d,v])=>add(SIS_MSA,"Perforación anclaje Ø"+d+"mm","ml",v));
+  add(SIS_MSA,"Anclaje de cable habilitado e inyectado","un",msaAncC);
+  add(SIS_MSA,'Cables de acero 0,6" (incl. reserva)',"ml",msaCable);
+  Object.entries(msaAncP).forEach(([d,v])=>add(SIS_MSA,"Anclaje tipo perno φ"+d+"mm inyectado","un",v));
+  add(SIS_MSA,"Tensado y ensayo de anclajes","un",msaTens);
+  if(msaUn>0||msaTens>0)add(SIS_MSA,"Movilización / Desmovilización equipo de socalzado","gl",1);
   // Drenes Californianos
   let dcaUn=0, dcaPerf={};
   (S.dca||[]).forEach(s=>{const c=calcDCA(s);dcaUn+=c.cant;
@@ -762,6 +839,10 @@ const PBASE={
  'Puntal/esquinero tubo Yoder Ø8"':{mat:58000,mo:13000,eq:10000},
  'Placa de conexión puntal':{mat:26000,mo:5000,eq:1500},
  'Movilización / Desmovilización equipo de pilotaje':{mat:150000,mo:600000,eq:2200000},
+ 'Acero estribos φ10mm pila socalzado':{mat:1180,mo:520,eq:120},
+ 'Acero trabas φ10mm pila socalzado':{mat:1180,mo:480,eq:120},
+ 'Anclaje de cable habilitado e inyectado':{mat:62000,mo:48000,eq:32000},
+ 'Movilización / Desmovilización equipo de socalzado':{mat:120000,mo:450000,eq:900000},
  'Perforación dren californiano Ø75mm':{mat:3200,mo:6500,eq:9500},
  'Perforación dren californiano Ø90mm':{mat:3800,mo:7000,eq:11000},
  'Perforación dren californiano Ø110mm':{mat:4500,mo:7800,eq:13000},
@@ -804,6 +885,15 @@ function basePrice(key){
   }
   if(key.startsWith("Placa"))return{mat:15000,mo:3000,eq:800};
   if(key.startsWith("Pernos autoperforantes"))return{mat:36000,mo:15000,eq:14000};
+  if(key.startsWith("Excavación pila socalzado"))return{mat:0,mo:42000,eq:8000};
+  if(key.startsWith("Perforación anclaje")){ // escala con el diámetro de perforación
+    const d=parseFloat(key.replace(/\D+/g," ").trim())||117;
+    return{mat:0,mo:Math.round(4500+d*40),eq:Math.round(6000+d*70)};
+  }
+  if(key.startsWith("Anclaje tipo perno")){  // barra + inyección + placa, por unidad
+    const d=parseFloat(key.replace(/\D+/g," ").trim())||32;
+    return{mat:Math.round(900*d),mo:38000,eq:24000};
+  }
   if(key.startsWith("Perforación pilote")){ // escala con el diámetro
     const d=parseFloat(key.replace(/\D+/g," ").trim())||600;
     return{mat:0,mo:Math.round(9000+d*22),eq:Math.round(14000+d*45)};
@@ -842,11 +932,11 @@ function go(v){curV=v;
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","pil","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","sn","mp","msa","pil","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,pil:renderPIL,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
@@ -861,6 +951,7 @@ function clearMod(m){
   else if(m==="fab")S.fab={num:1,dias:5,rows:[]};
   else if(m==="ag")S.ag=[];
   else if(m==="dca")S.dca=[];
+  else if(m==="msa")S.msa=[];
   else if(m==="pil")S.pil=[];
   else if(m==="apu"){S.apu={};renderAPU();return;}
   else if(m==="todo"){
@@ -871,6 +962,7 @@ function clearMod(m){
     S.ag=[];
     S.dca=[];
     S.pil=[];
+    S.msa=[];
     S.mbaAdj=1;
   }
   renderSub();
@@ -1340,6 +1432,91 @@ function renderPIL(){
   <button class="btn ghost" onclick="addDiamPil()">+ Diámetro de perforación</button>
   <button class="btn ghost" onclick="addDiamBar()">+ Diámetro de barra/estribo</button>`;
   document.getElementById("sub-pil").innerHTML=`<div class="card">${modHead("Pilotaje","pil")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: MURO SOCALZADO CON ANCLAJES ═════════════════ */
+function setEsq(i,k){
+  const e=ARM_ESQ[k]; if(!e)return;
+  Object.assign(S.msa[i],{nBar:e.nBar,dBar:e.dBar,sepTra:e.sepTra,sepEst:e.sepEst,dEst:10,tras:traslapeDe(e.dBar)});
+  renderSub();
+}
+function renderMSA(){
+  if(!S.msa)S.msa=[];
+  let h="";
+  S.msa.forEach((s,i)=>{
+    const c=calcMSA(s);
+    const esqAct=ARM_ESQ.findIndex(e=>e.nBar===c.nBar&&e.dBar===c.dBar&&e.sepTra===c.sepTra&&e.sepEst===c.sepEst);
+    const tipoAct=PILA_TIPOS.findIndex(t=>t.A===c.A&&t.B===c.B);
+    h+=`<div class="sec"><div class="sec-head"><span class="tag">GRUPO ${i+1}</span>
+      <input value="${s.nom||('Socalzado '+(i+1))}" style="max-width:260px" onchange="setvs('msa.${i}.nom',this.value)">
+      <button class="btn warn sm" style="margin-left:auto" onclick="S.msa.splice(${i},1);renderSub()">✕ Eliminar</button></div>
+    <div class="grid g4">
+      <div><label>Cantidad de pilas (un)</label>${inp(`msa.${i}.cant`,s.cant??0,1)}</div>
+      <div><label>Tipo de pila (cm)${helpIco("Sección de la pila de socalzado: ancho × espesor. Elige un tipo estándar o Personalizada para ingresar las dimensiones.")}</label>
+        <select onchange="if(this.value!=='x'){const t=PILA_TIPOS[+this.value];S.msa[${i}].A=t.A;S.msa[${i}].B=t.B;renderSub();}">
+          ${PILA_TIPOS.map((t,k)=>`<option value="${k}" ${tipoAct===k?"selected":""}>${t.n}</option>`).join("")}
+          <option value="x" ${tipoAct<0?"selected":""}>Personalizada</option></select></div>
+      <div><label>Ancho A (cm)</label>${inp(`msa.${i}.A`,s.A??70,5)}</div>
+      <div><label>Espesor B (cm)</label>${inp(`msa.${i}.B`,s.B??70,5)}</div>
+      <div><label>Profundidad / largo pila (m)</label>${inp(`msa.${i}.L`,s.L??0,0.5)}</div>
+      <div><label>Sobreconsumo hormigón (%)${helpIco("Exceso sobre el volumen teórico por sobreexcavación del terreno. Típico 5–12%.")}</label>${inp(`msa.${i}.sobre`,s.sobre??8,1)}</div>
+      <div><label>Tipo de hormigón</label><select onchange="setvs('msa.${i}.tipoH',this.value)">
+        ${["G25 90%NC","G30 90%NC","G35 90%NC","G20 90%NC"].map(t=>`<option ${(s.tipoH||"G25 90%NC")===t?"selected":""}>${t}</option>`).join("")}</select></div>
+    </div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Armadura</b>${helpIco("Esquemas de armado habituales de Ngenco. Al elegir uno se completan barras, trabas y estribos; luego puedes ajustar cualquier valor a mano.")}
+    <div class="grid g4" style="margin-top:6px">
+      <div style="grid-column:span 2"><label>Esquema de armado</label>
+        <select onchange="if(this.value!=='x')setEsq(${i},+this.value)">
+          ${ARM_ESQ.map((e,k)=>`<option value="${k}" ${esqAct===k?"selected":""}>${e.n}</option>`).join("")}
+          <option value="x" ${esqAct<0?"selected":""}>Personalizado</option></select></div>
+      <div><label>N° barras longitudinales</label>${inp(`msa.${i}.nBar`,s.nBar??6,1)}</div>
+      <div><label>Ø barra longitudinal (mm)</label><select onchange="setv('msa.${i}.dBar',this.value)">
+        ${diamBar().map(d=>`<option ${c.dBar===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Largo barra (m)${helpIco("Largo de cada barra longitudinal; por defecto igual a la profundidad de la pila. Aumenta si hay desarrollo o anclaje en cabeza.")}</label>${inp(`msa.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('msa.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
+      <div><label>Largo comercial barra (m)</label>${inp(`msa.${i}.lCom`,s.lCom??12,0.5)}</div>
+      <div><label>Traslape por empalme (m)${helpIco("Tabla Ngenco: φ25 = 0,135 · φ28 = 0,150 · φ32 = 0,170 · φ36 = 0,190 m. Otros diámetros ≈ 5,3·d.")}</label>${inp(`msa.${i}.tras`,s.tras??traslapeDe(c.dBar),0.005)}</div>
+      <div><label>Ø estribo y traba (mm)</label><select onchange="setv('msa.${i}.dEst',this.value)">
+        ${diamBar().map(d=>`<option ${c.dEst===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Separación estribos (m)</label>${inp(`msa.${i}.sepEst`,s.sepEst??0.2,0.005)}</div>
+      <div><label>Separación trabas (m)</label>${inp(`msa.${i}.sepTra`,s.sepTra??0.4,0.005)}</div>
+      <div><label>Trabas por nivel (un)${helpIco("Cantidad de barras transversales de amarre en cada nivel de trabas.")}</label>${inp(`msa.${i}.nTra`,s.nTra??1,1)}</div>
+      <div><label>Recubrimiento (cm)</label>${inp(`msa.${i}.rec`,s.rec??5,0.5)}</div>
+      <div><label>Ganchos por barra (m)</label>${inp(`msa.${i}.gan`,s.gan??0.15,0.05)}</div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:6px 0 0">Estribo: <b>${fmt(c.lEst,3)} m</b> c/u · <b>${c.nEstPila}</b> por pila · Traba: <b>${fmt(c.lTra,3)} m</b> c/u · <b>${c.nTraPila}</b> por pila${c.nEmp>0?` · empalmes: <b>${c.nEmp}</b> (+${fmt(c.mlTras,1)} ml traslape)`:""}</p></div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Anclajes</b>${helpIco("Según diseño, el anclaje puede ser de cables (torones de 0,6 pulgadas) o de perno / barra de acero.")}
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Tipo de anclaje</label><select onchange="setvs('msa.${i}.anc.tipo',this.value)">
+        ${["Cable","Perno"].map(t=>`<option ${c.tipoA===t?"selected":""}>${t}</option>`).join("")}</select></div>
+      <div><label>Cantidad de anclajes (un)</label>${inp(`msa.${i}.anc.cant`,s.anc?.cant??0,1)}</div>
+      <div><label>Largo perforación (m)</label>${inp(`msa.${i}.anc.L`,s.anc?.L??0,0.5)}</div>
+      <div><label>Ø perforación (mm)</label><select onchange="setv('msa.${i}.anc.D',this.value)">
+        ${[76,89,102,117,127,150].map(d=>`<option ${c.dAnc===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      ${c.tipoA==="Cable"
+        ?`<div><label>Cables por anclaje (un)</label>${inp(`msa.${i}.anc.nCab`,s.anc?.nCab??4,1)}</div>
+          <div><label>Reserva de cable (%)${helpIco("Excedente de cable para tensado, cuñas y descabezado. Típico 5%.")}</label>${inp(`msa.${i}.anc.res`,s.anc?.res??5,1)}</div>`
+        :`<div><label>Ø barra del perno (mm)</label><select onchange="setv('msa.${i}.anc.dPerno',this.value)">
+            ${diamBar().map(d=>`<option ${c.dPerno===d?"selected":""}>${d}</option>`).join("")}</select></div>`}
+    </div></div>
+    <div class="kpi">
+      <div><b>${c.cant}</b><span>pilas ${c.A}×${c.B} cm</span></div>
+      <div><b>${fmt(c.m2,1)}</b><span>m² muro socalzado</span></div>
+      <div><b>${fmt(c.m3Exc,1)}</b><span>m³ excavación</span></div>
+      <div><b>${fmt(c.m3,1)}</b><span>m³ hormigón ${c.tipoH} (+${c.sobre}%)</span></div>
+      <div><b>${fmt(c.kgLong,0)}</b><span>kg long. φ${c.dBar} (${fmt(c.mlLong,1)} ml)</span></div>
+      <div><b>${fmt(c.kgEst,0)}</b><span>kg estribos φ${c.dEst} (${c.nEst} un)</span></div>
+      <div><b>${fmt(c.kgTra,0)}</b><span>kg trabas φ${c.dEst} (${c.nTra} un)</span></div>
+      <div><b>${fmt(c.kgTot,0)}</b><span>kg acero total</span></div>
+      <div><b>${c.nAnc}</b><span>anclajes tipo ${c.tipoA.toLowerCase()}</span></div>
+      <div><b>${fmt(c.mlAnc,1)}</b><span>ml perforación Ø${c.dAnc} mm</span></div>
+      ${c.tipoA==="Cable"?`<div><b>${fmt(c.mlCable,1)}</b><span>ml cable 0,6" (incl. ${c.res}%)</span></div>`
+        :`<div><b>${fmt(c.kgPerno,0)}</b><span>kg perno φ${c.dPerno} (${fmt(c.mlPerno,1)} ml)</span></div>`}
+    </div></div>`;
+  });
+  h+=`<button class="btn" onclick="S.msa.push({nom:'Socalzado '+(S.msa.length+1),cant:10,A:70,B:70,L:6,sobre:8,tipoH:'G25 90%NC',nBar:6,dBar:16,lBar:6,lCom:12,tras:${traslapeDe(16)},dEst:10,sepEst:0.2,sepTra:0.4,nTra:1,rec:5,gan:0.15,anc:{tipo:'Cable',cant:10,L:14,D:117,nCab:4,res:5,dPerno:32}});renderSub()">+ Agregar grupo de pilas</button>
+  <button class="btn ghost" onclick="addDiamBar()">+ Diámetro de barra</button>`;
+  document.getElementById("sub-msa").innerHTML=`<div class="card">${modHead("Muro Socalzado con Anclajes","msa")}${h}</div>`;
 }
 
 /* ═════════════════ RENDER: DRENES CALIFORNIANOS ═════════════════ */
