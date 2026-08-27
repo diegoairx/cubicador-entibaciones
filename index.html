@@ -1674,8 +1674,19 @@ function renderResumen(){
 /* PDF VECTORIAL NATIVO del cuadro resumen — A4 horizontal, ancho completo, multipágina.
    No usa html2canvas: el texto se dibuja con jsPDF, por lo que el archivo es
    seleccionable, buscable y escala sin pixelarse. */
-function pdfTxt(s){ // caracteres fuera de WinAnsi que las fuentes estándar no resuelven
-  return String(s==null?"":s).replace(/[—–]/g,"-").replace(/≥/g,">=").replace(/≤/g,"<=").replace(/[“”]/g,'"').replace(/[‘’]/g,"'");
+/* Saneador de texto para PDF. Las fuentes estándar (Helvetica) usan WinAnsi:
+   cualquier carácter fuera de ese juego —φ, ≥, guiones largos, etc.— hace que jsPDF
+   cambie a codificación de dos bytes y el texto sale deformado y con espaciado doble.
+   Aquí se transliteran esos símbolos y se descarta lo que quede fuera del juego. */
+function pdfTxt(s){
+  return String(s==null?"":s)
+    .replace(/[—–]/g,"-").replace(/≥/g,">=").replace(/≤/g,"<=")
+    .replace(/[“”]/g,'"').replace(/[‘’]/g,"'")
+    .replace(/[φϕΦ]/g,"Ø")          // diámetro de barra: mismo símbolo que el resto del informe
+    .replace(/π/g,"pi").replace(/[Δδ]/g,"D").replace(/[Σ]/g,"S").replace(/[Ωω]/g,"ohm")
+    .replace(/[≈]/g,"~").replace(/[→]/g,"->").replace(/[←]/g,"<-").replace(/[•]/g,"·")
+    .replace(/[…]/g,"...").replace(/[₂]/g,"2").replace(/[₃]/g,"3")
+    .replace(/[^\x00-\xFF]/g,"");   // descarta cualquier resto no representable
 }
 async function imprimirResumen(){
   const R=resumen(); if(!R.length){alert("No hay partidas para imprimir.");return;}
