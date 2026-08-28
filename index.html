@@ -679,34 +679,39 @@ function calcMT(){
 function resumen(){
   const R=[]; const add=(sis,key,unit,qty)=>{if(qty>0.0001)R.push({sis,key,unit,qty:rnd(qty)});};
   // MBA
-  let t20=0,t25=0,perf={},vig=0,cab=0,ext=0,anc=0,cabl=0,ncab=0,mbaPernoD={},mbaCabAnc=0;
+  let t20=0,t25=0,perf={},perfN={},vig=0,cab=0,ext=0,anc=0,cabl=0,ncab=0,mbaPernoML={},mbaCabAnc=0;
   S.mba.forEach(s=>{const c=calcMBA(s);
     if(String(s.tab)==="2.5")t25+=c.area; else t20+=c.area;
     perf[s.perfil]=(perf[s.perfil]||0)+c.mlPerf;
-    vig+=c.vigas;cab+=c.cabez;ext+=c.mlExt;anc+=c.mlAnc;cabl+=c.mlCab;ncab+=c.nCables;
+    perfN[s.perfil]=(perfN[s.perfil]||0)+c.nPerf;                 // cantidad de piezas hincadas
+    vig+=c.vigas;cab+=c.cabez;ext+=c.mlExt;cabl+=c.mlCab;ncab+=c.nCables;
     mbaCabAnc+=c.ancCable;
-    Object.entries(c.pernoPorD).forEach(([d,v])=>mbaPernoD[d]=(mbaPernoD[d]||0)+v);});
+    // los ml de perforación se separan por tipo de anclaje
+    c.det.forEach(a=>{if(a.tipo==="Perno")mbaPernoML[a.dP]=(mbaPernoML[a.dP]||0)+a.ml; else anc+=a.ml;});});
   add("Muro Berlinés Anclado",'Entibación tablones 2,0"',"m²",t20);
   add("Muro Berlinés Anclado",'Entibación tablones 2,5"',"m²",t25);
   Object.entries(perf).forEach(([p,v])=>add("Muro Berlinés Anclado","Perfil "+p+" hincado/retirado","ml",v));
+  Object.entries(perfN).forEach(([p,v])=>add("Muro Berlinés Anclado","Perfil "+p+" (cantidad de piezas)","un",v));
   add("Muro Berlinés Anclado","Extensiones W200x26.6","ml",ext);
   add("Muro Berlinés Anclado","Vigas de amarre","un",vig);
   add("Muro Berlinés Anclado","Cabezales de anclaje (4 cables)","un",mbaCabAnc);
   add("Muro Berlinés Anclado","Anclajes postensados inyectados","ml",anc);
   add("Muro Berlinés Anclado",'Cables de acero 0,6" (incl. reserva)',"ml",cabl);
   add("Muro Berlinés Anclado","Cuñas cónicas / mordazas","un",ncab);
-  Object.entries(mbaPernoD).forEach(([d,v])=>add("Muro Berlinés Anclado","Anclaje tipo perno φ"+d+"mm inyectado","un",v));
+  Object.entries(mbaPernoML).forEach(([d,v])=>add("Muro Berlinés Anclado","Anclaje de perno φ"+d+"mm inyectado","ml",v));
   if(S.mba.length)add("Muro Berlinés Anclado","Movilización / Desmovilización equipo de hinca","gl",1);
   // MBV
-  let v20=0,v25=0,perfV={},vcV={},ptV={},ptPl=0;
+  let v20=0,v25=0,perfV={},perfVN={},vcV={},ptV={},ptPl=0;
   S.mbv.forEach(s=>{const c=calcMBV(s);
     if(String(s.tab)==="2.5")v25+=c.area; else v20+=c.area;
     perfV[s.perfil]=(perfV[s.perfil]||0)+c.mlPerf;
+    perfVN[s.perfil]=(perfVN[s.perfil]||0)+c.nPerf;
     if(c.vcOn)c.vcDet.forEach(v=>{if(v.ml>0)vcV[v.perfil]=(vcV[v.perfil]||0)+v.ml;});
     if(c.ptOn){c.ptDet.forEach(p=>{if(p.ml>0)ptV[p.diam]=(ptV[p.diam]||0)+p.ml;});ptPl+=c.ptPlacas;}});
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,0"',"m²",v20);
   add("Muro Berlinés en Voladizo",'Entibación tablones 2,5"',"m²",v25);
   Object.entries(perfV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Perfil "+p+" hincado/retirado","ml",v));
+  Object.entries(perfVN).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Perfil "+p+" (cantidad de piezas)","un",v));
   Object.entries(vcV).forEach(([p,v])=>add("Muro Berlinés en Voladizo","Viga continua de coronación "+p,"ml",v));
   Object.entries(ptV).forEach(([d,v])=>add("Muro Berlinés en Voladizo",'Puntal/esquinero tubo Yoder Ø'+d+'"',"ml",v));
   add("Muro Berlinés en Voladizo","Placa de conexión puntal","un",ptPl);
@@ -930,6 +935,11 @@ const PBASE={
 };
 function basePrice(key){
   if(PBASE[key])return {...PBASE[key]};
+  if(key.startsWith("Perfil ")&&key.endsWith("(cantidad de piezas)"))return{mat:0,mo:0,eq:0}; // informativa: el costo va en los ml
+  if(key.startsWith("Anclaje de perno")){   // barra + perforación + inyección, por metro lineal
+    const d=parseFloat(key.replace(/\D+/g," ").trim())||32;
+    return{mat:Math.round(kgml(d)*1400+2000),mo:9500,eq:14500};
+  }
   if(key.startsWith("Perfil ")){
     const w=kgm(key.split(" ")[1]);
     return{mat:Math.round(PBASE.Perfil.kg*w),mo:PBASE.Perfil.mo,eq:PBASE.Perfil.eq};
