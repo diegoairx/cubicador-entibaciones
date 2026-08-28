@@ -590,22 +590,47 @@ function calcMSA(s){
   const lTra=rnd(Math.min(an,bn)+gan,3);               // traba = lado menor útil + ganchos
   const nTraPila=sepTra>0?(up(L/sepTra)+1)*nTraNivel:0;
   const nTra=cant*nTraPila, mlTra=rnd(nTra*lTra), kgTra=rnd(mlTra*kgml(dEst));
-  /* anclajes: cables o pernos */
-  const anc=s.anc||{}, tipoA=anc.tipo||"Cable";
-  const nAnc=Math.round(+anc.cant||0), dAnc=+anc.D||117;
-  const lLib=+anc.lLib||0, lBul=+anc.lBul||0;          // longitud libre + longitud de bulbo
-  const lAnc=(lLib+lBul)>0?rnd(lLib+lBul,2):(+anc.L||0);
-  const mlAnc=rnd(nAnc*lAnc), mlLibre=rnd(nAnc*lLib), mlBulbo=rnd(nAnc*lBul);
-  const nCab=Math.round(+anc.nCab||4), res=(anc.res===""||anc.res==null)?5:+anc.res;
-  const mlCable=tipoA==="Cable"?rnd(nAnc*nCab*lAnc*(1+res/100)):0;
-  const dPerno=+anc.dPerno||32;
-  const mlPerno=tipoA==="Perno"?rnd(nAnc*lAnc):0, kgPerno=tipoA==="Perno"?rnd(mlPerno*kgml(dPerno)):0;
+  /* ── Anclajes: mismo procedimiento del Muro Berlinés Anclado ──
+     Bustamante para el bulbo (Fv adm = π·α·Dd·qs ÷ 1,8) y ASTM A416 Gr270 para los
+     cables (n = To·1,5 ÷ 235 kN, mínimo 2). Referencias: MC Pangea 22 0326 y
+     planilla Ferrara 2201034. Los ml de cable incluyen la reserva Lr por cable. */
+  const anc=s.anc||{};
+  const rs=+s.rs||150, dd=+s.dd||117, ll=(s.ll===""||s.ll==null)?4.5:+s.ll;
+  const alfaB=+s.alfaB||1.25, lr=(s.lr===""||s.lr==null)?1.5:+s.lr;
+  const FSB=1.8, FSC=1.5, FY_CABLE=235, KG_CABLE=1.10;
+  const fv=Math.PI*alfaB*(dd/1000)*rs/FSB;               // capacidad admisible de bulbo (kN/m)
+  // compatibilidad: la versión anterior guardaba un único anclaje como objeto
+  let lineas=Array.isArray(s.ancL)?s.ancL
+    :((+anc.cant>0)?[{tipo:anc.tipo||"Cable",nc:+anc.nCab||4,kn:0,
+        len:((+anc.lLib||0)+(+anc.lBul||0))||(+anc.L||0),cant:+anc.cant||0,dPerno:+anc.dPerno||32}]:[]);
+  let ancDet=[],nAnc=0,mlAnc=0,mlLibre=0,mlBulbo=0,nCables=0,mlCable=0,mlPernoT=0,kgPernoT=0,pernoPorD={};
+  lineas.forEach(a=>{
+    const tipo=a.tipo||"Cable";
+    const cant=Math.round(+a.cant||0), len=+a.len||0, nc=Math.round(+a.nc||0), kn=+a.kn||0, dP=+a.dPerno||32;
+    const ml=rnd(cant*len);
+    const lbReal=Math.max(0,rnd(len-ll,2));              // bulbo efectivo = Lt − Ll
+    const mlLib=rnd(cant*Math.min(len,ll)), mlBul=rnd(cant*lbReal);
+    const cab=tipo==="Cable"?rnd(cant*nc*(len+lr)):0;    // Lc = Na·nc·(Lt+Lr)
+    const mlP=tipo==="Perno"?ml:0, kgP=tipo==="Perno"?rnd(mlP*kgml(dP)):0;
+    const sugNc=kn>0?Math.max(2,up(kn*FSC/FY_CABLE)):0;  // n = To·FS ÷ Fy cable
+    const lb=kn>0?Math.max(3,kn/fv):0;                   // Lb = To ÷ Fv adm, mínimo 3 m
+    const sugLt=kn>0?rnd(Math.ceil((ll+lb)*2)/2,1):0;    // Lt = Ll + Lb (a 0,5 m)
+    ancDet.push({...a,tipo,cant,len,nc,kn,dP,ml,lbReal,mlLib,mlBul,cab,mlP,kgP,sugNc,lb:rnd(lb,1),sugLt});
+    nAnc+=cant; mlAnc+=ml; mlLibre+=mlLib; mlBulbo+=mlBul;
+    if(tipo==="Cable"){nCables+=cant*nc; mlCable+=cab;}
+    else{mlPernoT+=mlP; kgPernoT+=kgP; if(cant>0)pernoPorD[dP]=(pernoPorD[dP]||0)+cant;}
+  });
+  mlAnc=rnd(mlAnc); mlLibre=rnd(mlLibre); mlBulbo=rnd(mlBulbo); mlCable=rnd(mlCable);
+  mlPernoT=rnd(mlPernoT); kgPernoT=rnd(kgPernoT);
+  const kgCables=rnd(mlCable*KG_CABLE,1);                // 1,10 kg/m cable 0,6"
+  const dAnc=dd;
   /* placa de reparto, cuñas y cabezales */
   const pA=+anc.pA||200, pB=+anc.pB||200, pE=+anc.pE||30;   // mm
   const nPla=Math.round(anc.nPla??1);
   const kgPlaUn=rnd(pA/1000*pB/1000*pE/1000*7850,2);
   const nPlacas=nAnc*nPla, kgPlacas=rnd(nPlacas*kgPlaUn);
-  const nCuna=Math.round(anc.nCuna??(tipoA==="Cable"?nCab:1));
+  const ncRef=(ancDet.find(a=>a.tipo==="Cable")||{}).nc||1;
+  const nCuna=Math.round(anc.nCuna??ncRef);
   const nCabz=Math.round(anc.nCabz??1);
   const totCunas=nAnc*nCuna, totCabz=nAnc*nCabz;
   return{cant,A,B,L,m2,m3Exc,sobre,m3,tipoH:s.tipoH||"G25 90%NC",
@@ -613,7 +638,8 @@ function calcMSA(s){
     rec,gan,dEst,sepEst,sepTra,lEst,nEstPila,nEst,mlEst,kgEst,
     nTraNivel,lTra,nTraPila,nTra,mlTra,kgTra,
     kgTot:rnd(kgLong+kgEst+kgTra),
-    tipoA,nAnc,lAnc,lLib,lBul,dAnc,mlAnc,mlLibre,mlBulbo,nCab,res,mlCable,dPerno,mlPerno,kgPerno,
+    rs,dd,alfaB,ll,lr,fv:rnd(fv,1),ancDet,lineas,nAnc,dAnc,mlAnc,mlLibre,mlBulbo,
+    nCables,mlCable,kgCables,mlPerno:mlPernoT,kgPerno:kgPernoT,pernoPorD,
     pA,pB,pE,nPla,kgPlaUn,nPlacas,kgPlacas,nCuna,nCabz,totCunas,totCabz};
 }
 /* Drenes californianos (drenes horizontales de alivio) */
@@ -759,8 +785,9 @@ function resumen(){
     if(c.kgLong>0)msaLong[c.dBar]=(msaLong[c.dBar]||0)+c.kgLong;
     msaEst+=c.kgEst; msaTra+=c.kgTra;
     if(c.mlAnc>0)msaPerf[c.dAnc]=(msaPerf[c.dAnc]||0)+c.mlAnc;
-    if(c.tipoA==="Cable"){msaAncC+=c.nAnc; msaCable+=c.mlCable;}
-    else if(c.nAnc>0)msaAncP[c.dPerno]=(msaAncP[c.dPerno]||0)+c.nAnc;
+    msaCable+=c.mlCable;
+    c.ancDet.forEach(a=>{if(a.tipo==="Cable")msaAncC+=a.cant;});
+    Object.entries(c.pernoPorD).forEach(([d,v])=>msaAncP[d]=(msaAncP[d]||0)+v);
     msaTens+=c.nAnc;});
   Object.entries(msaExc).forEach(([k,v])=>add(SIS_MSA,"Excavación pila socalzado "+k,"m³",v));
   Object.entries(msaH).forEach(([t,v])=>add(SIS_MSA,"Hormigón "+t+" en pila socalzado","m³",v));
@@ -1461,6 +1488,14 @@ function renderPIL(){
 }
 
 /* ═════════════════ RENDER: MURO SOCALZADO CON ANCLAJES ═════════════════ */
+function addAncMSA(i){ // agrega una línea de anclaje (migra el formato anterior si existía)
+  const s=S.msa[i];
+  if(!Array.isArray(s.ancL))s.ancL=calcMSA(s).ancDet.map(a=>({tipo:a.tipo,nc:a.nc,kn:a.kn,len:a.len,cant:a.cant,dPerno:a.dP}));
+  const ult=s.ancL[s.ancL.length-1];
+  s.ancL.push(ult?{...ult}:{tipo:"Cable",nc:4,kn:190,len:14,cant:10,dPerno:32});
+  if(s.anc)s.anc.cant=0;
+  renderSub();
+}
 function setEsq(i,k){
   const e=ARM_ESQ[k]; if(!e)return;
   Object.assign(S.msa[i],{nBar:e.nBar,dBar:e.dBar,sepTra:e.sepTra,sepEst:e.sepEst,dEst:10,tras:traslapeDe(e.dBar)});
@@ -1512,21 +1547,33 @@ function renderMSA(){
     </div>
     <p style="font-size:12px;color:var(--mut);margin:6px 0 0">Estribo: <b>${fmt(c.lEst,3)} m</b> c/u · <b>${c.nEstPila}</b> por pila · Traba: <b>${fmt(c.lTra,3)} m</b> c/u · <b>${c.nTraPila}</b> por pila${c.nEmp>0?` · empalmes: <b>${c.nEmp}</b> (+${fmt(c.mlTras,1)} ml traslape)`:""}</p></div>
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Anclajes</b>${helpIco("Según diseño, el anclaje puede ser de cables (torones de 0,6 pulgadas) o de perno / barra de acero.")}
-    <div class="grid g4" style="margin-top:6px">
-      <div><label>Tipo de anclaje</label><select onchange="setvs('msa.${i}.anc.tipo',this.value)">
-        ${["Cable","Perno"].map(t=>`<option ${c.tipoA===t?"selected":""}>${t}</option>`).join("")}</select></div>
-      <div><label>Cantidad de anclajes (un)</label>${inp(`msa.${i}.anc.cant`,s.anc?.cant??0,1)}</div>
-      <div><label>Ø perforación (mm)</label><select onchange="setv('msa.${i}.anc.D',this.value)">
-        ${[76,89,102,117,127,150].map(d=>`<option ${c.dAnc===d?"selected":""}>${d}</option>`).join("")}</select></div>
-      <div><label>Longitud libre (m)${helpIco("Tramo entre la cabeza del anclaje y el inicio del bulbo; no transfiere carga al terreno.")}</label>${inp(`msa.${i}.anc.lLib`,s.anc?.lLib??0,0.5)}</div>
-      <div><label>Longitud de bulbo (m)${helpIco("Tramo inyectado que transfiere la carga al terreno. El largo total de perforación es la suma de longitud libre + bulbo.")}</label>${inp(`msa.${i}.anc.lBul`,s.anc?.lBul??0,0.5)}</div>
-      <div><label>Largo total perforación (m)${helpIco("Se calcula como longitud libre + longitud de bulbo. Si dejas ambas en 0, puedes ingresar el largo total directamente aquí.")}</label>
-        ${(c.lLib+c.lBul)>0?`<input class="cell" type="number" value="${fmt(c.lAnc,2)}" style="width:80px;background:#eef3f9" disabled>`:inp(`msa.${i}.anc.L`,s.anc?.L??0,0.5)}</div>
-      ${c.tipoA==="Cable"
-        ?`<div><label>Cables por anclaje (un)</label>${inp(`msa.${i}.anc.nCab`,s.anc?.nCab??4,1)}</div>
-          <div><label>Reserva de cable (%)${helpIco("Excedente de cable para tensado, cuñas y descabezado. Típico 5%.")}</label>${inp(`msa.${i}.anc.res`,s.anc?.res??5,1)}</div>`
-        :`<div><label>Ø barra del perno (mm)</label><select onchange="setv('msa.${i}.anc.dPerno',this.value)">
-            ${diamBar().map(d=>`<option ${c.dPerno===d?"selected":""}>${d}</option>`).join("")}</select></div>`}
+    <div class="grid g4" style="margin:8px 0 4px">
+      <div><label>qs bulbo (kN/m²)${helpIco("Fricción lateral unitaria del estrato del bulbo, según mecánica de suelos y N-SPT. Referencias: planilla Ferrara — arena N≈15: 75 (IRS) · arena N≈30: 150 · arena densa N≈40: 200. MC Pangea Ed. DÚO — SM/CL sueltos N<10: 135 · SM denso: 200.")}</label>${inp(`msa.${i}.rs`,s.rs??150,5)}</div>
+      <div><label>Ø perforación Dd (mm)${helpIco("Estándar Ngenco 117 mm. Referencias: Ferrara 123 mm en IGU, 76 mm en IRS autoperforante; Pangea Ed. DÚO 150 mm.")}</label>${inp(`msa.${i}.dd`,s.dd??117,1)}</div>
+      <div><label>Inyección (α)${helpIco("Factor de mayoración del diámetro de bulbo Ds = α·Dd según tipo de inyección (Bustamante). IGU: α=1,25 · IRS: α=1,30 · conservador MC Pangea: α=1,20.")}</label><select onchange="setv('msa.${i}.alfaB',this.value)">
+        <option value="1.25" ${(+s.alfaB||1.25)===1.25?"selected":""}>IGU — α 1,25</option>
+        <option value="1.3" ${+s.alfaB===1.3?"selected":""}>IRS — α 1,30</option>
+        <option value="1.2" ${+s.alfaB===1.2?"selected":""}>IGU conservador — α 1,20</option></select></div>
+      <div><label>Long. libre Ll (m)${helpIco("Longitud libre mínima 4,5 m para anclajes de cable; el bulbo debe desarrollarse fuera de la cuña de falla (MC Pangea 22 0326).")}</label>${inp(`msa.${i}.ll`,s.ll??4.5,0.5)}</div>
+      <div><label>Reserva por cable Lr (m)${helpIco("Excedente de cable para tensado, cuñas y descabezado. Nota Técnica Nexxo: Lr = 1,5 m por cable.")}</label>${inp(`msa.${i}.lr`,s.lr??1.5,0.1)}</div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:2px 0 4px">Capacidad admisible de bulbo <b>Fv adm = ${fmt(c.fv,1)} kN/m</b> (π·α·Dd·qs ÷ 1,8) — Lb sugerida = To ÷ Fv adm, mínimo 3 m</p>
+    <table style="margin-top:6px"><tr><th>Línea</th><th>Tipo</th><th>N° cables / Ø perno</th><th>To (kN)</th><th>Longitud Lt (m)</th><th>Cantidad</th><th class="num">ml perf.</th><th class="num">Lb real</th><th>Sugerido MC${helpIco("Metodología MC Pangea 22 0326 + planilla Ferrara 2201034: n° cables = REDONDEAR.ARRIBA(To×1,5 ÷ 235 kN), mínimo 2, cable 0,6 pulgadas ASTM A416 Gr270; Lb = To ÷ Fv adm (Bustamante, mínimo 3 m); Lt = Ll + Lb redondeado a 0,5 m. Es una sugerencia de cubicación preliminar — la memoria de cálculo del proyecto manda.")}</th><th></th></tr>
+    ${c.ancDet.map((a,j)=>`<tr><td>${j+1}</td>
+      <td><select onchange="setvs('msa.${i}.ancL.${j}.tipo',this.value)">
+        ${["Cable","Perno"].map(t=>`<option ${a.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+      <td>${a.tipo==="Cable"?inp(`msa.${i}.ancL.${j}.nc`,a.nc,1,55)
+        :`<select onchange="setv('msa.${i}.ancL.${j}.dPerno',this.value)">${diamBar().map(d=>`<option ${a.dP===d?"selected":""}>${d}</option>`).join("")}</select>`}</td>
+      <td>${inp(`msa.${i}.ancL.${j}.kn`,a.kn,5,70)}</td>
+      <td>${inp(`msa.${i}.ancL.${j}.len`,a.len,0.5,70)}</td>
+      <td>${inp(`msa.${i}.ancL.${j}.cant`,a.cant,1,70)}</td>
+      <td class="num">${fmt(a.ml,1)}</td>
+      <td class="num">${fmt(a.lbReal,1)}</td>
+      <td style="font-size:12px;color:${((a.tipo==="Cable"&&a.sugNc>+a.nc)||a.sugLt>+a.len)?"var(--danger)":"var(--mut)"}">${a.sugNc>0?`${a.tipo==="Cable"?a.sugNc+" cables · ":""}Lt ${fmt(a.sugLt,1)} m <span style="font-size:10.5px">(Lb ${fmt(a.lb,1)})</span>`:"–"}</td>
+      <td><button class="btn warn sm" onclick="S.msa[${i}].ancL.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+    </table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="addAncMSA(${i})">+ Línea de anclaje</button>
+    <div class="grid g4" style="margin-top:10px">
       <div><label>Cuñas por anclaje (un)${helpIco("Cuñas cónicas o mordazas de fijación. En anclajes de cable normalmente una por torón.")}</label>${inp(`msa.${i}.anc.nCuna`,s.anc?.nCuna??c.nCuna,1)}</div>
       <div><label>Cabezales por anclaje (un)</label>${inp(`msa.${i}.anc.nCabz`,s.anc?.nCabz??1,1)}</div>
     </div>
@@ -1550,17 +1597,19 @@ function renderMSA(){
       <div><b>${fmt(c.kgEst,0)}</b><span>kg estribos φ${c.dEst} (${c.nEst} un)</span></div>
       <div><b>${fmt(c.kgTra,0)}</b><span>kg trabas φ${c.dEst} (${c.nTra} un)</span></div>
       <div><b>${fmt(c.kgTot,0)}</b><span>kg acero total</span></div>
-      <div><b>${c.nAnc}</b><span>anclajes tipo ${c.tipoA.toLowerCase()}</span></div>
+      <div><b>${c.nAnc}</b><span>anclajes (${c.ancDet.length} línea${c.ancDet.length===1?"":"s"})</span></div>
       <div><b>${fmt(c.mlAnc,1)}</b><span>ml perforación Ø${c.dAnc} mm</span></div>
-      ${c.lBul>0?`<div><b>${fmt(c.mlBulbo,1)}</b><span>ml bulbo (libre ${fmt(c.mlLibre,1)} ml)</span></div>`:""}
-      ${c.tipoA==="Cable"?`<div><b>${fmt(c.mlCable,1)}</b><span>ml cable 0,6" (incl. ${c.res}%)</span></div>`
-        :`<div><b>${fmt(c.kgPerno,0)}</b><span>kg perno φ${c.dPerno} (${fmt(c.mlPerno,1)} ml)</span></div>`}
+      <div><b>${fmt(c.mlBulbo,1)}</b><span>ml bulbo (libre ${fmt(c.mlLibre,1)} ml)</span></div>
+      ${c.nCables>0?`<div><b>${c.nCables}</b><span>n° cables</span></div>
+      <div><b>${fmt(c.mlCable,1)}</b><span>ml cables (Lt+${fmt(c.lr,1)})</span></div>
+      <div><b>${fmt(c.kgCables,0)}</b><span>kg acero cables (1,10 kg/m)</span></div>`:""}
+      ${c.kgPerno>0?`<div><b>${fmt(c.kgPerno,0)}</b><span>kg pernos (${fmt(c.mlPerno,1)} ml)</span></div>`:""}
       <div><b>${fmt(c.kgPlacas,0)}</b><span>kg placas ${c.pA}×${c.pB}×${c.pE} (${c.nPlacas} un)</span></div>
       <div><b>${c.totCunas}</b><span>cuñas</span></div>
       <div><b>${c.totCabz}</b><span>cabezales</span></div>
     </div></div>`;
   });
-  h+=`<button class="btn" onclick="S.msa.push({nom:'Socalzado '+(S.msa.length+1),cant:10,A:70,B:70,L:6,sobre:8,tipoH:'G25 90%NC',nBar:6,dBar:16,lBar:6,lCom:12,tras:${traslapeDe(16)},dEst:10,sepEst:0.2,sepTra:0.4,nTra:1,rec:5,gan:0.15,anc:{tipo:'Cable',cant:10,L:0,lLib:8,lBul:6,D:117,nCab:4,res:5,dPerno:32,nCuna:4,nCabz:1,pA:200,pB:200,pE:30,nPla:1}});renderSub()">+ Agregar grupo de pilas</button>
+  h+=`<button class="btn" onclick="S.msa.push({nom:'Socalzado '+(S.msa.length+1),cant:10,A:70,B:70,L:6,sobre:8,tipoH:'G25 90%NC',nBar:6,dBar:16,lBar:6,lCom:12,tras:${traslapeDe(16)},dEst:10,sepEst:0.2,sepTra:0.4,nTra:1,rec:5,gan:0.15,rs:150,dd:117,alfaB:1.25,ll:4.5,lr:1.5,ancL:[{tipo:'Cable',nc:4,kn:190,len:14,cant:10,dPerno:32}],anc:{nCuna:4,nCabz:1,pA:200,pB:200,pE:30,nPla:1}});renderSub()">+ Agregar grupo de pilas</button>
   <button class="btn ghost" onclick="addDiamBar()">+ Diámetro de barra</button>`;
   document.getElementById("sub-msa").innerHTML=`<div class="card">${modHead("Muro Socalzado con Anclajes","msa")}${h}</div>`;
 }
