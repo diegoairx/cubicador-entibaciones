@@ -16,6 +16,14 @@
   --accent:#f2994a; --ok:#27ae60; --danger:#e05252;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+.sync-chip{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);
+  color:#fff;border-radius:20px;padding:5px 12px;font-size:11.5px;font-weight:600;white-space:nowrap;cursor:default}
+.sync-chip b{font-weight:700;opacity:.95}
+.sync-chip .dot{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 0 3px rgba(255,255,255,.14)}
+.sync-chip .sep{opacity:.4}
+.sync-chip .txt{font-weight:500;opacity:.92}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.35}}
+.sync-chip .dot.pulse{animation:pulseDot 1.4s ease-in-out infinite}
 body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
 header{background:linear-gradient(120deg,var(--navy) 0%,var(--navy2) 55%,var(--blue) 100%);color:#fff;padding:16px 28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .logo{display:flex;align-items:center;gap:12px}
@@ -158,6 +166,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
           <span class="ico" style="background:linear-gradient(135deg,var(--navy),var(--sky))">🌐</span>Sitio web Ngenco</a>
       </div>
     </div>
+    <span id="sync-chip" class="sync-chip" title="Versión de la app y estado de sincronización"></span>
     <span id="user-chip" style="display:none"></span>
     <button id="btn-salir" style="display:none" onclick="logout()">Salir</button>
   </nav>
@@ -1024,6 +1033,31 @@ function goSub(s){curS=s;
   ["mba","mbv","sn","mp","msa","pil","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
+/* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
+   El chip del encabezado indica la versión publicada de la app y si el proyecto
+   abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
+const APP_VER="1.53";
+const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
+const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
+function estadoHash(){                       // huella del proyecto en pantalla
+  let t=JSON.stringify(S)+"|"+PROJ_IDS.map(id=>val(id)).join("|");
+  let h=0; for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))>>>0;
+  return h;
+}
+function syncGuardado(){SYNC.savedHash=estadoHash();SYNC.savedAt=Date.now();SYNC.db=true;pintarSync();}
+function pintarSync(){
+  const el=document.getElementById("sync-chip"); if(!el)return;
+  let dot="#7fc8ec", txt="Listo", pulse="";
+  if(SYNC.logged===false){dot="#8e9bab";txt="Sin sesión";}
+  else if(SYNC.busy){dot="#f2994a";txt="Sincronizando…";pulse=" pulse";}
+  else if(SYNC.db===false){dot="#e05252";txt="Sin conexión a la base";}
+  else if(SYNC.savedHash===null){dot="#8e9bab";txt="Proyecto sin guardar";}
+  else if(SYNC.savedHash===estadoHash()){dot="#27ae60";txt="Guardado "+(haceRato(new Date(SYNC.savedAt).toISOString())||"recién");}
+  else {dot="#f2994a";txt="Cambios sin guardar";}
+  el.innerHTML=`<b>v${APP_VER}</b><span class="sep">·</span><span class="dot${pulse}" style="background:${dot}"></span><span class="txt">${txt}</span>`;
+  el.title=`Cubicador de Entibaciones v${APP_VER}\n${txt}${SYNC.err?"\n"+SYNC.err:""}\nEl estado se refiere al proyecto abierto en la pestaña Base de Datos.`;
+}
+setInterval(pintarSync,20000);               // refresca el "hace X minutos"
 function renderSub(){
   ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
@@ -1074,7 +1108,7 @@ function setvs(path,v){ // conserva el valor como texto (ej: tablón "2.0"/"2.5"
   o[seg[seg.length-1]]=String(v);
   refreshView();
 }
-function refreshView(){ if(curV==="apu")renderAPU(); else renderSub(); }
+function refreshView(){ if(curV==="apu")renderAPU(); else renderSub(); pintarSync(); }
 function addAncMBA(i){ // nueva línea de anclaje, hereda el tipo de la anterior
   const L=S.mba[i].anc||(S.mba[i].anc=[]);
   const u=L[L.length-1];
@@ -2199,6 +2233,8 @@ async function entrar(){
   document.getElementById("user-chip").style.display=on?"inline-block":"none";
   document.getElementById("btn-salir").style.display=on?"inline-block":"none";
   if(on)document.getElementById("user-chip").textContent=data.session.user.email;
+  SYNC.logged=on; pintarSync();
+  if(on)nubeListar();            // deja el estado de conexión listo desde el inicio
 }
 entrar();
 function toggleApps(ev){
@@ -2217,6 +2253,7 @@ function totalesActuales(){
   return{neto:Math.round(tot),uf:rnd(tot/uf,1)};
 }
 async function nubeGuardar(){
+  SYNC.busy=true;SYNC.err="";pintarSync();
   try{
     const t=totalesActuales();
     const proj={};["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"].forEach(id=>proj[id]=val(id));
@@ -2233,8 +2270,9 @@ async function nubeGuardar(){
       if(r.ok){const d=await r.json();S.cloudId=d[0].id;}
     }
     if(!r.ok)throw new Error(await r.text());
-    nubeMsg("✔ Proyecto guardado en la base de datos");nubeListar();
-  }catch(e){nubeMsg("Error al guardar: "+e.message,1);}
+    nubeMsg("✔ Proyecto guardado en la base de datos");syncGuardado();nubeListar();
+  }catch(e){SYNC.err=e.message;pintarSync();nubeMsg("Error al guardar: "+e.message,1);}
+  finally{SYNC.busy=false;pintarSync();}
 }
 function haceRato(iso){
   if(!iso)return "";
@@ -2323,8 +2361,10 @@ async function nubeListar(){
     const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_seguimiento?select=*`,{headers:await getSH()});
     if(!r.ok)throw new Error(await r.text());
     nubeRows=await r.json();
+    SYNC.db=true;SYNC.err="";pintarSync();
     nubePintar();
-  }catch(e){el.innerHTML=`<p class="note" style="border-color:var(--danger)">Sin conexión a la base de datos: ${e.message}<br>
+  }catch(e){SYNC.db=false;SYNC.err=e.message;pintarSync();
+  el.innerHTML=`<p class="note" style="border-color:var(--danger)">Sin conexión a la base de datos: ${e.message}<br>
   <b>Nota:</b> el plan gratuito de Supabase pausa el proyecto tras ~1 semana sin uso. Un GitHub Action lo mantiene activo automáticamente; si aun así aparece este error, reactívalo en supabase.com y reintenta en 1-2 minutos.</p>`;}
 }
 async function nubeCargar(id){
@@ -2334,7 +2374,7 @@ async function nubeCargar(id){
     const d=await r.json(); if(!d.length)throw new Error("no encontrado");
     S=d[0].datos.S; S.cloudId=id;
     Object.entries(d[0].datos.proj||{}).forEach(([k,v])=>{const e=document.getElementById(k);if(e)e.value=v;});
-    nubeMsg("✔ Proyecto cargado");go("cubicacion");
+    nubeMsg("✔ Proyecto cargado");syncGuardado();go("cubicacion");
   }catch(e){nubeMsg("Error al cargar: "+e.message,1);}
 }
 async function nubeEliminar(id,nom){
