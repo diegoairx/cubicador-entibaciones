@@ -155,13 +155,12 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-v="apu" onclick="go('apu')">APU</button>
     <button data-v="informe" onclick="go('informe')">Informe Ejecutivo</button>
     <button data-v="nube" onclick="go('nube')">☁ Base de Datos</button>
+    <button data-v="opt" onclick="go('opt')">⚙ Optimizador H</button>
     <div class="apps-wrap">
       <button onclick="toggleApps(event)">⊞ Mis Apps ▾</button>
       <div id="apps-menu" class="apps-menu">
         <a href="https://diegoairx.github.io/soil-propuestas/" target="_blank" rel="noopener">
           <span class="ico" style="background:linear-gradient(135deg,#6b4a12,#c98a2b)">📋</span>Soil Propuestas</a>
-        <a href="https://diegoairx.github.io/optimizador-perfiles-h/" target="_blank" rel="noopener">
-          <span class="ico" style="background:linear-gradient(135deg,#0b3a1e,#27ae60)">⚙️</span>Optimizador Perfiles H</a>
         <a href="https://www.ngencospa.com/" target="_blank" rel="noopener">
           <span class="ico" style="background:linear-gradient(135deg,var(--navy),var(--sky))">🌐</span>Sitio web Ngenco</a>
       </div>
@@ -182,8 +181,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button class="btn ghost" onclick="signup()">Crear cuenta</button>
     <div id="login-msg"></div>
     <div class="login-apps">Ecosistema Ngenco:
-      <a href="https://diegoairx.github.io/soil-propuestas/" target="_blank" rel="noopener">Soil Propuestas</a> ·
-      <a href="https://diegoairx.github.io/optimizador-perfiles-h/" target="_blank" rel="noopener">Perfiles H</a>
+      <a href="https://diegoairx.github.io/soil-propuestas/" target="_blank" rel="noopener">Soil Propuestas</a>
     </div>
   </div>
 </div>
@@ -278,6 +276,21 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <div id="equipo-box"></div>
     <p class="note">Solo los correos de esta lista pueden ver y editar la base de datos, aunque otras personas creen cuenta. Cada integrante debe crear su cuenta con el correo autorizado y confirmarlo desde su email.</p>
   </div>
+</section>
+
+<!-- ══════════ OPTIMIZADOR DE PERFILES H ══════════
+     La aplicación completa vive en optimizador.html (mismo repositorio) y se muestra
+     aquí dentro de un marco: conserva íntegras sus 6 secciones y su informe PDF,
+     con los datos ingresados a mano como en la versión original. -->
+<section id="view-opt" class="view" style="display:none">
+  <div class="card no-print" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div><h2 style="margin-bottom:2px">Optimizador de Perfiles Tipo H</h2>
+      <p class="note" style="margin:0">Modelo de corte y empalme soldado multi-largo. Los diseños se ingresan manualmente o con los ejemplos precargados.</p></div>
+    <button class="btn ghost" style="margin-left:auto" onclick="optRecargar()">↻ Reiniciar optimizador</button>
+    <a class="btn ghost" href="#" onclick="const f=document.getElementById('opt-frame');window.open(f.src||OPT_REMOTO,'_blank','noopener');return false">⧉ Abrir en pestaña nueva</a>
+  </div>
+  <iframe id="opt-frame" title="Optimizador de Perfiles Tipo H"
+    style="width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;min-height:78vh;display:block"></iframe>
 </section>
 
 <!-- ══════════ INFORME ══════════ -->
@@ -1027,6 +1040,31 @@ function go(v){curV=v;
   if(v==="apu")renderAPU();
   if(v==="informe")renderInforme();
   if(v==="nube"){nubeListar();equipoListar();}
+  if(v==="opt")initOpt();
+}
+/* ════════ OPTIMIZADOR DE PERFILES H (marco integrado) ════════
+   Carga optimizador.html una sola vez y ajusta el alto del marco al contenido,
+   de modo que se navegue como una pestaña más del cubicador. */
+const OPT_LOCAL="optimizador.html";                       // copia dentro de este repositorio
+const OPT_REMOTO="https://diegoairx.github.io/optimizador-perfiles-h/";  // respaldo mientras no exista la copia
+function initOpt(){
+  const f=document.getElementById("opt-frame"); if(!f||f.dataset.on)return;
+  f.dataset.on="1";
+  fetch(OPT_LOCAL,{method:"HEAD"}).then(r=>{f.src=r.ok?OPT_LOCAL:OPT_REMOTO;}).catch(()=>{f.src=OPT_REMOTO;});
+  f.addEventListener("load",()=>{
+    try{
+      const d=f.contentDocument; if(!d)return;
+      const ajusta=()=>{const h=Math.max(d.body.scrollHeight,d.documentElement.scrollHeight);
+        if(h>200)f.style.height=(h+24)+"px";};
+      ajusta(); setTimeout(ajusta,400);
+      if(window.ResizeObserver)new ResizeObserver(ajusta).observe(d.body);
+      d.addEventListener("click",()=>setTimeout(ajusta,250));
+    }catch(e){ f.style.height="90vh"; }   // si el navegador bloquea el acceso, alto fijo
+  });
+}
+function optRecargar(){
+  const f=document.getElementById("opt-frame"); if(!f)return;
+  f.style.height=""; f.dataset.on=""; initOpt();
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
@@ -1036,7 +1074,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.53";
+const APP_VER="1.54";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
