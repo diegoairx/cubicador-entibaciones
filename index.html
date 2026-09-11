@@ -159,8 +159,8 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-v="cubicacion" onclick="go('cubicacion')">Cubicación</button>
     <button data-v="apu" onclick="go('apu')">APU</button>
     <button data-v="informe" onclick="go('informe')">Informe Ejecutivo</button>
+    <button data-v="opt" onclick="go('opt')">⚙ Optimizador</button>
     <button data-v="nube" onclick="go('nube')">☁ Base de Datos</button>
-    <button data-v="opt" onclick="go('opt')">⚙ Optimizador H</button>
     <div class="apps-wrap">
       <button onclick="toggleApps(event)">⊞ Mis Apps ▾</button>
       <div id="apps-menu" class="apps-menu">
@@ -1078,7 +1078,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.55";
+const APP_VER="1.56";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
