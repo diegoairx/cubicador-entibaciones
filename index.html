@@ -16,12 +16,17 @@
   --accent:#f2994a; --ok:#27ae60; --danger:#e05252;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-.sync-chip{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);
-  color:#fff;border-radius:20px;padding:5px 12px;font-size:11.5px;font-weight:600;white-space:nowrap;cursor:default}
-.sync-chip b{font-weight:700;opacity:.95}
-.sync-chip .dot{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 0 3px rgba(255,255,255,.14)}
-.sync-chip .sep{opacity:.4}
-.sync-chip .txt{font-weight:500;opacity:.92}
+/* Indicador discreto de versión y sincronización, anclado abajo a la derecha */
+.sync-chip{position:fixed;right:14px;bottom:12px;z-index:60;display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.9);border:1px solid var(--line);color:var(--mut);backdrop-filter:blur(4px);
+  border-radius:20px;padding:4px 11px;font-size:10.5px;font-weight:600;white-space:nowrap;cursor:default;
+  box-shadow:0 2px 10px rgba(11,42,74,.10);opacity:.5;transition:opacity .18s}
+.sync-chip:hover{opacity:1}
+.sync-chip b{font-weight:700;color:var(--navy)}
+.sync-chip .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.sync-chip .sep{opacity:.35}
+.sync-chip .txt{font-weight:500}
+@media(max-width:700px){.sync-chip{right:8px;bottom:8px;font-size:9.5px;padding:3px 9px}}
 @keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.35}}
 .sync-chip .dot.pulse{animation:pulseDot 1.4s ease-in-out infinite}
 body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
@@ -165,7 +170,6 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
           <span class="ico" style="background:linear-gradient(135deg,var(--navy),var(--sky))">🌐</span>Sitio web Ngenco</a>
       </div>
     </div>
-    <span id="sync-chip" class="sync-chip" title="Versión de la app y estado de sincronización"></span>
     <span id="user-chip" style="display:none"></span>
     <button id="btn-salir" style="display:none" onclick="logout()">Salir</button>
   </nav>
@@ -1074,7 +1078,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.54";
+const APP_VER="1.55";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -2727,6 +2731,8 @@ function importJSON(ev){
   r.readAsText(f);
 }
 document.getElementById("p_fec").value=new Date().toISOString().slice(0,10);
+setTimeout(pintarSync,0);   // el indicador se pinta cuando ya existe en el DOM
 </script>
+<span id="sync-chip" class="sync-chip no-print" title="Versión de la app y estado de sincronización"></span>
 </body>
 </html>
