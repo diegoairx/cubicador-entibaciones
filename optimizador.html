@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ngenco SpA | Optimizador de Perfiles Tipo H</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --marine:#0d2c44; --marine2:#12405f; --water:#1e88c7; --water2:#54b0e0;
+    --bg:#ffffff; --panel:#f5f8fa; --card:#ffffff; --ink:#22303c; --muted:#64788a;
+    --green:#2e8b57; --steel1:#5b7c99; --line:#dde6ec;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Helvetica Neue','Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--ink);}
+  .topbar{background:#fff; border-bottom:1px solid var(--line); padding:10px 36px; display:flex; align-items:center; gap:22px; flex-wrap:wrap;}
+  .topbar img{height:52px;}
+  .topbar .right{margin-left:auto; font-size:.8rem; color:var(--water); font-weight:600; letter-spacing:.6px; text-transform:uppercase;}
+  .hero{background:linear-gradient(115deg,var(--marine) 0%,var(--marine2) 55%,var(--water) 130%); color:#fff; padding:34px 36px;}
+  .hero h1{font-size:1.6rem; font-weight:700; letter-spacing:.4px;}
+  .hero p{color:#cfe4f2; margin-top:6px; font-size:.95rem; max-width:820px;}
+  .badge{display:inline-block; background:var(--water); color:#fff; font-size:.72rem; font-weight:700; padding:3px 12px; border-radius:20px; margin-left:12px; vertical-align:middle; letter-spacing:.5px;}
+  main{max-width:1240px; margin:0 auto; padding:26px 20px 60px;}
+  .grid{display:grid; gap:18px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:10px; box-shadow:0 2px 8px rgba(13,44,68,.05); padding:20px 22px;}
+  .card h2{font-size:1rem; color:var(--marine); margin-bottom:14px; display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:.6px;}
+  .card h2 .n{background:var(--water); color:#fff; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.75rem;}
+  .card h3{font-size:.92rem; color:var(--marine2); margin:16px 0 8px; border-left:4px solid var(--water); padding-left:8px;}
+  .inputs{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px;}
+  label{font-size:.7rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; display:block; margin-bottom:4px;}
+  input,select{width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; font-size:.95rem; background:var(--panel);}
+  input:focus,select:focus{outline:2px solid var(--water2); border-color:transparent; background:#fff;}
+  .btn{background:var(--water); color:#fff; border:none; padding:12px 30px; border-radius:24px; font-size:.95rem; font-weight:700; letter-spacing:.4px; cursor:pointer; margin-top:16px; margin-right:10px; transition:.15s;}
+  .btn:hover{background:var(--marine2); transform:translateY(-1px);}
+  .btn.secondary{background:var(--marine);}
+  .btn-sm{background:var(--steel1); color:#fff; border:none; padding:6px 16px; border-radius:16px; font-size:.8rem; font-weight:600; cursor:pointer;}
+  .btn-del{background:#b3453a; padding:5px 10px; border-radius:6px;}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px;}
+  .kpi{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; text-align:center;}
+  .kpi .v{font-size:1.5rem; font-weight:800; color:var(--marine);}
+  .kpi .v.acc{color:var(--water);}
+  .kpi .l{font-size:.66rem; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-top:2px;}
+  table{width:100%; border-collapse:collapse; font-size:.88rem;}
+  th{background:var(--marine); color:#fff; padding:8px 9px; text-align:left; font-weight:600; font-size:.74rem; text-transform:uppercase; letter-spacing:.5px;}
+  td{padding:7px 9px; border-bottom:1px solid var(--line);}
+  tr:nth-child(even) td{background:var(--panel);}
+  #partTable input{padding:6px 8px; font-size:.88rem;}
+  #partTable td{padding:4px 5px;}
+  .seg-bar{display:flex; height:30px; border-radius:5px; overflow:hidden; border:1px solid var(--line); margin:4px 0;}
+  .seg{display:flex; align-items:center; justify-content:center; color:#fff; font-size:.72rem; font-weight:700; border-right:2px solid #fff;}
+  .seg:last-child{border-right:none;}
+  .s-whole{background:var(--marine2);}
+  .s-part{background:var(--water);}
+  .s-stockbar{background:var(--green);}
+  .s-waste{background:#ccd7df; color:#5a6b7a;}
+  .diag-label{font-size:.8rem; color:var(--muted); margin-top:8px; font-weight:600;}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; font-size:.78rem; color:var(--muted);}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .dot{width:12px; height:12px; border-radius:3px; display:inline-block;}
+  .note{font-size:.8rem; color:var(--muted); margin-top:10px; line-height:1.5;}
+  .flash{animation:fl .5s;}
+  @keyframes fl{0%{opacity:.3}100%{opacity:1}}
+  footer{background:var(--panel); border-top:1px solid var(--line); text-align:center; color:var(--muted); font-size:.78rem; padding:20px;}
+  footer img{height:40px; display:block; margin:0 auto 8px;}
+  @media(max-width:700px){ .topbar,.hero{padding:14px 16px} main{padding:14px} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <img src="https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png/v1/fill/w_232,h_88,al_c,q_85,usm_0.66_1.00_0.01/IMG_0056-removebg-preview.png" alt="Logo Ngenco SpA" onerror="this.style.display='none'">
+  <span class="right">www.ngencospa.com</span>
+</div>
+<div class="hero">
+  <h1>Optimizador de Perfiles Tipo H <span class="badge">Multi-largo</span></h1>
+  <p>Modelo de corte y empalme soldado que combina distintos largos del mismo perfil y peso para minimizar compra de acero y desperdicio — Servicios y Maquinarias Ngenco SpA.</p>
+</div>
+<main class="grid">
+
+  <section class="card">
+    <h2><span class="n">1</span> Parámetros generales</h2>
+    <div class="inputs">
+      <div><label>Proyecto</label><input id="proj" value="MBA Altos 7 Lagunas"></div>
+      <div><label>Máx. uniones por pieza</label><select id="maxw"><option value="0">0 — sin soldadura</option><option value="1" selected>1 unión</option><option value="2">2 uniones</option><option value="3">3 uniones</option></select></div>
+      <div><label>Segmento mínimo (m)</label><input id="minseg" type="number" step="0.1" value="0.5"></div>
+      <div><label>Precio acero ($/kg)</label><input id="pkg" type="number" value="1350"></div>
+      <div><label>Cargar ejemplo</label><select id="preset" onchange="loadPreset()"><option value="lagunas7" selected>MBA Altos 7 Lagunas</option><option value="nexxo">MBA Edificio Nexxo</option><option value="castellon">MBA Castellón 41</option></select></div>
+    </div>
+
+    <h3>Diseños / secciones del proyecto <span style="font-weight:400;color:var(--muted);font-size:.78rem">— las filas con el mismo perfil, kg/m y barras se combinan automáticamente en la optimización</span></h3>
+    <table id="partTable"></table>
+    <button class="btn-sm" style="margin-top:10px" onclick="addPart()">＋ Agregar diseño</button>
+
+    <div>
+      <button class="btn" onclick="run()">⚙ Optimizar proyecto</button>
+      <button class="btn secondary" onclick="genPDF()">📄 Descargar Informe Ejecutivo PDF</button>
+      <button class="btn" style="background:var(--steel1)" onclick="clearAll()">🧹 Limpiar — nuevo proyecto</button>
+    </div>
+  </section>
+
+  <section class="card" id="kpiCard" style="display:none">
+    <h2><span class="n">2</span> Resultado consolidado del proyecto</h2>
+    <div class="kpis" id="kpis"></div>
+    <p class="note" id="optNote"></p>
+  </section>
+
+  <section class="card" id="ordCard" style="display:none">
+    <h2><span class="n">3</span> Orden de compra y dimensionado por perfil</h2>
+    <div id="ordZone"></div>
+    <p class="note">Patrones de corte por barra. Los tramos marcados con <b>*</b> se empalman en taller con soldadura al arco (SMAW/FCAW con placas según EP) para completar la pieza de diseño. Perfiles de distinta sección o peso no se combinan.</p>
+  </section>
+
+  <section class="card" id="diagCard" style="display:none">
+    <h2><span class="n">4</span> Diagramas de corte (patrones)</h2>
+    <div id="diagrams"></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--marine2)"></span>Pieza entera</span>
+      <span><span class="dot" style="background:var(--water)"></span>Tramo empalmado (*)</span>
+      <span><span class="dot" style="background:var(--green)"></span>Barra de stock propio</span>
+      <span><span class="dot" style="background:#ccd7df"></span>Sobrante</span>
+    </div>
+  </section>
+
+  <section class="card" id="tradeCard" style="display:none">
+    <h2><span class="n">5</span> Eficiencia por perfil: kg de diseño vs kg comprados</h2>
+    <canvas id="tradeChart" height="110"></canvas>
+    <p class="note">La diferencia entre ambas barras es el desperdicio de cada grupo de perfil. Combinar largos del mismo perfil reduce esa brecha al mínimo.</p>
+  </section>
+
+  <section class="card" id="compCard" style="display:none">
+    <h2><span class="n">6</span> Comparativa de escenarios de soldadura (proyecto completo)</h2>
+    <table id="compTable"></table>
+  </section>
+
+</main>
+<footer>
+  <img src="https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png/v1/fill/w_232,h_88,al_c,q_85,usm_0.66_1.00_0.01/IMG_0056-removebg-preview.png" alt="Ngenco SpA" onerror="this.style.display='none'">
+  Servicios y Maquinarias Ngenco SpA · contacto@ngencospa.com · www.ngencospa.com<br>
+  Modelo de optimización de corte multi-largo (cutting stock con empalme) · <span id="fdate"></span>
+</footer>
+
+<script>
+document.getElementById('fdate').textContent = new Date().toLocaleDateString('es-CL');
+const fmt=(n,d=0)=>n.toLocaleString('es-CL',{maximumFractionDigits:d,minimumFractionDigits:0});
+const fm2=(n)=>n.toLocaleString('es-CL',{maximumFractionDigits:2});
+
+// ---------- DISEÑOS ----------
+const PRESETS={
+  lagunas7:{proj:'MBA Altos 7 Lagunas',minseg:0.5,parts:[
+    {sec:'Diseño 1A',perfil:'WF200x31.3',kgm:31.3,dem:12,lpza:5.5,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 2B',perfil:'WF200x31.3',kgm:31.3,dem:20,lpza:7.5,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 3',perfil:'WF200x31.3',kgm:31.3,dem:30,lpza:5.5,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 4',perfil:'WF200x35.9',kgm:35.9,dem:18,lpza:6.5,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 5',perfil:'WF250x38.5',kgm:38.5,dem:14,lpza:7,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 6',perfil:'WF250x32.5',kgm:32.5,dem:14,lpza:10.5,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 7',perfil:'WF250x32.5',kgm:32.5,dem:10,lpza:7.5,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 8',perfil:'WF250x38.5',kgm:38.5,dem:16,lpza:7,lstk:12,alt:6,invn:0,invl:0},
+    {sec:'Diseño 9',perfil:'WF250x32.7',kgm:32.7,dem:12,lpza:6.5,lstk:12,alt:6,invn:0,invl:0}]},
+  nexxo:{proj:'MBA Edificio Nexxo',minseg:1.5,parts:[
+    {sec:'Cortes 1 y 3',perfil:'WF200x59.0',kgm:59.0,dem:133,lpza:9,lstk:12,alt:0,invn:0,invl:0},
+    {sec:'Corte 2',perfil:'WF150x37.1',kgm:37.1,dem:10,lpza:9,lstk:12,alt:0,invn:0,invl:0}]},
+  castellon:{proj:'MBA Castellón 41',minseg:1.5,parts:[
+    {sec:'Entibación',perfil:'WF 250x44.8',kgm:44.8,dem:82,lpza:9,lstk:12,alt:0,invn:30,invl:6}]}
+};
+let parts=JSON.parse(JSON.stringify(PRESETS.lagunas7.parts));
+
+function renderParts(){
+  let h=`<tr><th>Diseño / Sección</th><th>Perfil</th><th>kg/m</th><th>Piezas</th><th>Largo pieza (m)</th><th>Barra ppal. (m)</th><th>Barra 2ª (m)</th><th>Stock (un.)</th><th>Largo stock (m)</th><th></th></tr>`;
+  parts.forEach((p,i)=>{
+    h+=`<tr>
+      <td><input value="${p.sec}" onchange="parts[${i}].sec=this.value"></td>
+      <td><input value="${p.perfil}" onchange="parts[${i}].perfil=this.value"></td>
+      <td><input type="number" step="0.1" value="${p.kgm}" onchange="parts[${i}].kgm=+this.value"></td>
+      <td><input type="number" value="${p.dem}" onchange="parts[${i}].dem=+this.value"></td>
+      <td><input type="number" step="0.1" value="${p.lpza}" onchange="parts[${i}].lpza=+this.value"></td>
+      <td><input type="number" step="0.1" value="${p.lstk}" onchange="parts[${i}].lstk=+this.value"></td>
+      <td><input type="number" step="0.1" value="${p.alt}" onchange="parts[${i}].alt=+this.value" title="0 = no disponible"></td>
+      <td><input type="number" value="${p.invn}" onchange="parts[${i}].invn=+this.value"></td>
+      <td><input type="number" step="0.1" value="${p.invl}" onchange="parts[${i}].invl=+this.value"></td>
+      <td>${parts.length>1?`<button class="btn-sm btn-del" onclick="delPart(${i})">✕</button>`:''}</td></tr>`;
+  });
+  document.getElementById('partTable').innerHTML=h;
+}
+function addPart(){parts.push({sec:'Nuevo diseño',perfil:'WF',kgm:50,dem:10,lpza:9,lstk:12,alt:0,invn:0,invl:0});renderParts();}
+function delPart(i){parts.splice(i,1);renderParts();}
+function loadPreset(){
+  const p=PRESETS[document.getElementById('preset').value];
+  if(!p) return;
+  parts=JSON.parse(JSON.stringify(p.parts));
+  document.getElementById('proj').value=p.proj;
+  document.getElementById('minseg').value=p.minseg;
+  renderParts(); run();
+}
+function clearAll(){
+  document.getElementById('proj').value='';
+  document.getElementById('maxw').value='1';
+  document.getElementById('minseg').value=0.5;
+  document.getElementById('pkg').value=1350;
+  document.getElementById('preset').selectedIndex=-1;
+  parts=[{sec:'',perfil:'',kgm:'',dem:'',lpza:'',lstk:12,alt:6,invn:0,invl:0}];
+  renderParts();
+  ['kpiCard','ordCard','diagCard','tradeCard','compCard'].forEach(id=>document.getElementById(id).style.display='none');
+  if(chart){chart.destroy();chart=null;}
+  window.__last=null;
+  document.getElementById('proj').focus();
+}
+renderParts();
+
+// ---------- SOLVER MULTI-LARGO ----------
+// Combina piezas de distintos largos del mismo perfil/peso. Barras: principal S y secundaria alt (opcional),
+// más stock propio (gratis). Empalmes: máx maxW uniones por pieza, segmento mínimo minSeg.
+// Estrategia: (1) plan de compra de mínimo ml; (2) barras completas con combos exactos sin soldadura;
+// (3) tira continua con arrastre del resto a la barra siguiente (1 unión por cruce).
+function solveGroup(dem,S,alt,invN,invL,maxW,minSeg){
+  const EPS=1e-9;
+  let pieces=[]; let pid=0;
+  dem.forEach(d=>{for(let i=0;i<d.qty;i++)pieces.push({id:pid++,len:d.len,left:d.len,splits:0,sec:d.sec||''});});
+  const total=pieces.reduce((a,p)=>a+p.len,0);
+  if(total<=0)return{error:'sin demanda válida'};
+  for(const p of pieces){const nparts=Math.ceil(p.len/S-EPS); if(nparts-1>maxW)return{error:'pieza de '+fm2(p.len)+' m requiere '+(nparts-1)+' uniones (máx. '+maxW+')'};}
+  const stockMl=invN*invL, needed=Math.max(0,total-stockMl);
+  let best=null; const maxN2=alt>EPS?Math.ceil(needed/alt)+1:0;
+  for(let n2=0;n2<=maxN2;n2++){
+    const rem=Math.max(0,needed-n2*alt), n1=Math.ceil((rem-EPS)/S);
+    const ml=n1*S+n2*alt;
+    if(ml+EPS>=needed&&(!best||ml<best.ml-EPS||(Math.abs(ml-best.ml)<EPS&&n1+n2<best.n1+best.n2)))best={n1,n2,ml};
+  }
+  if(!best)best={n1:0,n2:0,ml:0};
+  let bars=[];
+  for(let i=0;i<best.n1;i++)bars.push({size:S,type:'compra',segs:[]});
+  for(let i=0;i<best.n2;i++)bars.push({size:alt,type:'compra',segs:[]});
+  for(let i=0;i<invN;i++)bars.push({size:invL,type:'stock',segs:[]});
+  bars.sort((a,b)=>b.size-a.size||((a.type==='stock')-(b.type==='stock')));
+  let pool=pieces.slice().sort((a,b)=>b.left-a.left);
+  let welds=0, carry=null;
+  const HU=x=>Math.round(x*20);
+  function findExact(cap){
+    const capU=HU(cap); if(capU<=0||!pool.length)return null;
+    function reach(target,skip){
+      if(target===0)return true;
+      const av=[];for(let k=0;k<pool.length;k++)if(!skip.has(k)){const u=HU(pool[k].left);if(u<=target&&u>0)av.push(u);}
+      const d=new Array(target+1).fill(false);d[0]=true;
+      for(const u of av)for(let t=target;t>=u;t--)if(d[t-u])d[t]=true;
+      return d[target];
+    }
+    const used=new Set();let s=capU;const picks=[];let g=0;
+    if(!reach(capU,used))return null;
+    while(s>0&&g++<5000){
+      let ok=false;
+      for(let k=0;k<pool.length;k++){
+        if(used.has(k))continue;
+        const u=HU(pool[k].left);
+        if(u>0&&u<=s){used.add(k);if(reach(s-u,used)){picks.push(k);s-=u;ok=true;break;}used.delete(k);}
+      }
+      if(!ok)return null;
+    }
+    return s===0?picks:null;
+  }
+  let bi=0, guard=0;
+  while((pool.length||carry)&&guard++<5000){
+    if(bi>=bars.length){
+      const remTot=pool.reduce((a,p)=>a+p.left,0)+(carry?carry.left:0);
+      const sz=(alt>EPS&&remTot<=alt+EPS)?alt:S;
+      bars.push({size:sz,type:'compra',segs:[]});
+      if(sz===S)best.n1++;else best.n2++;
+    }
+    const bar=bars[bi]; let cap=bar.size; let skipBar=false;
+    while(carry&&cap>EPS){
+      if(carry.left<=cap+EPS){bar.segs.push({len:carry.left,pid:carry.id,part:true,sec:carry.sec});cap-=carry.left;carry=null;}
+      else{
+        if(carry.splits>=maxW||cap<minSeg-EPS||carry.left-cap<minSeg-EPS){skipBar=true;break;}
+        bar.segs.push({len:cap,pid:carry.id,part:true,sec:carry.sec});carry.left-=cap;carry.splits++;welds++;cap=0;
+      }
+    }
+    if(skipBar){bi++;continue;}
+    if(Math.abs(cap-bar.size)<EPS&&pool.length){
+      const combo=findExact(cap);
+      if(combo){combo.sort((a,b)=>b-a);
+        for(const k of combo){const p=pool[k];bar.segs.push({len:p.left,pid:p.id,part:p.splits>0,sec:p.sec});}
+        pool=pool.filter((_,k)=>!combo.includes(k));bi++;continue;}
+    }
+    while(cap>EPS&&pool.length){
+      let k=pool.findIndex(p=>Math.abs(p.left-cap)<EPS);
+      if(k<0)k=pool.findIndex(p=>p.left<=cap+EPS);
+      if(k>=0){const p=pool[k];bar.segs.push({len:p.left,pid:p.id,part:p.splits>0,sec:p.sec});cap-=p.left;pool.splice(k,1);continue;}
+      if(cap<minSeg-EPS||maxW<1)break;
+      const kk=pool.findIndex(p=>p.splits<maxW&&p.left-cap>=minSeg-EPS);
+      if(kk<0)break;
+      const p=pool[kk];
+      bar.segs.push({len:cap,pid:p.id,part:true,sec:p.sec});
+      p.left-=cap;p.splits++;welds++;pool.splice(kk,1);carry=p;cap=0;
+    }
+    bi++;
+  }
+  if(pool.length||carry)return{error:'no se pudo empacar con estas restricciones — revise segmento mínimo y uniones'};
+  const usedBars=bars.filter(b=>b.segs.length);
+  const buyBars=bars.filter(b=>b.type==='compra');
+  const buyMl=buyBars.reduce((a,b)=>a+b.size,0);
+  const stockUsed=usedBars.filter(b=>b.type==='stock').length;
+  const stockUsedMl=usedBars.filter(b=>b.type==='stock').reduce((a,b)=>a+b.size,0);
+  const waste=buyMl+stockUsedMl-total;
+  return {bars:usedBars,n1:best.n1,n2:best.n2,buyMl,stockUsed,welds,waste,total,material:buyMl+stockUsedMl};
+}
+
+// agrupar filas por perfil + kg/m + barras
+function groupParts(){
+  const map=new Map();
+  parts.forEach(p=>{
+    if(!p.perfil||!p.dem||!p.lpza)return;
+    const key=`${p.perfil}|${p.kgm}|${p.lstk}|${p.alt}`;
+    if(!map.has(key))map.set(key,{perfil:p.perfil,kgm:+p.kgm,S:+p.lstk,alt:+p.alt||0,invN:0,invL:0,dem:[],secs:[]});
+    const g=map.get(key);
+    g.dem.push({len:+p.lpza,qty:+p.dem,sec:p.sec});
+    g.secs.push(`${p.sec} (${p.dem}×${fm2(+p.lpza)} m)`);
+    if(+p.invn>0){g.invN+=+p.invn; g.invL=+p.invl;}
+  });
+  return [...map.values()];
+}
+
+// patrones agregados de barras (para tablas y diagramas)
+function patternsOf(bars){
+  const map=new Map();
+  bars.forEach(b=>{
+    const segsTxt=b.segs.map(s=>fm2(s.len)+(s.part?'*':'')).join(' + ');
+    const key=b.type+'|'+b.size+'|'+segsTxt;
+    if(!map.has(key))map.set(key,{bar:b,txt:segsTxt,count:0});
+    map.get(key).count++;
+  });
+  return [...map.values()].sort((a,b)=>b.bar.size-a.bar.size||b.count-a.count);
+}
+
+// ---------- UI ----------
+let chart=null;
+function run(){
+  const W=+maxw.value, ms=+minseg.value, pk=+pkg.value;
+  const groups=groupParts();
+  if(!groups.length)return;
+  const results=[];
+  for(const g of groups){
+    const r=solveGroup(g.dem,g.S,g.alt,g.invN,g.invL,W,ms);
+    results.push({g,r});
+  }
+  ['kpiCard','ordCard','diagCard','tradeCard','compCard'].forEach(id=>document.getElementById(id).style.display='block');
+  const err=results.find(x=>x.r.error);
+  if(err){document.getElementById('kpis').innerHTML=`<div style="grid-column:1/-1;color:#b3261e;font-weight:600">${err.g.perfil}: ${err.r.error}</div>`;return;}
+
+  let tB1=0,tB2=0,tWelds=0,tWaste=0,tMat=0,tKg=0,tKgDis=0,tCost=0,tInvU=0,tInvN=0,tPz=0;
+  results.forEach(({g,r})=>{
+    tB1+=r.n1;tB2+=r.n2;tWelds+=r.welds;tWaste+=r.waste;tMat+=r.material;
+    tKg+=r.buyMl*g.kgm;tKgDis+=r.total*g.kgm;tCost+=r.buyMl*g.kgm*pk;
+    tInvU+=r.stockUsed;tInvN+=g.invN;tPz+=g.dem.reduce((a,d)=>a+d.qty,0);
+  });
+  window.__last={W,ms,pk,results,tB1,tB2,tWelds,tWaste,tMat,tKg,tKgDis,tCost,tInvU,tInvN,tPz,proj:proj.value};
+
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi flash"><div class="v acc">${fmt(tB1)}${tB2?` + ${fmt(tB2)}`:''}</div><div class="l">Barras ppal.${tB2?' + 2ª':''} a comprar</div></div>
+    ${tInvN?`<div class="kpi flash"><div class="v">${fmt(tInvU)}/${fmt(tInvN)}</div><div class="l">Stock existente usado</div></div>`:''}
+    <div class="kpi flash"><div class="v">${fmt(tPz)}</div><div class="l">Piezas totales</div></div>
+    <div class="kpi flash"><div class="v">${fmt(tWelds)}</div><div class="l">Uniones soldadas</div></div>
+    <div class="kpi flash"><div class="v">${fm2(tWaste)} m</div><div class="l">Desperdicio (${fm2(tWaste/tMat*100)}%)</div></div>
+    <div class="kpi flash"><div class="v">${fmt(tKg)}</div><div class="l">kg a comprar</div></div>
+    <div class="kpi flash"><div class="v">${fmt(tKgDis)}</div><div class="l">kg de diseño</div></div>
+    <div class="kpi flash"><div class="v">$${fmt(tCost)}</div><div class="l">Costo acero est.</div></div>`;
+  const desg=results.map(({g,r})=>`<b>${g.perfil}</b>: ${r.n1}×${fm2(g.S)} m${r.n2?` + ${r.n2}×${fm2(g.alt)} m`:''}`).join(' · ');
+  document.getElementById('optNote').innerHTML=
+    `Desglose de compra — ${desg}. Sobre-compra vs diseño: <b>${fmt(tKg-tKgDis)} kg (${fm2((tKg-tKgDis)/tKgDis*100)}%)</b>. Los diseños que comparten perfil y peso se combinaron en una sola optimización de corte.`;
+
+  // orden por grupo
+  let oz='';
+  results.forEach(({g,r})=>{
+    const pats=patternsOf(r.bars);
+    let rows='';
+    pats.forEach(pt=>{
+      rows+=`<tr><td>${pt.bar.type==='stock'?'Stock '+fm2(pt.bar.size)+' m':'Barra '+fm2(pt.bar.size)+' m'}</td><td>${pt.count}</td><td>${pt.txt}</td><td>${fm2(pt.bar.size-pt.bar.segs.reduce((a,s)=>a+s.len,0))} m</td></tr>`;
+    });
+    oz+=`<h3>${g.perfil} (${fm2(g.kgm)} kg/m) — ${g.secs.join(' · ')}</h3>
+      <table><tr><th>Origen</th><th>Cant.</th><th>Patrón de corte (* = tramo a empalmar)</th><th>Sobrante/barra</th></tr>${rows}
+      <tr><td colspan="2"><b>Comprar: ${r.n1}×${fm2(g.S)} m${r.n2?` + ${r.n2}×${fm2(g.alt)} m`:''}</b></td>
+      <td colspan="2"><b>${fmt(r.buyMl)} ml — ${fmt(r.buyMl*g.kgm)} kg — ${r.welds} uniones — desperdicio ${fm2(r.waste)} m${r.stockUsed?` (+ ${r.stockUsed} un. stock propio)`:''}</b></td></tr></table>`;
+  });
+  document.getElementById('ordZone').innerHTML=oz;
+
+  // diagramas: patrones únicos por grupo
+  const dv=document.getElementById('diagrams'); dv.innerHTML='';
+  results.forEach(({g,r})=>{
+    dv.innerHTML+=`<h3>${g.perfil}</h3>`;
+    const pats=patternsOf(r.bars);
+    pats.forEach(pt=>{
+      const b=pt.bar, used=b.segs.reduce((a,s)=>a+s.len,0);
+      let html=`<div class="diag-label">${pt.count}× ${b.type==='stock'?'stock':'barra'} ${fm2(b.size)} m</div><div class="seg-bar" style="width:${b.size/Math.max(g.S,b.size)*100}%">`;
+      b.segs.forEach(s=>{html+=`<div class="seg ${b.type==='stock'?'s-stockbar':(s.part?'s-part':'s-whole')}" style="width:${s.len/b.size*100}%">${fm2(s.len)}${s.part?'*':''}</div>`;});
+      if(used<b.size-1e-6)html+=`<div class="seg s-waste" style="width:${(b.size-used)/b.size*100}%">${fm2(b.size-used)}</div>`;
+      dv.innerHTML+=html+'</div>';
+    });
+  });
+
+  // gráfico eficiencia
+  if(chart)chart.destroy();
+  chart=new Chart(document.getElementById('tradeChart'),{
+    type:'bar',
+    data:{labels:results.map(({g})=>g.perfil),
+      datasets:[
+        {label:'kg de diseño (demanda)',data:results.map(({g,r})=>+(r.total*g.kgm).toFixed(1)),backgroundColor:'#1e88c7'},
+        {label:'kg a comprar',data:results.map(({g,r})=>+(r.buyMl*g.kgm).toFixed(1)),backgroundColor:'#0d2c44'}
+      ]},
+    options:{responsive:true,scales:{y:{title:{display:true,text:'kg de acero'}}}}
+  });
+
+  // comparativa escenarios
+  let comp='<tr><th>Escenario</th><th>Barras ppal.</th><th>Barras 2ª</th><th>Uniones</th><th>Desperdicio</th><th>kg acero</th><th>Costo acero</th></tr>';
+  [0,1,2].forEach(sw=>{
+    let b1=0,b2=0,u=0,wa=0,mat=0,kg2=0,feas=true;
+    for(const g of groups){
+      const r2=solveGroup(g.dem,g.S,g.alt,g.invN,g.invL,sw,ms);
+      if(r2.error){feas=false;break;}
+      b1+=r2.n1;b2+=r2.n2;u+=r2.welds;wa+=r2.waste;mat+=r2.material;kg2+=r2.buyMl*g.kgm;
+    }
+    const hl=sw===W?' style="background:#e8f3fb;font-weight:700"':'';
+    comp+=feas?`<tr${hl}><td>Máx. ${sw} unión(es)${sw===W?' ← seleccionado':''}</td><td>${b1}</td><td>${b2}</td><td>${u}</td><td>${fm2(wa)} m (${fm2(wa/mat*100)}%)</td><td>${fmt(kg2)}</td><td>$${fmt(kg2*pk)}</td></tr>`
+      :`<tr><td>Máx. ${sw} uniones</td><td colspan="6">No factible (hay piezas más largas que la barra o restricciones muy estrictas)</td></tr>`;
+  });
+  document.getElementById('compTable').innerHTML=comp;
+}
+run();
+
+// ---------- INFORME EJECUTIVO PDF (2 páginas) ----------
+const C={marine:[13,44,68],marine2:[18,64,95],water:[30,136,199],steel:[91,124,153],grey:[204,215,223],
+         green:[46,139,87],ink:[34,48,60],muted:[100,120,138],bgrow:[245,248,250]};
+const LOGO_URL='https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png/v1/fill/w_232,h_88,al_c,q_85/IMG_0056-removebg-preview.png';
+let LOGO_DATA=null;
+fetch(LOGO_URL).then(r=>r.blob()).then(b=>{const fr=new FileReader();
+  fr.onload=()=>{LOGO_DATA=fr.result;}; fr.readAsDataURL(b);}).catch(()=>{});
+
+function pdfHeader(doc,PW,M,title,sub1,sub2,h){
+  doc.setFillColor(...C.marine); doc.rect(0,0,PW,h,'F');
+  doc.setFillColor(...C.water); doc.rect(0,h,PW,1.6,'F');
+  let tx=M;
+  if(LOGO_DATA){try{doc.setFillColor(255,255,255);doc.roundedRect(M,4,34,h-8,1.5,1.5,'F');
+    doc.addImage(LOGO_DATA,'PNG',M+1.5,5.5,31,(h-11)); tx=M+39;}catch(e){}}
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(h>25?14.5:12.5);
+  doc.text(title,tx,h*0.42);
+  doc.setFontSize(8.8); doc.setFont('helvetica','normal');
+  doc.text(sub1,tx,h*0.62);
+  if(sub2) doc.text(sub2,tx,h*0.82);
+}
+function pdfFooter(doc,PW,M,fecha,pg){
+  doc.setFillColor(...C.marine); doc.rect(0,285,PW,12,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7);
+  doc.text(`Servicios y Maquinarias Ngenco SpA · contacto@ngencospa.com · www.ngencospa.com · ${fecha} · Página ${pg} de 2`,M,292);
+}
+function genPDF(){
+  if(!window.__last){run();}
+  const P=window.__last, {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const PW=210, M=14, UW=PW-2*M;
+  const fecha=new Date().toLocaleDateString('es-CL');
+  const F=(n,dd=0)=>n.toLocaleString('es-CL',{maximumFractionDigits:dd});
+  const F2=(n)=>n.toLocaleString('es-CL',{maximumFractionDigits:2});
+
+  // ===== PÁGINA 1 =====
+  pdfHeader(doc,PW,M,'INFORME EJECUTIVO — OPTIMIZACIÓN DE PERFILES TIPO H',
+    `Proyecto ${P.proj} · ${P.results.length} grupo(s) de perfil · Entibaciones temporales`,
+    `Servicios y Maquinarias Ngenco SpA · ${fecha}`,30);
+  let y=39;
+  doc.setTextColor(...C.marine); doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+  doc.text('1. ANTECEDENTES',M,y); y+=5;
+  doc.setTextColor(...C.ink); doc.setFont('helvetica','normal'); doc.setFontSize(8.4);
+  const lst=P.results.map(({g})=>`${g.perfil}: ${g.secs.join(', ')}`).join('; ');
+  const ante=doc.splitTextToSize(
+    `El proyecto requiere ${F(P.tPz)} piezas (${F(P.tKgDis)} kg de diseño): ${lst}. Los diseños que comparten perfil y peso se combinan en una sola optimización de corte multi-largo: distintos largos requeridos se mezclan en la misma barra y los tramos marcados (*) se empalman en taller con soldadura al arco (máx. ${P.W} unión(es) por pieza, segmento mínimo ${F2(P.ms)} m). Se consideran barras principales y secundarias según disponibilidad de mercado.`,UW);
+  doc.text(ante,M,y); y+=ante.length*3.5+4;
+
+  doc.setTextColor(...C.marine); doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+  doc.text('2. RESULTADO CONSOLIDADO',M,y); y+=6;
+  const kpis=[[F(P.tB1)+(P.tB2?' + '+F(P.tB2):''),'Barras a comprar'],
+    [F(P.tKg)+' kg','Acero a comprar'],[F(P.tKgDis)+' kg','Acero de diseño'],
+    [F(P.tWelds),'Uniones soldadas'],[F2(P.tWaste)+' m','Desperdicio ('+F2(P.tWaste/P.tMat*100)+'%)'],
+    ['$'+F(P.tCost/1e6,1)+' MM','Costo acero est.']];
+  const bw=(UW-5*4)/6;
+  kpis.forEach((k,i)=>{const x=M+i*(bw+4);
+    doc.setFillColor(...C.bgrow); doc.setDrawColor(...C.grey); doc.roundedRect(x,y,bw,16,1.5,1.5,'FD');
+    doc.setTextColor(...(i===0?C.water:C.marine)); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text(String(k[0]),x+bw/2,y+7,{align:'center'});
+    doc.setTextColor(...C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(5.6);
+    doc.text(doc.splitTextToSize(k[1].toUpperCase(),bw-2),x+bw/2,y+11,{align:'center'});});
+  y+=21;
+  doc.setTextColor(...C.green); doc.setFontSize(8); doc.setFont('helvetica','italic');
+  doc.text(`Sobre-compra vs diseño: ${F(P.tKg-P.tKgDis)} kg (${F2((P.tKg-P.tKgDis)/P.tKgDis*100)}%).`,M,y); y+=6.5;
+
+  doc.setTextColor(...C.marine); doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+  doc.text('3. ORDEN DE COMPRA Y PATRONES DE CORTE',M,y); y+=5;
+  const rows=[['Perfil','Origen','Cant.','Patrón (* = tramo a empalmar)','Sobrante']];
+  P.results.forEach(({g,r})=>{
+    const pats=patternsOf(r.bars);
+    const shown=pats.slice(0,5);
+    shown.forEach(pt=>{rows.push([g.perfil,(pt.bar.type==='stock'?'Stock ':'Barra ')+F2(pt.bar.size)+' m',String(pt.count),pt.txt,F2(pt.bar.size-pt.bar.segs.reduce((a,s)=>a+s.len,0))+' m']);});
+    if(pats.length>5)rows.push([g.perfil,'…',String(pats.length-5)+' patrones más','ver app','']);
+    rows.push([g.perfil,'SUBT.',`${r.n1}×${F2(g.S)}${r.n2?` + ${r.n2}×${F2(g.alt)}`:''}`,F(r.buyMl*g.kgm)+' kg · '+r.welds+' uniones','desp. '+F2(r.waste)+' m']);
+  });
+  rows.push(['TOTAL','',F(P.tB1+P.tB2)+' barras',F(P.tKg)+' kg','$'+F(P.tCost)]);
+  const cw=[26,22,20,80,UW-148];
+  rows.forEach((r,ri)=>{let x=M; const h=5.2; const isSub=r[1]==='SUBT.'||r[0]==='TOTAL';
+    if(y>255){return;}
+    r.forEach((c,ci)=>{ if(ri===0){doc.setFillColor(...C.marine);doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');}
+      else if(isSub){doc.setFillColor(232,243,251);doc.setTextColor(...C.ink);doc.setFont('helvetica','bold');}
+      else{doc.setFillColor(...(ri%2?[255,255,255]:C.bgrow));doc.setTextColor(...C.ink);doc.setFont('helvetica','normal');}
+      doc.setDrawColor(...C.grey); doc.rect(x,y,cw[ci],h,'FD'); doc.setFontSize(6.4);
+      doc.text(String(c).substring(0,58),x+1.2,y+3.6); x+=cw[ci];});
+    y+=h;});
+  y+=6;
+
+  if(y<262){
+    doc.setTextColor(...C.marine); doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+    doc.text('4. BALANCE',M,y); y+=5;
+    doc.setTextColor(...C.ink); doc.setFont('helvetica','normal'); doc.setFontSize(8.2);
+    const bal=doc.splitTextToSize(
+      `Material: ${F(P.tMat)} ml comprados${P.tInvU?` (+ stock propio)`:''} vs ${F2(P.tMat-P.tWaste)} ml de diseño — desperdicio ${F2(P.tWaste)} m (${F2(P.tWaste/P.tMat*100)}%). Acero: ${F(P.tKg)} kg a $${F(P.pk)}/kg = $${F(P.tCost)}. El plan requiere ${F(P.tWelds)} uniones soldadas en taller.`,UW);
+    doc.text(bal,M,y);
+  }
+  pdfFooter(doc,PW,M,fecha,1);
+
+  // ===== PÁGINA 2: LAYOUT =====
+  doc.addPage();
+  pdfHeader(doc,PW,M,'LAYOUT DE CORTE DE PERFILES',
+    `${P.proj} · ${F(P.tB1+P.tB2)} barras a comprar · ${F(P.tMat)} ml · ${fecha}`,null,22);
+  let y2=30;
+  const leg=[['Pieza entera',C.marine2],['Tramo empalmado (*)',C.water],['Stock propio',C.green],['Sobrante',C.grey]];
+  let lx=M; leg.forEach(l=>{doc.setFillColor(...l[1]); doc.rect(lx,y2,4,3.5,'F'); doc.setTextColor(...C.muted);
+    doc.setFontSize(7); doc.text(l[0],lx+5.5,y2+2.8); lx+=doc.getTextWidth(l[0])+14;});
+  y2+=7;
+  const STRIP=48, sc=UW/STRIP;
+  doc.setDrawColor(...C.muted); doc.setTextColor(...C.muted); doc.setFontSize(5.5);
+  for(let mM=0;mM<=STRIP;mM+=3){const x=M+mM*sc; doc.line(x,y2+2,x,y2+3.5); doc.text(String(mM),x,y2+1.5,{align:'center'});}
+  y2+=5.5;
+  const countRows=(list)=>{let cur=0,rw=list.length?1:0;
+    list.forEach(b=>{if(cur+b.size>STRIP+0.001){cur=0;rw++;} cur+=b.size;}); return rw;};
+  let totRows=0; P.results.forEach(({r})=>{totRows+=countRows(r.bars);});
+  const availH=262-y2-P.results.length*6-18;
+  let PITCH=Math.min(8.3,availH/Math.max(totRows,1));
+  let grouped=false;
+  if(PITCH<3.4){grouped=true; PITCH=8.3;}
+  const BH=Math.min(5.4,PITCH-2.6);
+  let rowY=y2+4;
+  const drawSegBar=(x,yy,b)=>{
+    let xx=x;
+    b.segs.forEach(s=>{const ww=s.len*sc;
+      const col=b.type==='stock'?C.green:(s.part?C.water:C.marine2);
+      doc.setFillColor(...col); doc.setDrawColor(255,255,255); doc.setLineWidth(0.3);
+      doc.rect(xx,yy,ww,BH,'FD');
+      if(ww>4.6){doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(Math.min(5.8,BH+1.4));
+        doc.text(F2(s.len)+(s.part?'*':''),xx+ww/2,yy+BH*0.7,{align:'center'});}
+      xx+=ww;});
+    const used=b.segs.reduce((a,s)=>a+s.len,0);
+    if(used<b.size-0.01){doc.setFillColor(...C.grey);doc.rect(xx,yy,(b.size-used)*sc,BH,'FD');}
+    doc.setDrawColor(...C.marine); doc.setLineWidth(0.5); doc.rect(x,yy,b.size*sc,BH);
+    doc.setLineWidth(0.2);
+  };
+  P.results.forEach(({g,r})=>{
+    doc.setTextColor(...C.marine2); doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    doc.text(`${g.perfil}: ${r.n1}×${F2(g.S)} m${r.n2?` + ${r.n2}×${F2(g.alt)} m`:''}${r.stockUsed?` + ${r.stockUsed} stock`:''} · ${F(r.buyMl*g.kgm)} kg · desp. ${F2(r.waste)} m`,M,rowY-0.5);
+    rowY+=2.5;
+    if(!grouped){
+      let cursor=0, n=1;
+      r.bars.forEach(b=>{
+        if(cursor+b.size>STRIP+0.001){cursor=0; rowY+=PITCH;}
+        if(rowY>268) return;
+        const x=M+cursor*sc;
+        doc.setTextColor(...C.muted); doc.setFont('helvetica','bold'); doc.setFontSize(Math.min(5,BH));
+        doc.text((b.type==='stock'?'S':'C')+(n++),x+0.8,rowY-0.8);
+        drawSegBar(x,rowY,b);
+        cursor+=b.size;
+      });
+      rowY+=PITCH+3.5;
+    }else{
+      patternsOf(r.bars).forEach(pt=>{
+        if(rowY>268) return;
+        drawSegBar(M,rowY,pt.bar);
+        doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(7);
+        doc.text(`× ${F(pt.count)}`,M+pt.bar.size*sc+3,rowY+BH*0.7);
+        rowY+=PITCH;
+      });
+      rowY+=3.5;
+    }
+  });
+  const yT=Math.min(rowY,266);
+  doc.setFillColor(...C.bgrow); doc.setDrawColor(...C.grey); doc.roundedRect(M,yT,UW,13,1.5,1.5,'FD');
+  doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
+  doc.text(`TOTALES:  ${F(P.tPz)} piezas · ${F(P.tB1+P.tB2)} barras compradas (${F(P.tKg)} kg) · ${F(P.tWelds)} uniones · Desperdicio ${F2(P.tWaste)} m (${F2(P.tWaste/P.tMat*100)}%)`,M+4,yT+5);
+  doc.setFont('helvetica','normal'); doc.setFontSize(6.8); doc.setTextColor(...C.muted);
+  doc.text(`Barras a escala (regla en metros). Borde azul = barra física. Tramos * se empalman para completar la pieza de diseño. ${grouped?'Vista agrupada por patrón (× cantidad). ':''}Verificar EP de soldadura.`,M+4,yT+9.8);
+  pdfFooter(doc,PW,M,fecha,2);
+  doc.save(`Informe_Optimizacion_${P.proj.replace(/\s+/g,'_')}.pdf`);
+}
+
+</script>
+</body>
+</html>
