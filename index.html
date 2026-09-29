@@ -243,6 +243,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-s="mp" onclick="goSub('mp')">Micropilotes</button>
     <button data-s="msa" onclick="goSub('msa')">Socalzado Anclado</button>
     <button data-s="pil" onclick="goSub('pil')">Pilotaje</button>
+    <button data-s="mpa" onclick="goSub('mpa')">Pilotes Anclados</button>
     <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
     <button data-s="ag" onclick="goSub('ag')">💧 Agotamiento</button>
     <button data-s="dca" onclick="goSub('dca')">💧 Drenes Cal.</button>
@@ -255,6 +256,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div id="sub-mp" style="display:none"></div>
   <div id="sub-msa" style="display:none"></div>
   <div id="sub-pil" style="display:none"></div>
+  <div id="sub-mpa" style="display:none"></div>
   <div id="sub-fab" style="display:none"></div>
   <div id="sub-ag" style="display:none"></div>
   <div id="sub-dca" style="display:none"></div>
@@ -362,6 +364,7 @@ let S={
  dca:[],
  pil:[],
  msa:[],
+ mpa:[],
  perfCustom:[],
  wpq:{m2:1500,prof:6.5,mes:8,mej:"NO",rec:30,mg:20,par:2,eval:0},
  apu:{}  // overrides {key:{mat,mo,eq}}
@@ -692,6 +695,61 @@ function calcMSA(s){
     nCables,mlCable,kgCables,mlPerno:mlPernoT,kgPerno:kgPernoT,pernoPorD,
     pA,pB,pE,nPla,kgPlaUn,nPlacas,kgPlacas,nCuna,nCabz,totCunas,totCabz};
 }
+/* ═════════ MURO DE PILOTES ANCLADOS ═════════
+   Pilotes con la misma base de cálculo del módulo Pilotaje (perforación, armadura,
+   estribos y hormigón) + anclajes con el procedimiento del Muro Berlinés Anclado
+   (Bustamante para el bulbo y ASTM A416 Gr270 para los cables) + viga continua de
+   coronación y puntales Yoder, ambos con varios tipos en una misma sección. */
+function calcAncLineas(s){
+  const rs=+s.rs||150, dd=+s.dd||117, ll=(s.ll===""||s.ll==null)?4.5:+s.ll;
+  const alfaB=+s.alfaB||1.25, lr=(s.lr===""||s.lr==null)?1.5:+s.lr;
+  const FSB=1.8, FSC=1.5, FY_CABLE=235, KG_CABLE=1.10;
+  const fv=Math.PI*alfaB*(dd/1000)*rs/FSB;              // Fv adm (kN/m)
+  const lineas=Array.isArray(s.ancL)?s.ancL:[];
+  let det=[],nAnc=0,mlAnc=0,mlLibre=0,mlBulbo=0,nCables=0,mlCable=0,mlPernoT=0,kgPernoT=0,pernoPorD={},ancCable=0;
+  lineas.forEach(a=>{
+    const tipo=a.tipo||"Cable";
+    const cant=Math.round(+a.cant||0), len=+a.len||0, nc=Math.round(+a.nc||0), kn=+a.kn||0;
+    const ml=rnd(cant*len);
+    const lbReal=Math.max(0,rnd(len-ll,2));
+    const mlLib=rnd(cant*Math.min(len,ll)), mlBul=rnd(cant*lbReal);
+    const cab=tipo==="Cable"?rnd(cant*nc*(len+lr)):0;   // Lc = Na·nc·(Lt+Lr)
+    const kgmP=pernoKgm(a), pLbl=pernoLbl(a), dP=+a.dPerno||32;
+    const mlP=tipo==="Perno"?ml:0, kgP=tipo==="Perno"?rnd(mlP*kgmP):0;
+    const sugNc=kn>0?Math.max(2,up(kn*FSC/FY_CABLE)):0;
+    const lb=kn>0?Math.max(3,kn/fv):0;
+    const sugLt=kn>0?rnd(Math.ceil((ll+lb)*2)/2,1):0;
+    det.push({...a,tipo,cant,len,nc,kn,dP,kgmP,pLbl,ml,lbReal,mlLib,mlBul,cab,mlP,kgP,sugNc,lb:rnd(lb,1),sugLt});
+    nAnc+=cant; mlAnc+=ml; mlLibre+=mlLib; mlBulbo+=mlBul;
+    if(tipo==="Cable"){nCables+=cant*nc; mlCable+=cab; ancCable+=cant;}
+    else{mlPernoT+=mlP; kgPernoT+=kgP; if(cant>0)pernoPorD[pLbl]=(pernoPorD[pLbl]||0)+cant;}
+  });
+  return{rs,dd,alfaB,ll,lr,fv:rnd(fv,1),det,nAnc,ancCable,
+    mlAnc:rnd(mlAnc),mlLibre:rnd(mlLibre),mlBulbo:rnd(mlBulbo),
+    nCables,mlCable:rnd(mlCable),kgCables:rnd(rnd(mlCable)*KG_CABLE,1),
+    mlPerno:rnd(mlPernoT),kgPerno:rnd(kgPernoT),pernoPorD};
+}
+function calcMPA(s){
+  const P=calcPIL(s);                                   // misma base de cálculo del pilotaje
+  const A=calcAncLineas(s);                             // mismo procedimiento de anclajes del MBA
+  // Superficie de muro: separación entre ejes de pilote × altura de excavación
+  const sepEje=+s.sepEje||0, Hexc=+s.Hexc||0;
+  const largoMuro=rnd(P.cant*sepEje), area=rnd(largoMuro*Hexc);
+  // Vigas continuas de coronación (varias, distintos perfiles)
+  const vcOn=!!s.vcOn;
+  let vcDet=[],vcML=0,vcTon=0;
+  if(vcOn)(s.vcList||[]).forEach(v=>{const ml=+v.ml||0,pf=v.perfil||"W200x35.9";
+    const t=rnd(ml*kgm(pf)/1000,2); vcDet.push({perfil:pf,ml,ton:t}); vcML+=ml; vcTon+=t;});
+  vcML=rnd(vcML); vcTon=rnd(vcTon,2);
+  // Puntales / esquineros con tubo Yoder (varios diámetros)
+  const ptOn=!!s.ptOn;
+  let ptDet=[],ptML=0,ptPlacas=0,ptCant=0;
+  if(ptOn)(s.ptList||[]).forEach(t=>{const c=Math.round(+t.cant||0),l=+t.len||0,d=+t.diam||6;
+    const ml=rnd(c*l); ptDet.push({diam:d,cant:c,len:l,ml}); ptML+=ml; ptCant+=c; ptPlacas+=c*2;});
+  ptML=rnd(ptML);
+  return{...P,anc:A,sepEje,Hexc,largoMuro,area,
+    vcOn,vcDet,vcML,vcTon,ptOn,ptDet,ptCant,ptML,ptPlacas};
+}
 /* Drenes californianos (drenes horizontales de alivio) */
 function calcDCA(s){
   const cant=Math.round(+s.cant||0);
@@ -862,6 +920,37 @@ function resumen(){
   add(SIS_MSA,"Cabezal de anclaje","un",msaCabz);
   add(SIS_MSA,"Tensado y ensayo de anclajes","un",msaTens);
   if(msaUn>0||msaTens>0)add(SIS_MSA,"Movilización / Desmovilización equipo de socalzado","gl",1);
+  // Muro de Pilotes Anclados
+  const SIS_MPA="Muro Pilotes Anclados";
+  let mpaPerf={},mpaH={},mpaLong={},mpaEst={},mpaUn=0,mpaVC={},mpaPT={},mpaPl=0,
+      mpaAncML=0,mpaCable=0,mpaCunas=0,mpaCabz=0,mpaPernoML={},mpaTens=0,mpaBulbo=0;
+  (S.mpa||[]).forEach(x=>{const c=calcMPA(x), a=c.anc;
+    mpaUn+=c.cant;
+    if(c.mlPerf>0)mpaPerf[c.D]=(mpaPerf[c.D]||0)+c.mlPerf;
+    if(c.m3>0)mpaH[c.tipoH]=(mpaH[c.tipoH]||0)+c.m3;
+    if(c.kgLong>0)mpaLong[c.dBar]=(mpaLong[c.dBar]||0)+c.kgLong;
+    if(c.kgEst>0)mpaEst[c.dEst]=(mpaEst[c.dEst]||0)+c.kgEst;
+    c.vcDet.forEach(v=>{if(v.ml>0)mpaVC[v.perfil]=(mpaVC[v.perfil]||0)+v.ml;});
+    c.ptDet.forEach(t=>{if(t.ml>0)mpaPT[t.diam]=(mpaPT[t.diam]||0)+t.ml;});
+    mpaPl+=c.ptPlacas;
+    mpaBulbo+=a.mlBulbo; mpaCable+=a.mlCable; mpaCunas+=a.nCables; mpaCabz+=a.ancCable; mpaTens+=a.nAnc;
+    a.det.forEach(d=>{if(d.tipo==="Perno")mpaPernoML[d.pLbl]=(mpaPernoML[d.pLbl]||0)+d.ml; else mpaAncML+=d.ml;});});
+  Object.entries(mpaPerf).forEach(([d,v])=>add(SIS_MPA,"Perforación pilote Ø"+d+"mm","ml",v));
+  add(SIS_MPA,"Pilote hormigonado (cantidad de piezas)","un",mpaUn);
+  Object.entries(mpaH).forEach(([t,v])=>add(SIS_MPA,"Hormigón "+t+" en pilotes","m³",v));
+  Object.entries(mpaLong).forEach(([d,v])=>add(SIS_MPA,"Acero refuerzo longitudinal φ"+d+"mm","kg",v));
+  Object.entries(mpaEst).forEach(([d,v])=>add(SIS_MPA,"Acero estribos φ"+d+"mm","kg",v));
+  Object.entries(mpaVC).forEach(([pf,v])=>add(SIS_MPA,"Viga continua de coronación "+pf,"ml",v));
+  Object.entries(mpaPT).forEach(([d,v])=>add(SIS_MPA,'Puntal/esquinero tubo Yoder Ø'+d+'"',"ml",v));
+  add(SIS_MPA,"Placa de conexión puntal","un",mpaPl);
+  add(SIS_MPA,"Anclajes postensados inyectados","ml",mpaAncML);
+  add(SIS_MPA,'Cables de acero 0,6" (incl. reserva)',"ml",mpaCable);
+  add(SIS_MPA,"Cuñas cónicas / mordazas","un",mpaCunas);
+  add(SIS_MPA,"Cabezales de anclaje (4 cables)","un",mpaCabz);
+  Object.entries(mpaPernoML).forEach(([k,v])=>add(SIS_MPA,"Anclaje de perno "+k+" inyectado","ml",v));
+  add(SIS_MPA,"Inyección de bulbo de anclaje","ml",mpaBulbo);
+  add(SIS_MPA,"Tensado y ensayo de anclajes","un",mpaTens);
+  if(mpaUn>0)add(SIS_MPA,"Movilización / Desmovilización equipo de pilotaje","gl",1);
   // Drenes Californianos
   let dcaUn=0, dcaPerf={};
   (S.dca||[]).forEach(s=>{const c=calcDCA(s);dcaUn+=c.cant;
@@ -985,7 +1074,7 @@ const PBASE={
 };
 function basePrice(key){
   if(PBASE[key])return {...PBASE[key]};
-  if(key.startsWith("Perfil ")&&key.endsWith("(cantidad de piezas)"))return{mat:0,mo:0,eq:0}; // informativa: el costo va en los ml
+  if(key.endsWith("(cantidad de piezas)"))return{mat:0,mo:0,eq:0}; // informativa: el costo va en los ml
   if(key.startsWith("Anclaje de perno")){   // barra + perforación + inyección, por metro lineal
     const d=parseFloat(key.replace(/\D+/g," ").trim())||32;
     return{mat:Math.round(kgml(d)*1400+2000),mo:9500,eq:14500};
@@ -1077,13 +1166,13 @@ function optRecargar(){
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","msa","pil","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","sn","mp","msa","pil","mpa","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.57";
+const APP_VER="1.58";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1106,7 +1195,7 @@ function pintarSync(){
 }
 setInterval(pintarSync,20000);               // refresca el "hace X minutos"
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,mpa:renderMPA,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
@@ -1123,6 +1212,7 @@ function clearMod(m){
   else if(m==="dca")S.dca=[];
   else if(m==="msa")S.msa=[];
   else if(m==="pil")S.pil=[];
+  else if(m==="mpa")S.mpa=[];
   else if(m==="apu"){S.apu={};renderAPU();return;}
   else if(m==="todo"){
     S.mba=[];S.mbv=[];S.sn=[];S.apu={};
@@ -1133,6 +1223,7 @@ function clearMod(m){
     S.dca=[];
     S.pil=[];
     S.msa=[];
+    S.mpa=[];
     S.mbaAdj=1;
   }
   renderSub();
@@ -1739,6 +1830,127 @@ function renderMSA(){
   h+=`<button class="btn" onclick="S.msa.push({nom:'Socalzado '+(S.msa.length+1),cant:10,A:70,B:70,L:6,sobre:8,tipoH:'G25 90%NC',nBar:6,dBar:16,lBar:6,lCom:12,tras:${traslapeDe(16)},dEst:10,sepEst:0.2,sepTra:0.4,nTra:1,rec:5,gan:0.15,rs:150,dd:117,alfaB:1.25,ll:4.5,lr:1.5,ancL:[{tipo:'Cable',nc:4,kn:190,len:14,cant:10,dPerno:32}],anc:{nCuna:4,nCabz:1,pA:200,pB:200,pE:30,nPla:1}});renderSub()">+ Agregar grupo de pilas</button>
   <button class="btn ghost" onclick="addDiamBar()">+ Diámetro de barra</button>`;
   document.getElementById("sub-msa").innerHTML=`<div class="card">${modHead("Muro Socalzado con Anclajes","msa")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: MURO DE PILOTES ANCLADOS ═════════════════ */
+function addAncMPA(i){
+  const L=S.mpa[i].ancL||(S.mpa[i].ancL=[]);
+  const u=L[L.length-1];
+  L.push(u?{...u}:{tipo:"Cable",nc:4,kn:190,len:14,cant:10,dPerno:32});
+  renderSub();
+}
+function togVCmpa(i,on){const s=S.mpa[i]; s.vcOn=on?1:0;
+  if(on&&!(s.vcList&&s.vcList.length))s.vcList=[{perfil:"W200x35.9",ml:0}]; renderSub();}
+function togPTmpa(i,on){const s=S.mpa[i]; s.ptOn=on?1:0;
+  if(on&&!(s.ptList&&s.ptList.length))s.ptList=[{diam:6,cant:0,len:0}]; renderSub();}
+function renderMPA(){
+  if(!S.mpa)S.mpa=[];
+  let h="";
+  S.mpa.forEach((s,i)=>{
+    const c=calcMPA(s), a=c.anc;
+    h+=`<div class="sec"><div class="sec-head"><span class="tag">SECCIÓN ${i+1}</span>
+      <input value="${s.nom||('Pilotes anclados '+(i+1))}" style="max-width:260px" onchange="setvs('mpa.${i}.nom',this.value)">
+      <button class="btn warn sm" style="margin-left:auto" onclick="S.mpa.splice(${i},1);renderSub()">✕ Eliminar</button></div>
+    <div class="grid g4">
+      <div><label>Cantidad de pilotes (un)</label>${inp(`mpa.${i}.cant`,s.cant??0,1)}</div>
+      <div><label>Ø perforación (mm)</label><select onchange="setv('mpa.${i}.D',this.value)">
+        ${diamPil().map(d=>`<option ${(+s.D||600)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Longitud pilote (m)</label>${inp(`mpa.${i}.L`,s.L??0,0.5)}</div>
+      <div><label>Separación entre ejes (m)${helpIco("Distancia entre ejes de pilote; junto con la altura de excavación define los m² de muro para los indicadores por superficie.")}</label>${inp(`mpa.${i}.sepEje`,s.sepEje??0,0.1)}</div>
+      <div><label>Altura de excavación (m)</label>${inp(`mpa.${i}.Hexc`,s.Hexc??0,0.5)}</div>
+      <div><label>Sobreconsumo hormigón (%)${helpIco("Exceso de hormigón sobre el volumen teórico por irregularidad de la perforación. Típico 8–15%.")}</label>${inp(`mpa.${i}.sobre`,s.sobre??10,1)}</div>
+      <div><label>Tipo de hormigón</label><select onchange="setvs('mpa.${i}.tipoH',this.value)">
+        ${["G25 90%NC","G30 90%NC","G35 90%NC","G20 90%NC"].map(t=>`<option ${(s.tipoH||"G25 90%NC")===t?"selected":""}>${t}</option>`).join("")}</select></div>
+    </div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Armadura del pilote</b>
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>N° barras longitudinales</label>${inp(`mpa.${i}.nBar`,s.nBar??8,1)}</div>
+      <div><label>Ø barra (mm)</label><select onchange="setv('mpa.${i}.dBar',this.value)">
+        ${diamBar().map(d=>`<option ${(+s.dBar||25)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Largo barra (m)</label>${inp(`mpa.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('mpa.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
+      <div><label>Largo comercial barra (m)</label>${inp(`mpa.${i}.lCom`,s.lCom??12,0.5)}</div>
+      <div><label>Traslape por empalme (m)${helpIco("Tabla Ngenco: φ25 = 0,135 · φ28 = 0,150 · φ32 = 0,170 · φ36 = 0,190 m. Otros diámetros ≈ 5,3·d.")}</label>${inp(`mpa.${i}.tras`,s.tras??traslapeDe(+s.dBar||25),0.005)}</div>
+      <div><label>Separación estribos (m)</label>${inp(`mpa.${i}.sep`,s.sep??0.2,0.05)}</div>
+      <div><label>Ø estribo (mm)</label><select onchange="setv('mpa.${i}.dEst',this.value)">
+        ${diamBar().map(d=>`<option ${(+s.dEst||10)===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Recubrimiento (cm)</label>${inp(`mpa.${i}.rec`,s.rec??7.5,0.5)}</div>
+      <div><label>Ganchos por estribo (m)</label>${inp(`mpa.${i}.gan`,s.gan??0.15,0.05)}</div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:6px 0 0">Estribo: <b>${fmt(c.lEst,3)} m</b> c/u · <b>${c.nEstPil}</b> por pilote${c.nEmp>0?` · empalmes: <b>${c.nEmp}</b> (+${fmt(c.mlTras,1)} ml traslape)`:""}</p></div>
+    <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Anclajes</b>${helpIco("Mismo procedimiento del Muro Berlinés Anclado: Bustamante para el bulbo y ASTM A416 Gr270 para los cables.")}
+    <div class="grid g4" style="margin:8px 0 4px">
+      <div><label>qs bulbo (kN/m²)${helpIco("Fricción lateral unitaria del estrato del bulbo, según mecánica de suelos y N-SPT.")}</label>${inp(`mpa.${i}.rs`,s.rs??150,5)}</div>
+      <div><label>Ø perforación Dd (mm)</label>${inp(`mpa.${i}.dd`,s.dd??117,1)}</div>
+      <div><label>Inyección (α)</label><select onchange="setv('mpa.${i}.alfaB',this.value)">
+        <option value="1.25" ${(+s.alfaB||1.25)===1.25?"selected":""}>IGU — α 1,25</option>
+        <option value="1.3" ${+s.alfaB===1.3?"selected":""}>IRS — α 1,30</option>
+        <option value="1.2" ${+s.alfaB===1.2?"selected":""}>IGU conservador — α 1,20</option></select></div>
+      <div><label>Long. libre Ll (m)</label>${inp(`mpa.${i}.ll`,s.ll??4.5,0.5)}</div>
+      <div><label>Reserva por cable Lr (m)</label>${inp(`mpa.${i}.lr`,s.lr??1.5,0.1)}</div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:2px 0 4px">Capacidad admisible de bulbo <b>Fv adm = ${fmt(a.fv,1)} kN/m</b> (π·α·Dd·qs ÷ 1,8) — Lb sugerida = To ÷ Fv adm, mínimo 3 m</p>
+    <table style="margin-top:6px"><tr><th>Línea</th><th>Tipo</th><th>N° cables / tipo de perno</th><th>To (kN)</th><th>Longitud Lt (m)</th><th>Cantidad</th><th class="num">ml perf.</th><th class="num">Lb real</th><th>Sugerido MC</th><th></th></tr>
+    ${a.det.map((x,j)=>`<tr><td>${j+1}</td>
+      <td><select onchange="setvs('mpa.${i}.ancL.${j}.tipo',this.value)">
+        ${["Cable","Perno"].map(t=>`<option ${x.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+      <td>${x.tipo==="Cable"?inp(`mpa.${i}.ancL.${j}.nc`,x.nc,1,55)
+        :selPerno(`mpa.${i}.ancL.${j}.perno`,x,`mpa.${i}.ancL.${j}.dPerno`)}</td>
+      <td>${inp(`mpa.${i}.ancL.${j}.kn`,x.kn,5,70)}</td>
+      <td>${inp(`mpa.${i}.ancL.${j}.len`,x.len,0.5,70)}</td>
+      <td>${inp(`mpa.${i}.ancL.${j}.cant`,x.cant,1,70)}</td>
+      <td class="num">${fmt(x.ml,1)}</td>
+      <td class="num">${fmt(x.lbReal,1)}</td>
+      <td style="font-size:12px;color:${((x.tipo==="Cable"&&x.sugNc>+x.nc)||x.sugLt>+x.len)?"var(--danger)":"var(--mut)"}">${x.sugNc>0?`${x.tipo==="Cable"?x.sugNc+" cables · ":""}Lt ${fmt(x.sugLt,1)} m <span style="font-size:10.5px">(Lb ${fmt(x.lb,1)})</span>`:"–"}</td>
+      <td><button class="btn warn sm" onclick="S.mpa[${i}].ancL.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
+    </table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="addAncMPA(${i})">+ Línea de anclaje</button></div>
+    <div style="margin-top:12px"><label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--navy);font-weight:700;text-transform:none;letter-spacing:0">
+      <input type="checkbox" style="width:auto" ${c.vcOn?"checked":""} onchange="togVCmpa(${i},this.checked)"> Viga continua en coronación</label>
+    ${c.vcOn?`<table style="max-width:620px;margin-top:6px"><tr><th>Perfil</th><th>ml a instalar</th><th class="num">t acero</th><th></th></tr>
+      ${c.vcDet.map((v,k)=>`<tr>
+        <td><select onchange="setvs('mpa.${i}.vcList.${k}.perfil',this.value)">${perfiles().map(pf=>`<option ${v.perfil===pf?"selected":""}>${pf}</option>`).join("")}</select></td>
+        <td>${inp(`mpa.${i}.vcList.${k}.ml`,v.ml,0.5,80)}</td>
+        <td class="num">${fmt(v.ton,2)}</td>
+        <td><button class="btn warn sm" onclick="S.mpa[${i}].vcList.splice(${k},1);renderSub()">✕</button></td></tr>`).join("")}
+      ${c.vcDet.length>1?`<tr class="res"><td>TOTAL</td><td class="num">${fmt(c.vcML,1)} ml</td><td class="num">${fmt(c.vcTon,2)} t</td><td></td></tr>`:""}
+      </table>
+      <button class="btn ghost sm" style="margin-top:6px" onclick="(S.mpa[${i}].vcList=S.mpa[${i}].vcList||[]).push({perfil:'W200x35.9',ml:0});renderSub()">+ Agregar viga de coronación</button>`:""}</div>
+    <div style="margin-top:12px"><label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--navy);font-weight:700;text-transform:none;letter-spacing:0">
+      <input type="checkbox" style="width:auto" ${c.ptOn?"checked":""} onchange="togPTmpa(${i},this.checked)"> Puntal o esquinero con tubo Yoder</label>
+    ${c.ptOn?`<table style="max-width:700px;margin-top:6px"><tr><th>Ø tubo</th><th>Cantidad</th><th>Largo (m)</th><th class="num">ml</th><th></th></tr>
+      ${c.ptDet.map((t,k)=>`<tr>
+        <td><select onchange="setv('mpa.${i}.ptList.${k}.diam',this.value)">${[4,6,8].map(d=>`<option ${t.diam===d?"selected":""} value="${d}">${d}"</option>`).join("")}</select></td>
+        <td>${inp(`mpa.${i}.ptList.${k}.cant`,t.cant,1,70)}</td>
+        <td>${inp(`mpa.${i}.ptList.${k}.len`,t.len,0.5,80)}</td>
+        <td class="num">${fmt(t.ml,1)}</td>
+        <td><button class="btn warn sm" onclick="S.mpa[${i}].ptList.splice(${k},1);renderSub()">✕</button></td></tr>`).join("")}
+      ${c.ptDet.length>1?`<tr class="res"><td>TOTAL</td><td class="num">${c.ptCant} un</td><td></td><td class="num">${fmt(c.ptML,1)} ml</td><td></td></tr>`:""}
+      </table>
+      <button class="btn ghost sm" style="margin-top:6px" onclick="(S.mpa[${i}].ptList=S.mpa[${i}].ptList||[]).push({diam:6,cant:0,len:0});renderSub()">+ Agregar puntal / esquinero</button>`:""}</div>
+    <div class="kpi">
+      <div><b>${c.cant}</b><span>pilotes Ø${c.D} mm</span></div>
+      ${c.area>0?`<div><b>${fmt(c.area,1)}</b><span>m² muro (${fmt(c.largoMuro,1)} m × ${fmt(c.Hexc,1)} m)</span></div>`:""}
+      <div><b>${fmt(c.mlPerf,1)}</b><span>ml perforación</span></div>
+      <div><b>${fmt(c.m3,1)}</b><span>m³ hormigón ${c.tipoH} (+${c.sobre}%)</span></div>
+      <div><b>${fmt(c.kgLong,0)}</b><span>kg long. φ${c.dBar} (${fmt(c.mlLong,1)} ml)</span></div>
+      <div><b>${fmt(c.kgEst,0)}</b><span>kg estribos φ${c.dEst} (${c.nEst} un)</span></div>
+      <div><b>${fmt(c.kgTot,0)}</b><span>kg acero total</span></div>
+      <div><b>${a.nAnc}</b><span>anclajes (${a.det.length} línea${a.det.length===1?"":"s"})</span></div>
+      <div><b>${fmt(a.mlAnc,1)}</b><span>ml perforación Ø${a.dd} mm</span></div>
+      <div><b>${fmt(a.mlBulbo,1)}</b><span>ml bulbo (libre ${fmt(a.mlLibre,1)} ml)</span></div>
+      ${a.nCables>0?`<div><b>${a.nCables}</b><span>n° cables</span></div>
+      <div><b>${fmt(a.mlCable,1)}</b><span>ml cables (Lt+${fmt(a.lr,1)})</span></div>
+      <div><b>${fmt(a.kgCables,0)}</b><span>kg acero cables</span></div>`:""}
+      ${a.kgPerno>0?`<div><b>${fmt(a.kgPerno,0)}</b><span>kg pernos (${fmt(a.mlPerno,1)} ml)</span></div>`:""}
+      ${c.vcOn&&c.vcML>0?`<div><b>${fmt(c.vcML,1)}</b><span>ml viga coronación (${fmt(c.vcTon,2)} t)</span></div>`:""}
+      ${c.ptOn&&c.ptML>0?`<div><b>${fmt(c.ptML,1)}</b><span>ml puntal Yoder (${c.ptCant} un)</span></div>`:""}
+    </div></div>`;
+  });
+  h+=`<button class="btn" onclick="S.mpa.push({nom:'Pilotes anclados '+(S.mpa.length+1),cant:20,D:600,L:12,sepEje:1.5,Hexc:6,sobre:10,tipoH:'G25 90%NC',nBar:8,dBar:25,lBar:12,lCom:12,tras:${traslapeDe(25)},sep:0.2,dEst:10,rec:7.5,gan:0.15,rs:150,dd:117,alfaB:1.25,ll:4.5,lr:1.5,ancL:[{tipo:'Cable',nc:4,kn:190,len:14,cant:10,dPerno:32}],vcOn:1,vcList:[{perfil:'W200x35.9',ml:0}],ptOn:0,ptList:[]});renderSub()">+ Agregar sección</button>
+  <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>
+  <button class="btn ghost" onclick="addDiamPil()">+ Diámetro de perforación</button>`;
+  document.getElementById("sub-mpa").innerHTML=`<div class="card">${modHead("Muro de Pilotes Anclados","mpa")}${h}</div>`;
 }
 
 /* ═════════════════ RENDER: DRENES CALIFORNIANOS ═════════════════ */
