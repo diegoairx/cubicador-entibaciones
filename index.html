@@ -487,6 +487,22 @@ function calcMP(){
   const v=m.viga, m3=rnd(v.L*v.b*v.h), kg=rnd(m3*v.cuant), mold=rnd(2*v.h*v.L);
   return{det,ml,n,m3,kg,mold};
 }
+/* Fechas locales (evita el desfase UTC de toISOString en la noche en Chile) */
+const ymdLocal=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const hoyLocal=()=>ymdLocal(new Date());
+const fecCL=s=>s?String(s).split("-").reverse().join("-"):"-";
+/* Fecha de solicitud de fabricación: automática (hoy, se actualiza cada día) o fija si el usuario la edita */
+function fabFecha(){const f=S.fab||{}; return (f.fecAuto===0&&f.fec)?f.fec:hoyLocal();}
+function fabRecep(){const d=new Date(fabFecha()+"T12:00:00"); d.setDate(d.getDate()+(+(S.fab||{}).dias||0)); return ymdLocal(d);}
+function fabSetFec(v){ if(!S.fab)S.fab={num:1,dias:5,rows:[]};
+  if(!v||v===hoyLocal()){S.fab.fecAuto=1; delete S.fab.fec;} else {S.fab.fecAuto=0; S.fab.fec=v;}
+  refreshView(); }
+/* Cambio de día con la app abierta: refresca la solicitud si está en modo automático */
+let fabDia=hoyLocal();
+function fabChequeoDia(){const h=hoyLocal(); if(h===fabDia)return; fabDia=h;
+  if(curV==="cubicacion"&&curS==="fab"&&(S.fab||{}).fecAuto!==0)renderSub();}
+setInterval(fabChequeoDia,60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)fabChequeoDia();});
 /* Fabricación de anclajes de cable 0,6" (fórmulas idénticas a planilla "MBA Anclajes") */
 function calcFAB(){
   if(!S.fab)S.fab={num:1,dias:5,rows:[]};
@@ -1196,7 +1212,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.59";
+const APP_VER="1.60";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1551,14 +1567,16 @@ function renderMP(){
 /* ═════════════════ RENDER: FABRICACIÓN DE ANCLAJES ═════════════════ */
 function renderFAB(){
   const c=calcFAB(); const f=S.fab;
-  const rec=(()=>{const d=new Date((val("p_fec")||new Date().toISOString().slice(0,10))+"T12:00:00");
-    d.setDate(d.getDate()+(+f.dias||0));return d.toISOString().slice(0,10);})();
-  let h=`<div style="text-align:right;margin-bottom:8px"><button class="btn" onclick="fabPDF()">⬇ Descargar solicitud PDF</button></div>
+  const fAuto=f.fecAuto!==0, rec=fabRecep();
+  let h=`<div style="text-align:right;margin-bottom:8px"><button class="btn" id="btnFabPDF" onclick="fabPDF()">⬇ Descargar solicitud PDF (vectorial)</button></div>
   <div class="grid g4" style="margin-bottom:14px">
     <div><label>N° de solicitud</label>${inp('fab.num',f.num,1)}</div>
     <div><label>Días para recepción</label>${inp('fab.dias',f.dias,1)}</div>
-    <div><label>Fecha solicitud</label><input value="${val("p_fec")}" disabled></div>
-    <div><label>Recepción requerida</label><input value="${rec}" disabled></div>
+    <div><label>Fecha solicitud${helpIco("Parte con la fecha actual y se actualiza automáticamente cada día. Si la cambias queda fija; con el botón Hoy vuelve a la actualización automática.")}</label>
+      <div style="display:flex;gap:6px;align-items:center"><input type="date" value="${fabFecha()}" onchange="fabSetFec(this.value)" style="flex:1">
+      ${fAuto?`<span style="font-size:11px;color:var(--ok);font-weight:700;white-space:nowrap">● automática</span>`
+        :`<button class="btn ghost sm" onclick="fabSetFec('')" title="Volver a la fecha de hoy (automática)">Hoy</button>`}</div></div>
+    <div><label>Recepción requerida</label><input value="${fecCL(rec)}" disabled></div>
   </div>
   <div style="overflow-x:auto"><table>
   <tr><th>Detalle en plano</th><th>Cant.</th><th>Largo (m)</th><th>Áng. (°)</th><th>To (kN)</th><th>Cables</th><th>Lw bulbo (m)</th>
@@ -2939,56 +2957,131 @@ async function descargarPDF(){
 }
 async function fabPDF(){
   const c=calcFAB(); const f=S.fab;
-  const rec=(()=>{const d=new Date((val("p_fec")||new Date().toISOString().slice(0,10))+"T12:00:00");
-    d.setDate(d.getDate()+(+f.dias||0));return d.toISOString().slice(0,10);})();
-  const el=document.createElement("div");
-  el.style.cssText="width:1050px;padding:14px;background:#fff;color:#1c2b3a;font-size:11px";
-  el.innerHTML=`
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0b2a4a;padding-bottom:8px;margin-bottom:10px">
-    <div><b style="font-size:16px;color:#0b2a4a">SOLICITUD DE FABRICACIÓN DE ANCLAJES N°${f.num??1}</b><br>
-    <span style="font-size:12px">Obra: ${val("p_nom")||"—"} · Proyecto ${val("p_num")||""} · ${val("p_ubi")||""}</span></div>
-    <div style="text-align:right;font-size:11.5px"><b>NGENCO SpA</b><br>Fecha solicitud: ${val("p_fec")}<br>Recepción requerida: ${rec}</div>
-  </div>
-  <table style="width:100%">
-  <tr><th>Detalle en plano</th><th>Cant.</th><th>Largo (m)</th><th>Áng. (°)</th><th>To (kN)</th><th>Cables</th><th>Lw bulbo (m)</th><th>Lk vaina (m)</th><th>Cable (m)</th><th>Vaina (m)</th><th>Tubo iny. (m)</th><th>Perfor. (m)</th><th>Separadores</th></tr>
-  ${c.det.map(r=>`<tr><td>${r.det}</td><td class="num">${r.cant}</td><td class="num">${fmt(r.largo,1)}</td><td class="num">${r.ang}</td><td class="num">${r.kn}</td><td class="num">${r.cables}</td><td class="num">${fmt(r.lw,1)}</td><td class="num">${fmt(r.lk,1)}</td><td class="num">${fmt(r.cable,0)}</td><td class="num">${fmt(r.vaina,0)}</td><td class="num">${fmt(r.tubo,0)}</td><td class="num">${fmt(r.perf,0)}</td><td class="num">${r.via2>0?r.via2+" (2 vías)":r.via6>0?r.via6+" (6 vías)":"–"}</td></tr>`).join("")}
-  <tr class="res"><td><b>TOTALES</b></td><td class="num">${c.T.anc}</td><td></td><td></td><td></td><td></td><td></td><td></td>
-  <td class="num">${fmt(c.T.cable,0)}</td><td class="num">${fmt(c.T.vaina,0)}</td><td class="num">${fmt(c.T.tubo,0)}</td><td class="num">${fmt(c.T.perf,0)}</td><td class="num">${fmt(c.T.sep2+c.T.sep6,0)}</td></tr>
-  </table>
-  <table style="width:60%;margin-top:12px">
-  <tr><th colspan="3">RESUMEN DE MATERIALES</th></tr>
-  <tr><td>Cable 0,6" de diámetro</td><td class="num">${fmt(c.T.cable,0)}</td><td>m (${fmt(c.T.rollos,1)} rollos de 3.000 m)</td></tr>
-  <tr><td>Separador 2 vías</td><td class="num">${fmt(c.T.sep2,0)}</td><td>unid</td></tr>
-  <tr><td>Separador 6 vías</td><td class="num">${fmt(c.T.sep6,0)}</td><td>unid</td></tr>
-  <tr><td>Vaina o spaguetti</td><td class="num">${fmt(c.T.vaina,0)}</td><td>m</td></tr>
-  <tr><td>Tubo de inyección</td><td class="num">${fmt(c.T.tubo,0)}</td><td>m</td></tr>
-  <tr><td>Viga de amarre UPN 240</td><td class="num">${c.T.anc}</td><td>unid</td></tr>
-  <tr><td>Placa de anclaje</td><td class="num">${c.T.anc}</td><td>unid</td></tr>
-  <tr><td>Cabeza de anclaje</td><td class="num">${c.T.anc}</td><td>unid</td></tr>
-  <tr><td>Cuña cónica para cable 0,6"</td><td class="num">${fmt(c.T.cunas,0)}</td><td>unid</td></tr>
-  </table>
-  <p style="font-size:10px;margin-top:10px;color:#5f7385">Observaciones: distancia máxima entre separadores 1,50 m en longitud de bulbo · Largo de perforación = largo − 1,5 m ·
-  Resistencia cables 0,6": 1→157 · 2→314 · 3→471 · 4→628 · 5→785 · 6→942 kN.</p>
-  <div style="display:flex;gap:80px;justify-content:center;margin-top:45px;font-size:11px">
-    <div style="border-top:1.5px solid #1c2b3a;width:200px;text-align:center;padding-top:4px">Solicitado por<br>NGENCO SpA</div>
-    <div style="border-top:1.5px solid #1c2b3a;width:200px;text-align:center;padding-top:4px">Recibido por<br>Fabricante</div>
-  </div>`;
-  el.style.position="fixed";el.style.left="-10000px";el.style.top="0";
-  document.body.appendChild(el);
+  if(!c.det.length){alert("Agrega al menos una línea de anclajes.");return;}
+  const JsPDF=getJsPDF();
+  if(!JsPDF){alert("No se pudo cargar la librería de PDF. Recarga la página (F5).");return;}
+  const btn=document.getElementById("btnFabPDF"); if(btn){btn.disabled=true;btn.textContent="Generando PDF…";}
   try{
-    const H2C=getH2C(), JsPDF=getJsPDF();
-    if(!H2C||!JsPDF)throw new Error("No se pudieron cargar las librerías de PDF. Verifica tu conexión y recarga la página (F5).");
-    const W=el.scrollWidth||1050, H=el.scrollHeight||700;
-    const esc=Math.max(1,Math.min(3,12000/W,12000/H,Math.sqrt(20e6/(W*H))));
-    const canvas=await H2C(el,{scale:esc,useCORS:true,logging:false,backgroundColor:"#ffffff"});
     const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"landscape",compress:true});
-    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight(), M=7;
-    const k=Math.min((PW-2*M)/canvas.width,(PH-2*M)/canvas.height);
-    const w=canvas.width*k, h=canvas.height*k;
-    pdf.addImage(canvas.toDataURL("image/jpeg",0.96),"JPEG",(PW-w)/2,M,w,h,undefined,"FAST");
-    pdf.save(`Solicitud_Fabricacion_Anclajes_N${f.num??1}_${(val("p_num")||"").replace(/\s/g,"_")}.pdf`);
+    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight();
+    const M=10, UW=PW-2*M, rowH=5.6, headH=8.8, yTop=M+21, yMax=PH-M-9;
+    const NAVY=[11,42,74], SKY=[53,167,222], LINE=[221,222,238], MUT=[95,115,133], TXT=[28,43,58], BAND=[226,233,242];
+    const num=f.num??1, fec=fabFecha(), rec=fabRecep(), dias=+f.dias||0;
+    const obra=val("p_nom")||"Proyecto sin nombre";
+    const sub=[val("p_num")?"Proyecto N° "+val("p_num"):"",val("p_ubi"),val("p_cli")?"Cliente: "+val("p_cli"):""].filter(Boolean).join(" · ");
+    const T=(t,x,y,o)=>pdf.text(pdfTxt(t),x,y,o);
+    const clip=(t,w,sz)=>{t=pdfTxt(t); pdf.setFontSize(sz);
+      if(pdf.getTextWidth(t)<=w)return t;
+      while(t.length>3&&pdf.getTextWidth(t+"..")>w)t=t.slice(0,-1);
+      return t+"..";};
+    /* columnas: título, unidad, ancho relativo, alineación — escaladas al ancho útil completo */
+    const C=[["Detalle en plano","",50,"l"],["Cant.","",14,"r"],["Largo","(m)",17,"r"],["Áng.","(°)",14,"r"],["To","(kN)",17,"r"],
+      ["Cables","",15,"r"],["Lw bulbo","(m)",19,"r"],["Lk vaina","(m)",19,"r"],["Cable","(m)",20,"r"],["Vaina","(m)",20,"r"],
+      ["Tubo iny.","(m)",21,"r"],["Perfor.","(m)",21,"r"],["Separadores","",30,"r"]];
+    const sw=C.reduce((a,x)=>a+x[2],0); C.forEach(x=>x[2]=x[2]*UW/sw);
+    const X=[]; {let a=M; C.forEach(x=>{X.push(a); a+=x[2];});}
+    const cx=k=>C[k][3]==="l"?X[k]+2:X[k]+C[k][2]-2;
+    const al=k=>C[k][3]==="l"?{}:{align:"right"};
+    const drawHeader=()=>{
+      pdf.setFillColor(...NAVY); pdf.rect(0,0,PW,3.2,"F");
+      pdf.setFillColor(...SKY);  pdf.rect(0,3.2,PW,0.8,"F");
+      pdf.setTextColor(...NAVY); pdf.setFont("helvetica","bold"); pdf.setFontSize(14);
+      T("SOLICITUD DE FABRICACIÓN DE ANCLAJES N° "+num,M,M+3.5);
+      pdf.setFontSize(11); pdf.setTextColor(...TXT); pdf.text(clip("Obra: "+obra,PW*0.58,11),M,M+9.5);
+      if(sub){pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(...MUT); pdf.text(clip(sub,PW*0.58,8),M,M+14);}
+      pdf.setFont("helvetica","bold"); pdf.setFontSize(9.5); pdf.setTextColor(...NAVY);
+      T("NGENCO SpA",PW-M,M+3.5,{align:"right"});
+      pdf.setFontSize(8.5); pdf.setTextColor(...TXT);
+      T("Fecha solicitud: "+fecCL(fec),PW-M,M+9,{align:"right"});
+      T("Recepción requerida: "+fecCL(rec)+" ("+dias+" día"+(dias===1?"":"s")+")",PW-M,M+13.5,{align:"right"});
+      pdf.setDrawColor(...NAVY); pdf.setLineWidth(0.5); pdf.line(M,M+17,PW-M,M+17);
+    };
+    const drawThead=y=>{
+      pdf.setFillColor(...NAVY); pdf.rect(M,y,UW,headH,"F"); pdf.setTextColor(255,255,255);
+      C.forEach((col,k)=>{
+        if(col[1]){pdf.setFont("helvetica","bold"); pdf.setFontSize(7.6); T(col[0],cx(k),y+3.6,al(k));
+          pdf.setFont("helvetica","normal"); pdf.setFontSize(7); T(col[1],cx(k),y+7.1,al(k));}
+        else{pdf.setFont("helvetica","bold"); pdf.setFontSize(7.6); T(col[0],cx(k),y+5.4,al(k));}
+      });
+      return y+headH;
+    };
+    const frame=(top,bot)=>{pdf.setDrawColor(...LINE); pdf.setLineWidth(0.25); pdf.rect(M,top,UW,bot-top,"S");};
+    const nuevaHoja=()=>{pdf.addPage("a4","landscape"); drawHeader();};
+    /* ── tabla de líneas de anclaje ── */
+    drawHeader();
+    let top=yTop, y=drawThead(yTop);
+    c.det.forEach((r,i)=>{
+      if(y+rowH>yMax){frame(top,y); nuevaHoja(); top=yTop; y=drawThead(yTop);}
+      if(i%2===1){pdf.setFillColor(248,249,252); pdf.rect(M,y,UW,rowH,"F");}
+      const sep=r.via2>0?r.via2+" (2 vías)":r.via6>0?r.via6+" (6 vías)":"-";
+      const v=[r.det,r.cant,fmt(r.largo,1),r.ang,r.kn,r.cables,fmt(r.lw,1),fmt(r.lk,1),fmt(r.cable,0),fmt(r.vaina,0),fmt(r.tubo,0),fmt(r.perf,0),sep];
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(...TXT);
+      v.forEach((t,k)=>{ if(k===0)pdf.text(clip(t,C[0][2]-4,8),cx(0),y+3.8); else T(String(t),cx(k),y+3.8,al(k)); });
+      pdf.setDrawColor(...LINE); pdf.setLineWidth(0.15); pdf.line(M,y+rowH,M+UW,y+rowH);
+      y+=rowH;
+    });
+    if(y+rowH+0.5>yMax){frame(top,y); nuevaHoja(); top=yTop; y=drawThead(yTop);}
+    pdf.setFillColor(...BAND); pdf.rect(M,y,UW,rowH+0.5,"F");
+    pdf.setFont("helvetica","bold"); pdf.setFontSize(8.2); pdf.setTextColor(...NAVY);
+    T("TOTALES",cx(0),y+4); T(String(c.T.anc),cx(1),y+4,al(1));
+    [[8,fmt(c.T.cable,0)],[9,fmt(c.T.vaina,0)],[10,fmt(c.T.tubo,0)],[11,fmt(c.T.perf,0)],[12,fmt(c.T.sep2+c.T.sep6,0)]]
+      .forEach(([k,t])=>T(t,cx(k),y+4,al(k)));
+    y+=rowH+0.5; frame(top,y);
+    /* ── resumen de materiales + observaciones ── */
+    const mats=[['Cable 0,6" de diámetro',fmt(c.T.cable,0),"m ("+fmt(c.T.rollos,1)+" rollos de 3.000 m)"],
+      ["Separador 2 vías",fmt(c.T.sep2,0),"unid"],["Separador 6 vías",fmt(c.T.sep6,0),"unid"],
+      ["Vaina o spaguetti",fmt(c.T.vaina,0),"m"],["Tubo de inyección",fmt(c.T.tubo,0),"m"],
+      ["Viga de amarre UPN 240",String(c.T.anc),"unid"],["Placa de anclaje",String(c.T.anc),"unid"],
+      ["Cabeza de anclaje",String(c.T.anc),"unid"],['Cuña cónica para cable 0,6"',fmt(c.T.cunas,0),"unid"]];
+    const blockH=6.5+mats.length*rowH, firmaH=26;
+    y+=7;
+    if(y+blockH+firmaH>yMax){nuevaHoja(); y=yTop;}
+    const wM=UW*0.56, wD=wM*0.52, wC=wM*0.17, xM=M;
+    pdf.setFillColor(...NAVY); pdf.rect(xM,y,wM,6.5,"F");
+    pdf.setFont("helvetica","bold"); pdf.setFontSize(8.2); pdf.setTextColor(255,255,255);
+    T("RESUMEN DE MATERIALES",xM+2,y+4.4); T("CANTIDAD",xM+wD+wC-2,y+4.4,{align:"right"}); T("UNIDAD",xM+wD+wC+3,y+4.4);
+    let ym=y+6.5;
+    mats.forEach((m,i)=>{
+      if(i%2===1){pdf.setFillColor(248,249,252); pdf.rect(xM,ym,wM,rowH,"F");}
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(8.2); pdf.setTextColor(...TXT); T(m[0],xM+2,ym+3.8);
+      pdf.setFont("helvetica","bold"); T(m[1],xM+wD+wC-2,ym+3.8,{align:"right"});
+      pdf.setFont("helvetica","normal"); pdf.setTextColor(...MUT); T(m[2],xM+wD+wC+3,ym+3.8);
+      pdf.setDrawColor(...LINE); pdf.setLineWidth(0.15); pdf.line(xM,ym+rowH,xM+wM,ym+rowH);
+      ym+=rowH;
+    });
+    pdf.setDrawColor(...LINE); pdf.setLineWidth(0.25); pdf.rect(xM,y,wM,ym-y,"S");
+    const xO=xM+wM+8, wO=M+UW-xO;
+    pdf.setFillColor(...NAVY); pdf.rect(xO,y,wO,6.5,"F");
+    pdf.setFont("helvetica","bold"); pdf.setFontSize(8.2); pdf.setTextColor(255,255,255); T("OBSERVACIONES",xO+2,y+4.4);
+    const obs=["Distancia máxima entre separadores: 1,50 m en la longitud de bulbo.",
+      "Largo de perforación = largo del anclaje - 1,5 m.",
+      'Resistencia referencial cables 0,6": 1 = 157 · 2 = 314 · 3 = 471 · 4 = 628 · 5 = 785 · 6 = 942 kN.',
+      "Cable suministrado en rollos de 3.000 m.",
+      "Plazo de recepción: "+dias+" día"+(dias===1?"":"s")+" desde la fecha de solicitud ("+fecCL(rec)+")."];
+    pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(...TXT);
+    let yo=y+11;
+    obs.forEach(o=>{const ls=pdf.splitTextToSize(pdfTxt(o),wO-8);
+      pdf.text("-",xO+2,yo); pdf.text(ls,xO+5,yo); yo+=ls.length*3.8+1.2;});
+    pdf.setDrawColor(...LINE); pdf.setLineWidth(0.25); pdf.rect(xO,y,wO,Math.max(ym,yo-2)-y,"S");
+    /* ── firmas ── */
+    const yf=Math.max(ym,yo)+18, wF=70, xf1=PW/2-wF-25, xf2=PW/2+25;
+    pdf.setDrawColor(...TXT); pdf.setLineWidth(0.4); pdf.line(xf1,yf,xf1+wF,yf); pdf.line(xf2,yf,xf2+wF,yf);
+    pdf.setFont("helvetica","normal"); pdf.setFontSize(8.5); pdf.setTextColor(...TXT);
+    T("Solicitado por",xf1+wF/2,yf+4.5,{align:"center"}); T("Recibido por",xf2+wF/2,yf+4.5,{align:"center"});
+    pdf.setFont("helvetica","bold");
+    T("NGENCO SpA",xf1+wF/2,yf+9,{align:"center"}); T("Fabricante",xf2+wF/2,yf+9,{align:"center"});
+    /* ── pie de página en todas las hojas ── */
+    const tot=pdf.getNumberOfPages();
+    for(let p=1;p<=tot;p++){pdf.setPage(p);
+      pdf.setDrawColor(...LINE); pdf.setLineWidth(0.2); pdf.line(M,PH-M+1,PW-M,PH-M+1);
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(7.5); pdf.setTextColor(...MUT);
+      T("Ngenco SpA · Servicios y Maquinarias · www.ngencospa.com",M,PH-M+5);
+      T("Solicitud N° "+num+" · "+fecCL(fec)+" · Página "+p+" de "+tot,PW-M,PH-M+5,{align:"right"});}
+    pdf.setProperties({title:"Solicitud de Fabricación de Anclajes N° "+num+" · "+obra,author:"Ngenco SpA",
+      subject:"Solicitud de fabricación de anclajes de cable",creator:"Cubicador de Entibaciones · Ngenco SpA"});
+    pdf.save(`Solicitud_Fabricacion_Anclajes_N${num}_${(val("p_num")||"").replace(/\s/g,"_")}_${fec}.pdf`);
   }catch(e){console.error(e);alert("Error al generar PDF: "+(e&&e.message?e.message:e));}
-  el.remove();
+  if(btn){btn.disabled=false;btn.textContent="⬇ Descargar solicitud PDF (vectorial)";}
 }
 
 /* ═════════════════ IMPORT / EXPORT ═════════════════ */
@@ -3007,7 +3100,7 @@ function importJSON(ev){
     go("cubicacion");}catch(err){alert("Archivo inválido");}};
   r.readAsText(f);
 }
-document.getElementById("p_fec").value=new Date().toISOString().slice(0,10);
+document.getElementById("p_fec").value=hoyLocal();
 setTimeout(pintarSync,0);   // el indicador se pinta cuando ya existe en el DOM
 </script>
 <span id="sync-chip" class="sync-chip no-print" title="Versión de la app y estado de sincronización"></span>
