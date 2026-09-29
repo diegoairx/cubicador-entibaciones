@@ -508,8 +508,10 @@ function calcFAB(){
   if(!S.fab)S.fab={num:1,dias:5,rows:[]};
   let det=[],T={anc:0,cable:0,vaina:0,tubo:0,perf:0,sep2:0,sep6:0,cunas:0};
   S.fab.rows.forEach(r=>{
+    const lten=+r.lten||0;                            // largo de tensado (cola libre para el gato)
+    const ltot=rnd((+r.largo||0)+lten);               // largo total = largo anclaje + largo de tensado
     const lk=rnd(r.largo-r.lw);                       // Lk = C - Lw
-    const cable=rnd(r.largo*r.cant*r.cables);         // H = C×B×G
+    const cable=rnd(ltot*r.cant*r.cables);            // H = (C + Lten)×B×G — el cable se corta con el largo total
     const vaina=rnd(lk*r.cables*r.cant);              // K = Lk×G×B (vaina/spaguetti)
     const tubo=rnd(r.cant*r.largo);                   // Z = P×C
     const perf=rnd(r.cant*Math.max(r.largo-1.5,0));   // S = (C-1.5)×P
@@ -517,7 +519,7 @@ function calcFAB(){
     const via2=+r.cables===2?sepU*r.cant:0;           // 2 vías si 2 cables
     const via6=+r.cables>2?sepU*r.cant:0;             // 6 vías si >2 cables
     const cunas=r.cant*r.cables;                      // cuñas cónicas = P×Q
-    det.push({...r,lk,cable,vaina,tubo,perf,sepU,via2,via6,cunas,res:r.cables*157});
+    det.push({...r,lten,ltot,lk,cable,vaina,tubo,perf,sepU,via2,via6,cunas,res:r.cables*157});
     T.anc+=+r.cant;T.cable+=cable;T.vaina+=vaina;T.tubo+=tubo;T.perf+=perf;
     T.sep2+=via2;T.sep6+=via6;T.cunas+=cunas;
   });
@@ -1212,7 +1214,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.60";
+const APP_VER="1.61";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1579,12 +1581,14 @@ function renderFAB(){
     <div><label>Recepción requerida</label><input value="${fecCL(rec)}" disabled></div>
   </div>
   <div style="overflow-x:auto"><table>
-  <tr><th>Detalle en plano</th><th>Cant.</th><th>Largo (m)</th><th>Áng. (°)</th><th>To (kN)</th><th>Cables</th><th>Lw bulbo (m)</th>
+  <tr><th>Detalle en plano</th><th>Cant.</th><th>Largo anclaje (m)</th><th>L tensado (m)${helpIco("Cola libre de cable sobre la cabeza del anclaje para montar el gato de tensado. Se suma al largo del anclaje: Largo total = Largo anclaje + L tensado. Típico 1,0 a 1,5 m según el gato.")}</th><th class="num">Largo total (m)</th><th>Áng. (°)</th><th>To (kN)</th><th>Cables</th><th>Lw bulbo (m)</th>
   <th class="num">Lk vaina (m)</th><th class="num">Cable (m)</th><th class="num">Vaina (m)</th><th class="num">Tubo iny. (m)</th><th class="num">Perfor. (m)</th><th class="num">Separadores</th><th></th></tr>
   ${c.det.map((r,j)=>`<tr>
     <td><input value="${r.det}" style="min-width:130px" onchange="setvs('fab.rows.${j}.det',this.value)"></td>
     <td>${inp(`fab.rows.${j}.cant`,r.cant,1,55)}</td>
     <td>${inp(`fab.rows.${j}.largo`,r.largo,0.5,65)}</td>
+    <td>${inp(`fab.rows.${j}.lten`,r.lten,0.1,60)}</td>
+    <td class="num"><b>${fmt(r.ltot,1)}</b></td>
     <td>${inp(`fab.rows.${j}.ang`,r.ang,1,50)}</td>
     <td>${inp(`fab.rows.${j}.kn`,r.kn,10,65)}</td>
     <td>${inp(`fab.rows.${j}.cables`,r.cables,1,50)}</td>
@@ -1594,8 +1598,8 @@ function renderFAB(){
     <td class="num">${r.via2>0?r.via2+" (2 vías)":r.via6>0?r.via6+" (6 vías)":"–"}</td>
     <td><button class="btn warn sm" onclick="S.fab.rows.splice(${j},1);renderSub()">✕</button></td></tr>`).join("")}
   </table></div>
-  <button class="btn ghost sm" style="margin-top:8px" onclick="S.fab.rows.push({det:'Corte, Línea',cant:10,largo:12,ang:20,kn:500,cables:4,lw:5});renderSub()">+ Línea de anclajes</button>
-  <p class="note">Capacidad referencial cables 0,6": 1→157 · 2→314 · 3→471 · 4→628 · 5→785 · 6→942 kN. Distancia máx. entre separadores: 1,50 m en longitud de bulbo. Largo perforación = Largo − 1,5 m.</p>
+  <button class="btn ghost sm" style="margin-top:8px" onclick="S.fab.rows.push({det:'Corte, Línea',cant:10,largo:12,lten:1.5,ang:20,kn:500,cables:4,lw:5});renderSub()">+ Línea de anclajes</button>
+  <p class="note">Capacidad referencial cables 0,6": 1→157 · 2→314 · 3→471 · 4→628 · 5→785 · 6→942 kN. Distancia máx. entre separadores: 1,50 m en longitud de bulbo. Largo perforación = Largo anclaje − 1,5 m. Largo total = Largo anclaje + L tensado: el cable se cubica con el largo total; vaina, tubo de inyección y perforación con el largo del anclaje.</p>
   <h2 style="margin-top:18px">Totales de fabricación</h2>
   <div class="kpi">
     <div><b>${c.T.anc}</b><span>anclajes</span></div>
@@ -2975,9 +2979,9 @@ async function fabPDF(){
       while(t.length>3&&pdf.getTextWidth(t+"..")>w)t=t.slice(0,-1);
       return t+"..";};
     /* columnas: título, unidad, ancho relativo, alineación — escaladas al ancho útil completo */
-    const C=[["Detalle en plano","",50,"l"],["Cant.","",14,"r"],["Largo","(m)",17,"r"],["Áng.","(°)",14,"r"],["To","(kN)",17,"r"],
+    const C=[["Detalle en plano","",50,"l"],["Cant.","",14,"r"],["Largo","(m)",17,"r"],["L tensado","(m)",18,"r"],["Largo total","(m)",19,"r"],["Áng.","(°)",13,"r"],["To","(kN)",16,"r"],
       ["Cables","",15,"r"],["Lw bulbo","(m)",19,"r"],["Lk vaina","(m)",19,"r"],["Cable","(m)",20,"r"],["Vaina","(m)",20,"r"],
-      ["Tubo iny.","(m)",21,"r"],["Perfor.","(m)",21,"r"],["Separadores","",30,"r"]];
+      ["Tubo iny.","(m)",21,"r"],["Perfor.","(m)",21,"r"],["Separadores","",28,"r"]];
     const sw=C.reduce((a,x)=>a+x[2],0); C.forEach(x=>x[2]=x[2]*UW/sw);
     const X=[]; {let a=M; C.forEach(x=>{X.push(a); a+=x[2];});}
     const cx=k=>C[k][3]==="l"?X[k]+2:X[k]+C[k][2]-2;
@@ -3014,9 +3018,10 @@ async function fabPDF(){
       if(y+rowH>yMax){frame(top,y); nuevaHoja(); top=yTop; y=drawThead(yTop);}
       if(i%2===1){pdf.setFillColor(248,249,252); pdf.rect(M,y,UW,rowH,"F");}
       const sep=r.via2>0?r.via2+" (2 vías)":r.via6>0?r.via6+" (6 vías)":"-";
-      const v=[r.det,r.cant,fmt(r.largo,1),r.ang,r.kn,r.cables,fmt(r.lw,1),fmt(r.lk,1),fmt(r.cable,0),fmt(r.vaina,0),fmt(r.tubo,0),fmt(r.perf,0),sep];
+      const v=[r.det,r.cant,fmt(r.largo,1),fmt(r.lten,1),fmt(r.ltot,1),r.ang,r.kn,r.cables,fmt(r.lw,1),fmt(r.lk,1),fmt(r.cable,0),fmt(r.vaina,0),fmt(r.tubo,0),fmt(r.perf,0),sep];
       pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(...TXT);
-      v.forEach((t,k)=>{ if(k===0)pdf.text(clip(t,C[0][2]-4,8),cx(0),y+3.8); else T(String(t),cx(k),y+3.8,al(k)); });
+      v.forEach((t,k)=>{ if(k===0)pdf.text(clip(t,C[0][2]-4,8),cx(0),y+3.8);
+        else{pdf.setFont("helvetica",k===4?"bold":"normal"); T(String(t),cx(k),y+3.8,al(k));} });
       pdf.setDrawColor(...LINE); pdf.setLineWidth(0.15); pdf.line(M,y+rowH,M+UW,y+rowH);
       y+=rowH;
     });
@@ -3024,7 +3029,7 @@ async function fabPDF(){
     pdf.setFillColor(...BAND); pdf.rect(M,y,UW,rowH+0.5,"F");
     pdf.setFont("helvetica","bold"); pdf.setFontSize(8.2); pdf.setTextColor(...NAVY);
     T("TOTALES",cx(0),y+4); T(String(c.T.anc),cx(1),y+4,al(1));
-    [[8,fmt(c.T.cable,0)],[9,fmt(c.T.vaina,0)],[10,fmt(c.T.tubo,0)],[11,fmt(c.T.perf,0)],[12,fmt(c.T.sep2+c.T.sep6,0)]]
+    [[10,fmt(c.T.cable,0)],[11,fmt(c.T.vaina,0)],[12,fmt(c.T.tubo,0)],[13,fmt(c.T.perf,0)],[14,fmt(c.T.sep2+c.T.sep6,0)]]
       .forEach(([k,t])=>T(t,cx(k),y+4,al(k)));
     y+=rowH+0.5; frame(top,y);
     /* ── resumen de materiales + observaciones ── */
@@ -3054,6 +3059,7 @@ async function fabPDF(){
     pdf.setFillColor(...NAVY); pdf.rect(xO,y,wO,6.5,"F");
     pdf.setFont("helvetica","bold"); pdf.setFontSize(8.2); pdf.setTextColor(255,255,255); T("OBSERVACIONES",xO+2,y+4.4);
     const obs=["Distancia máxima entre separadores: 1,50 m en la longitud de bulbo.",
+      "Largo total = largo del anclaje + largo de tensado. El cable se corta con el largo total.",
       "Largo de perforación = largo del anclaje - 1,5 m.",
       'Resistencia referencial cables 0,6": 1 = 157 · 2 = 314 · 3 = 471 · 4 = 628 · 5 = 785 · 6 = 942 kN.',
       "Cable suministrado en rollos de 3.000 m.",
