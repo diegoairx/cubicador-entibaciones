@@ -747,8 +747,20 @@ function calcMPA(s){
   if(ptOn)(s.ptList||[]).forEach(t=>{const c=Math.round(+t.cant||0),l=+t.len||0,d=+t.diam||6;
     const ml=rnd(c*l); ptDet.push({diam:d,cant:c,len:l,ml}); ptML+=ml; ptCant+=c; ptPlacas+=c*2;});
   ptML=rnd(ptML);
+  // Proyección de shotcrete + malla: mismo cálculo del Soil Nailing, sin pernos
+  const shOn=!!s.shOn; let sh=null;
+  if(shOn){
+    const bl=v=>v===""||v==null;
+    const shH=bl(s.shH)?Hexc:+s.shH, shLpl=bl(s.shLpl)?largoMuro:+s.shLpl;
+    sh=calcSN({H:shH, inc:bl(s.shInc)?90:+s.shInc, Lpl:shLpl, emp:bl(s.shEmp)?0.5:+s.shEmp,
+      e:bl(s.shE)?10:+s.shE, tras:bl(s.shTras)?0.35:+s.shTras, lb:+s.shLb||5, hb:+s.shHb||3,
+      mallaTipo:s.shMalla||"acma", capas:+s.shCapas||1, fi:+s.shFi||10, sep:+s.shSep||0.2,
+      barbSep:+s.shBarbSep||4, per:[], refOn:0});
+    sh.H=shH; sh.Lpl=shLpl; sh.e=bl(s.shE)?10:+s.shE;
+    if(s.shBarbOn===0)sh.barb=0;
+  }
   return{...P,anc:A,sepEje,Hexc,largoMuro,area,
-    vcOn,vcDet,vcML,vcTon,ptOn,ptDet,ptCant,ptML,ptPlacas};
+    vcOn,vcDet,vcML,vcTon,ptOn,ptDet,ptCant,ptML,ptPlacas,shOn,sh};
 }
 /* Drenes californianos (drenes horizontales de alivio) */
 function calcDCA(s){
@@ -950,7 +962,18 @@ function resumen(){
   Object.entries(mpaPernoML).forEach(([k,v])=>add(SIS_MPA,"Anclaje de perno "+k+" inyectado","ml",v));
   add(SIS_MPA,"Inyección de bulbo de anclaje","ml",mpaBulbo);
   add(SIS_MPA,"Tensado y ensayo de anclajes","un",mpaTens);
+  let mpaShot=0,mpaShM3=0,mpaAcma=0,mpaMKg=0,mpaBarb={};
+  (S.mpa||[]).forEach(x=>{const k=calcMPA(x).sh; if(!k)return;
+    mpaShot+=k.aTot; mpaShM3+=k.m3Shot;
+    if(k.tipoMalla==="acma")mpaAcma+=k.m2Malla; else mpaMKg+=k.kgMalla;
+    if(k.barb>0){const bk='Barbacanas Ø'+fmt(x.shBarbD??2,1)+'" L='+fmt(x.shBarbL??45,0)+'cm'; mpaBarb[bk]=(mpaBarb[bk]||0)+k.barb;}});
+  add(SIS_MPA,"Shotcrete proyectado","m²",mpaShot);
+  add(SIS_MPA,"Hormigón proyectado (vol.)","m³",mpaShM3);
+  add(SIS_MPA,"Malla ACMA C335 (2,60x5,00)","m²",mpaAcma);
+  add(SIS_MPA,"Malla electrosoldada acero","kg",mpaMKg);
+  Object.entries(mpaBarb).forEach(([k,v])=>add(SIS_MPA,k,"un",v));
   if(mpaUn>0)add(SIS_MPA,"Movilización / Desmovilización equipo de pilotaje","gl",1);
+  if(mpaShot>0)add(SIS_MPA,"Movilización / Desmovilización equipo shotcrete","gl",1);
   // Drenes Californianos
   let dcaUn=0, dcaPerf={};
   (S.dca||[]).forEach(s=>{const c=calcDCA(s);dcaUn+=c.cant;
@@ -1110,6 +1133,7 @@ function basePrice(key){
   if(key.startsWith("Hormigón G"))return{mat:118000,mo:22000,eq:16000};
   if(key.startsWith("Acero refuerzo longitudinal")||key.startsWith("Acero estribos"))return{mat:1180,mo:420,eq:120};
   if(key.startsWith("Barbacanas"))return{mat:5500,mo:3500,eq:1000};
+  if(key==="Movilización / Desmovilización equipo shotcrete")return {...PBASE['Movilización / Desmovilización equipo shotcrete y perforación']};
   if(key.startsWith("Refuerzo barras FE 12"))return {...PBASE['Refuerzo barras FE 12mm']};
   if(key.startsWith("Refuerzo barras FE"))return {...PBASE['Refuerzo barras FE 16mm']};
   return{mat:0,mo:0,eq:0};
@@ -1172,7 +1196,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.58";
+const APP_VER="1.59";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1841,6 +1865,7 @@ function addAncMPA(i){
 }
 function togVCmpa(i,on){const s=S.mpa[i]; s.vcOn=on?1:0;
   if(on&&!(s.vcList&&s.vcList.length))s.vcList=[{perfil:"W200x35.9",ml:0}]; renderSub();}
+function togSHmpa(i,on){S.mpa[i].shOn=on?1:0; renderSub();}
 function togPTmpa(i,on){const s=S.mpa[i]; s.ptOn=on?1:0;
   if(on&&!(s.ptList&&s.ptList.length))s.ptList=[{diam:6,cant:0,len:0}]; renderSub();}
 function renderMPA(){
@@ -1928,6 +1953,36 @@ function renderMPA(){
       ${c.ptDet.length>1?`<tr class="res"><td>TOTAL</td><td class="num">${c.ptCant} un</td><td></td><td class="num">${fmt(c.ptML,1)} ml</td><td></td></tr>`:""}
       </table>
       <button class="btn ghost sm" style="margin-top:6px" onclick="(S.mpa[${i}].ptList=S.mpa[${i}].ptList||[]).push({diam:6,cant:0,len:0});renderSub()">+ Agregar puntal / esquinero</button>`:""}</div>
+    <div style="margin-top:12px"><label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--navy);font-weight:700;text-transform:none;letter-spacing:0">
+      <input type="checkbox" style="width:auto" ${c.shOn?"checked":""} onchange="togSHmpa(${i},this.checked)"> Proyección de shotcrete e instalación de malla ACMA</label>
+    ${c.sh?`<p style="font-size:12px;color:var(--mut);margin:4px 0 0">Mismo cálculo del Soil Nailing (superficie, pérdida por traslape, paneles de malla y barbacanas) — sin pernos, placas, dados, coplas ni refuerzo FE.</p>
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Altura proyectada H (m)${helpIco("En blanco = altura de excavación de la sección.")}</label><input class="cell" type="number" step="0.5" value="${s.shH??""}" placeholder="${c.Hexc}" style="width:80px" onchange="setv('mpa.${i}.shH',this.value)"></div>
+      <div><label>Inclinación paramento (°)</label>${inp(`mpa.${i}.shInc`,s.shInc??90,1)}</div>
+      <div><label>Long. en planta (m)${helpIco("En blanco = largo del muro (cantidad de pilotes × separación entre ejes).")}</label><input class="cell" type="number" step="0.5" value="${s.shLpl??""}" placeholder="${c.largoMuro}" style="width:80px" onchange="setv('mpa.${i}.shLpl',this.value)"></div>
+      <div><label>Empotramiento (m)</label>${inp(`mpa.${i}.shEmp`,s.shEmp??0.5,0.1)}</div>
+      <div><label>Espesor shotcrete (cm)</label>${inp(`mpa.${i}.shE`,s.shE??10,1)}</div>
+      <div><label>Traslape malla (m)</label>${inp(`mpa.${i}.shTras`,s.shTras??0.35,0.05)}</div>
+      <div><label>Largo batache (m)</label>${inp(`mpa.${i}.shLb`,s.shLb??5,0.5)}</div>
+      <div><label>Altura batache (m)</label>${inp(`mpa.${i}.shHb`,s.shHb??3,0.5)}</div>
+      <div><label>Tipo de malla</label><select onchange="setvs('mpa.${i}.shMalla',this.value)">
+        <option value="acma" ${(s.shMalla||'acma')==='acma'?'selected':''}>ACMA C335 (m²)</option>
+        <option value="electro" ${s.shMalla==='electro'?'selected':''}>Electrosoldada φ (kg)</option></select></div>
+      <div><label>N° de capas</label><select onchange="setv('mpa.${i}.shCapas',this.value)">
+        <option value="1" ${(+s.shCapas||1)===1?'selected':''}>Simple</option>
+        <option value="2" ${(+s.shCapas||1)===2?'selected':''}>Doble</option></select></div>
+      ${s.shMalla==='electro'?`
+      <div><label>Malla φ (mm)</label><select onchange="setv('mpa.${i}.shFi',this.value)">
+        <option ${(+s.shFi||10)===10?"selected":""} value="10">φ10</option><option ${(+s.shFi||10)===12?"selected":""} value="12">φ12</option></select></div>
+      <div><label>Espac. fierros (m)</label>${inp(`mpa.${i}.shSep`,s.shSep??0.2,0.05)}</div>`:""}
+      <div><label>Barbacanas</label><select onchange="setv('mpa.${i}.shBarbOn',this.value==='si'?1:0)">
+        <option value="si" ${s.shBarbOn!==0?'selected':''}>Sí</option><option value="no" ${s.shBarbOn===0?'selected':''}>No</option></select></div>
+      ${s.shBarbOn!==0?`
+      <div><label>Barbacana Ø (")</label>${inp(`mpa.${i}.shBarbD`,s.shBarbD??2,0.5)}</div>
+      <div><label>Barbacana largo (cm)</label>${inp(`mpa.${i}.shBarbL`,s.shBarbL??45,5)}</div>
+      <div><label>Barbacana: 1 cada (m²)</label>${inp(`mpa.${i}.shBarbSep`,s.shBarbSep??4,0.5)}</div>`:""}
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:6px 0 0">Superficie proyectada <b>${fmt(c.sh.aTot,1)} m²</b> = ${fmt(c.sh.Lm,2)} m × ${fmt(c.sh.Lpl,1)} m + empotramiento · pérdida por traslape de malla <b>${fmt(c.sh.perd,1)}%</b></p>`:""}</div>
     <div class="kpi">
       <div><b>${c.cant}</b><span>pilotes Ø${c.D} mm</span></div>
       ${c.area>0?`<div><b>${fmt(c.area,1)}</b><span>m² muro (${fmt(c.largoMuro,1)} m × ${fmt(c.Hexc,1)} m)</span></div>`:""}
@@ -1945,9 +2000,14 @@ function renderMPA(){
       ${a.kgPerno>0?`<div><b>${fmt(a.kgPerno,0)}</b><span>kg pernos (${fmt(a.mlPerno,1)} ml)</span></div>`:""}
       ${c.vcOn&&c.vcML>0?`<div><b>${fmt(c.vcML,1)}</b><span>ml viga coronación (${fmt(c.vcTon,2)} t)</span></div>`:""}
       ${c.ptOn&&c.ptML>0?`<div><b>${fmt(c.ptML,1)}</b><span>ml puntal Yoder (${c.ptCant} un)</span></div>`:""}
+      ${c.sh&&c.sh.aTot>0?`<div><b>${fmt(c.sh.aTot,1)}</b><span>m² shotcrete e=${fmt(c.sh.e,0)} cm</span></div>
+      <div><b>${fmt(c.sh.m3Shot,2)}</b><span>m³ hormigón proyectado</span></div>
+      ${c.sh.tipoMalla==="acma"?`<div><b>${fmt(c.sh.m2Malla,1)}</b><span>m² malla ACMA C335 (${c.sh.nPaneles} paneles 2,6×5,0)</span></div>`
+        :`<div><b>${fmt(c.sh.kgMalla,0)}</b><span>kg malla φ${+s.shFi||10} (${c.sh.nMallas} mallas)</span></div>`}
+      ${c.sh.barb>0?`<div><b>${c.sh.barb}</b><span>barbacanas Ø${fmt(s.shBarbD??2,1)}" (1@${fmt(c.sh.barbSep,1)} m²)</span></div>`:""}`:""}
     </div></div>`;
   });
-  h+=`<button class="btn" onclick="S.mpa.push({nom:'Pilotes anclados '+(S.mpa.length+1),cant:20,D:600,L:12,sepEje:1.5,Hexc:6,sobre:10,tipoH:'G25 90%NC',nBar:8,dBar:25,lBar:12,lCom:12,tras:${traslapeDe(25)},sep:0.2,dEst:10,rec:7.5,gan:0.15,rs:150,dd:117,alfaB:1.25,ll:4.5,lr:1.5,ancL:[{tipo:'Cable',nc:4,kn:190,len:14,cant:10,dPerno:32}],vcOn:1,vcList:[{perfil:'W200x35.9',ml:0}],ptOn:0,ptList:[]});renderSub()">+ Agregar sección</button>
+  h+=`<button class="btn" onclick="S.mpa.push({nom:'Pilotes anclados '+(S.mpa.length+1),cant:20,D:600,L:12,sepEje:1.5,Hexc:6,sobre:10,tipoH:'G25 90%NC',nBar:8,dBar:25,lBar:12,lCom:12,tras:${traslapeDe(25)},sep:0.2,dEst:10,rec:7.5,gan:0.15,rs:150,dd:117,alfaB:1.25,ll:4.5,lr:1.5,ancL:[{tipo:'Cable',nc:4,kn:190,len:14,cant:10,dPerno:32}],vcOn:1,vcList:[{perfil:'W200x35.9',ml:0}],ptOn:0,ptList:[],shOn:1});renderSub()">+ Agregar sección</button>
   <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>
   <button class="btn ghost" onclick="addDiamPil()">+ Diámetro de perforación</button>`;
   document.getElementById("sub-mpa").innerHTML=`<div class="card">${modHead("Muro de Pilotes Anclados","mpa")}${h}</div>`;
