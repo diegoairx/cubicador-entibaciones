@@ -1214,7 +1214,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.61";
+const APP_VER="1.62";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -2692,9 +2692,10 @@ function nubePintar(){
     <td style="white-space:nowrap">${(p.actualizado||"").replace(" ","<br>")}<br><span style="font-size:10.5px;color:var(--mut)">${haceRato(p.actualizado_en)}</span></td>
     <td style="white-space:nowrap">
       <button class="btn sm" onclick="nubeCargar('${p.id}')">Abrir</button>
+      <button class="btn ghost sm" onclick="nubeDupAbrir('${p.id}')" title="Crear una copia de este proyecto con otro N° y nombre">Duplicar</button>
       <button class="btn warn sm" onclick="nubeEliminar('${p.id}','${(p.nombre||"").replace(/'/g,"")}')">✕</button>
     </td></tr>`).join("")}</table></div>
-  <p class="note" style="margin-top:10px">El proyecto abierto actualmente se destaca en celeste. "Guardar" actualiza el registro abierto; para crear una copia nueva usa Proyecto → cambiar N° y nombre, luego recarga la página y guarda.</p>`;
+  <p class="note" style="margin-top:10px">El proyecto abierto actualmente se destaca en celeste. "Guardar" actualiza el registro abierto. Para crear una variante usa <b>Duplicar</b>: copia toda la cubicación, APU y datos del proyecto en un registro nuevo, sin modificar el original.</p>`;
 }
 async function nubeListar(){
   const el=document.getElementById("nube-lista");
@@ -2717,6 +2718,58 @@ async function nubeCargar(id){
     Object.entries(d[0].datos.proj||{}).forEach(([k,v])=>{const e=document.getElementById(k);if(e)e.value=v;});
     nubeMsg("✔ Proyecto cargado");syncGuardado();go("cubicacion");
   }catch(e){nubeMsg("Error al cargar: "+e.message,1);}
+}
+/* ── Duplicar proyecto: crea un registro nuevo con todos los datos del original ── */
+function nubeDupAbrir(id){
+  const p=nubeRows.find(x=>x.id===id); if(!p)return;
+  document.getElementById("dup-bg")?.remove();
+  const esc=t=>String(t??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+  const bg=document.createElement("div"); bg.id="dup-bg";
+  bg.style.cssText="position:fixed;inset:0;background:rgba(11,42,74,.45);display:flex;align-items:center;justify-content:center;z-index:998";
+  bg.innerHTML=`<div class="card" style="width:min(480px,92vw);margin:0;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <h2 style="margin-top:0">Duplicar proyecto</h2>
+    <p class="note" style="margin:0 0 12px">Se creará un registro nuevo con toda la cubicación, APU y datos de <b>${esc(p.nombre)}</b>${p.cliente?" ("+esc(p.cliente)+")":""}. El proyecto original no se modifica.</p>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">
+      <div><label>N° proyecto</label><input id="dup-num" value="${esc(p.proyecto_num)}"></div>
+      <div><label>Nombre de la copia</label><input id="dup-nom" value="${esc((p.nombre||"Proyecto")+" (copia)")}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;text-transform:none;letter-spacing:0;font-size:12.5px">
+      <input type="checkbox" id="dup-abrir" style="width:auto" checked> Abrir la copia al terminar</label>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn ghost" onclick="document.getElementById('dup-bg').remove()">Cancelar</button>
+      <button class="btn" id="dup-ok" onclick="nubeDuplicar('${id}')">Duplicar</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});
+  bg.addEventListener("keydown",e=>{if(e.key==="Escape")bg.remove(); if(e.key==="Enter"&&e.target.tagName==="INPUT"&&e.target.type!=="checkbox")nubeDuplicar(id);});
+  document.body.appendChild(bg);
+  const n=document.getElementById("dup-nom"); n.focus(); n.select();
+}
+async function nubeDuplicar(id){
+  const btn=document.getElementById("dup-ok"); if(!btn||btn.disabled)return;
+  const num=(val("dup-num")||"").trim(), nom=(val("dup-nom")||"").trim(), abrir=document.getElementById("dup-abrir").checked;
+  if(!num||!nom){alert("Ingresa el N° y el nombre de la copia.");return;}
+  if(abrir&&SYNC.savedHash!==null&&SYNC.savedHash!==estadoHash()
+     &&!confirm("El proyecto abierto tiene cambios sin guardar que se perderán al abrir la copia. ¿Continuar?"))return;
+  btn.disabled=true; btn.textContent="Duplicando…"; SYNC.busy=true; pintarSync();
+  try{
+    const r=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos?id=eq.${id}&select=*`,{headers:await getSH()});
+    if(!r.ok)throw new Error(await r.text());
+    const d=await r.json(); if(!d.length)throw new Error("proyecto no encontrado");
+    const o=d[0], datos=JSON.parse(JSON.stringify(o.datos||{}));
+    if(datos.S)delete datos.S.cloudId;                       // la copia es un registro independiente
+    datos.proj=datos.proj||{}; datos.proj.p_num=num; datos.proj.p_nom=nom;
+    const body={proyecto_num:num,nombre:nom,cliente:o.cliente,ubicacion:o.ubicacion,ingeniero:o.ingeniero,
+      revision:o.revision,estado:o.estado,total_neto_clp:o.total_neto_clp,total_uf:o.total_uf,datos};
+    const w=await fetch(`${SUPA_URL}/rest/v1/cubicador_proyectos`,
+      {method:"POST",headers:{...await getSH(),Prefer:"return=representation"},body:JSON.stringify(body)});
+    if(!w.ok)throw new Error(await w.text());
+    const nuevo=(await w.json())[0];
+    document.getElementById("dup-bg")?.remove();
+    SYNC.busy=false;
+    if(abrir&&nuevo){await nubeCargar(nuevo.id); nubeMsg('✔ Copia creada y abierta: "'+nom+'"');}
+    else nubeMsg('✔ Copia creada: "'+nom+'"');
+    nubeListar();
+  }catch(e){nubeMsg("Error al duplicar: "+e.message,1); btn.disabled=false; btn.textContent="Duplicar";}
+  finally{SYNC.busy=false; pintarSync();}
 }
 async function nubeEliminar(id,nom){
   if(!confirm(`¿Eliminar de la base de datos el proyecto "${nom}"? Esta acción no se puede deshacer.`))return;
