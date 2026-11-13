@@ -574,9 +574,17 @@ function selPerno(path,a,pathD){ // selector de modelo + Ø sólo si es personal
     `<br><select style="margin-top:3px" onchange="setv('${pathD}',this.value)">${diamBar().map(d=>`<option ${(+a.dPerno||32)===d?"selected":""}>${d}</option>`).join("")}</select>`}`;
 }
 const DIAM_BARRA=[10,12,16,18,22,25,28,32,36];
-/* Traslape de barra longitudinal por diámetro (m) — tabla Ngenco */
-const TRASLAPE={25:0.135,28:0.150,32:0.170,36:0.190};
-const traslapeDe=d=>TRASLAPE[d]??rnd(5.3*d/1000,3);   // fallback ≈5,3·d para otros diámetros
+/* Traslape de barra por diámetro (m) — criterio planilla Ngenco "PA": 40·db hasta φ18 y 50·db desde φ22
+   (ACI 318 / NCh 430 distinguen barras ≤φ19 y ≥φ22), redondeado hacia arriba a 0,1 m.
+   φ12 = 0,5 · φ16 = 0,7 · φ18 = 0,8 · φ22 = 1,1 · φ25 = 1,3 · φ28 = 1,4 · φ32 = 1,6 · φ36 = 1,8 m */
+const trasDb=d=>d<=18?40:50;
+const traslapeDe=d=>Math.ceil(trasDb(d)*d/100-1e-9)/10;
+const HELP_TRAS="Criterio planilla Ngenco: 40·db hasta φ18 y 50·db desde φ22, redondeado a 0,1 m (φ16 = 0,7 · φ22 = 1,1 · φ25 = 1,3 · φ28 = 1,4 · φ32 = 1,6 m). Editable según planos.";
+/* Aviso cuando el traslape ingresado es físicamente insuficiente (< 15 db) */
+function trasAviso(path,c){ if(!c.trasBajo)return "";
+  const sug=traslapeDe(c.dBar);
+  return `<p style="font-size:12px;color:var(--danger);font-weight:600;margin:6px 0 0">⚠ Traslape ingresado ${fmt(c.tras,3)} m = ${fmt(c.tras*1000/c.dBar,1)} db: es demasiado corto para un empalme de φ${c.dBar} (se requieren ${trasDb(c.dBar)} db).
+    <button class="btn sm" style="margin-left:6px" onclick="setv('${path}.tras',${sug})">Corregir a ${fmt(sug,2)} m</button></p>`;}
 const DIAM_PIL_BASE=[110,150,200,250,300,350,400,450,500,600,700,800,900,1000,1200,1500];
 function diamPil(){return [...new Set([...DIAM_PIL_BASE,...(S.pilDiam||[]).map(Number)])].sort((a,b)=>a-b);}
 function diamBar(){return [...new Set([...DIAM_BARRA,...(S.barDiam||[]).map(Number)])].sort((a,b)=>a-b);}
@@ -606,10 +614,14 @@ function calcPIL(s){
   const nBar=Math.round(+s.nBar||0), dBar=+s.dBar||16, lBar=(+s.lBar||L);
   const lCom=+s.lCom||12;                                  // largo comercial de barra (m)
   const tras=(s.tras===""||s.tras==null)?traslapeDe(dBar):+s.tras;
-  const empPorBar=lCom>0?Math.max(0,up(lBar/lCom)-1):0;    // empalmes por barra
+  const emb=+s.emb||0, pata=+s.pata||0;                     // embebido en fundación y pata en la base, por barra
+  const lTotBar=rnd(lBar+emb+pata,3);                       // largo real de cada barra longitudinal
+  const empPorBar=lCom>0?Math.max(0,up(lTotBar/lCom)-1):0;  // empalmes por barra
   const nEmp=cant*nBar*empPorBar;                           // total de empalmes
   const mlTras=rnd(nEmp*tras);                              // ml adicionales por traslape
-  const mlLong=rnd(cant*nBar*lBar+mlTras);                  // ml totales (incluye traslapes)
+  const mlEmbPata=rnd(cant*nBar*(emb+pata));                // ml por embebido + patas
+  const mlLong=rnd(cant*nBar*lTotBar+mlTras);               // ml totales (traslapes, embebido y patas)
+  const trasBajo=tras>0&&empPorBar>0&&tras<15*dBar/1000;
   const kgLong=rnd(mlLong*kgml(dBar));
   // Estribos: n° por pilote = L/separación (+1), longitud unitaria = π·(D−2·rec) + ganchos
   const sep=+s.sep||0.2, dEst=+s.dEst||10, rec=(s.rec===""||s.rec==null)?7.5:+s.rec, gan=(s.gan===""||s.gan==null)?0.15:+s.gan;
@@ -618,13 +630,19 @@ function calcPIL(s){
   const nEst=cant*nEstPil;
   const mlEst=rnd(nEst*lEst);
   const kgEst=rnd(mlEst*kgml(dEst));
+  // Anillos rigidizadores de la jaula (por dentro de las barras longitudinales)
+  const dAn=+s.dAn||16, sepAn=+s.sepAn||0;
+  const nAnPil=(sepAn>0&&L>0)?up(L/sepAn)+1:0;
+  const dRing=Math.max(0,(D-2*rec*10-2*dEst-2*dBar-dAn)/1000);
+  const lAn=nAnPil?rnd(Math.PI*dRing+traslapeDe(dAn),3):0;  // perímetro + traslape de cierre
+  const nAn=cant*nAnPil, mlAn=rnd(nAn*lAn), kgAn=rnd(mlAn*kgml(dAn));
   // Hormigón
   const sobre=(s.sobre===""||s.sobre==null)?10:+s.sobre;   // % sobreconsumo
   const m3Pil=rnd(Math.PI*Math.pow(D/1000,2)/4*L,3);
   const m3=rnd(cant*m3Pil*(1+sobre/100));
-  return{cant,D,L,mlPerf,nBar,dBar,lBar,lCom,tras,empPorBar,nEmp,mlTras,mlLong,kgLong,
-    sep,dEst,rec,gan,nEstPil,nEst,lEst,mlEst,kgEst,
-    tipoH:s.tipoH||"G25 90%NC",sobre,m3Pil,m3,kgTot:rnd(kgLong+kgEst)};
+  return{cant,D,L,mlPerf,nBar,dBar,lBar,lCom,tras,trasBajo,emb,pata,lTotBar,mlEmbPata,empPorBar,nEmp,mlTras,mlLong,kgLong,
+    sep,dEst,rec,gan,nEstPil,nEst,lEst,mlEst,kgEst,dAn,sepAn,nAnPil,lAn,nAn,mlAn,kgAn,
+    tipoH:s.tipoH||"G25 90%NC",sobre,m3Pil,m3,kgTot:rnd(kgLong+kgEst+kgAn)};
 }
 /* ═════ MURO SOCALZADO CON ANCLAJES (pilas de socalzado / underpinning) ═════
    La pila es un paño rectangular A×B (cm) hormigonado contra el terreno, armado con
@@ -649,6 +667,7 @@ function calcMSA(s){
   const empPorBar=lCom>0?Math.max(0,up(lBar/lCom)-1):0;
   const nEmp=cant*nBar*empPorBar, mlTras=rnd(nEmp*tras);
   const mlLong=rnd(cant*nBar*lBar+mlTras), kgLong=rnd(mlLong*kgml(dBar));
+  const trasBajo=tras>0&&empPorBar>0&&tras<15*dBar/1000;
   /* estribos perimetrales y trabas transversales */
   const rec=(s.rec===""||s.rec==null)?5:+s.rec, gan=(s.gan===""||s.gan==null)?0.15:+s.gan;
   const dEst=+s.dEst||10, sepEst=+s.sepEst||0.20, sepTra=+s.sepTra||0.40;
@@ -705,7 +724,7 @@ function calcMSA(s){
   const nCabz=Math.round(anc.nCabz??1);
   const totCunas=nAnc*nCuna, totCabz=nAnc*nCabz;
   return{cant,A,B,L,m2,m3Exc,sobre,m3,tipoH:s.tipoH||"G25 90%NC",
-    nBar,dBar,lBar,lCom,tras,empPorBar,nEmp,mlTras,mlLong,kgLong,
+    nBar,dBar,lBar,lCom,tras,trasBajo,empPorBar,nEmp,mlTras,mlLong,kgLong,
     rec,gan,dEst,sepEst,sepTra,lEst,nEstPila,nEst,mlEst,kgEst,
     nTraNivel,lTra,nTraPila,nTra,mlTra,kgTra,
     kgTot:rnd(kgLong+kgEst+kgTra),
@@ -906,16 +925,18 @@ function resumen(){
   add("Agotamiento de Napa","Sentina/pozo de achique","un",agSent);
   add("Agotamiento de Napa","Monitoreo piezométrico","un",agPiez);
   // Pilotaje
-  let pilPerf={},pilH={},pilLong={},pilEst={},pilUn=0;
+  let pilPerf={},pilH={},pilLong={},pilEst={},pilAn={},pilUn=0;
   (S.pil||[]).forEach(s=>{const c=calcPIL(s);pilUn+=c.cant;
     if(c.mlPerf>0)pilPerf[c.D]=(pilPerf[c.D]||0)+c.mlPerf;
     if(c.m3>0)pilH[c.tipoH]=(pilH[c.tipoH]||0)+c.m3;
     if(c.kgLong>0)pilLong[c.dBar]=(pilLong[c.dBar]||0)+c.kgLong;
-    if(c.kgEst>0)pilEst[c.dEst]=(pilEst[c.dEst]||0)+c.kgEst;});
+    if(c.kgEst>0)pilEst[c.dEst]=(pilEst[c.dEst]||0)+c.kgEst;
+    if(c.kgAn>0)pilAn[c.dAn]=(pilAn[c.dAn]||0)+c.kgAn;});
   Object.entries(pilPerf).forEach(([d,v])=>add("Pilotaje","Perforación pilote Ø"+d+"mm","ml",v));
   Object.entries(pilH).forEach(([t,v])=>add("Pilotaje","Hormigón "+t+" en pilotes","m³",v));
   Object.entries(pilLong).forEach(([d,v])=>add("Pilotaje","Acero refuerzo longitudinal φ"+d+"mm","kg",v));
   Object.entries(pilEst).forEach(([d,v])=>add("Pilotaje","Acero estribos φ"+d+"mm","kg",v));
+  Object.entries(pilAn).forEach(([d,v])=>add("Pilotaje","Acero anillos rigidizadores φ"+d+"mm","kg",v));
   if(pilUn>0)add("Pilotaje","Movilización / Desmovilización equipo de pilotaje","gl",1);
   // Muro Socalzado con Anclajes
   const SIS_MSA="Muro Socalzado Anclado";
@@ -952,7 +973,7 @@ function resumen(){
   if(msaUn>0||msaTens>0)add(SIS_MSA,"Movilización / Desmovilización equipo de socalzado","gl",1);
   // Muro de Pilotes Anclados
   const SIS_MPA="Muro Pilotes Anclados";
-  let mpaPerf={},mpaH={},mpaLong={},mpaEst={},mpaUn=0,mpaVC={},mpaPT={},mpaPl=0,
+  let mpaPerf={},mpaH={},mpaLong={},mpaEst={},mpaAn={},mpaUn=0,mpaVC={},mpaPT={},mpaPl=0,
       mpaAncML=0,mpaCable=0,mpaCunas=0,mpaCabz=0,mpaPernoML={},mpaTens=0,mpaBulbo=0;
   (S.mpa||[]).forEach(x=>{const c=calcMPA(x), a=c.anc;
     mpaUn+=c.cant;
@@ -960,6 +981,7 @@ function resumen(){
     if(c.m3>0)mpaH[c.tipoH]=(mpaH[c.tipoH]||0)+c.m3;
     if(c.kgLong>0)mpaLong[c.dBar]=(mpaLong[c.dBar]||0)+c.kgLong;
     if(c.kgEst>0)mpaEst[c.dEst]=(mpaEst[c.dEst]||0)+c.kgEst;
+    if(c.kgAn>0)mpaAn[c.dAn]=(mpaAn[c.dAn]||0)+c.kgAn;
     c.vcDet.forEach(v=>{if(v.ml>0)mpaVC[v.perfil]=(mpaVC[v.perfil]||0)+v.ml;});
     c.ptDet.forEach(t=>{if(t.ml>0)mpaPT[t.diam]=(mpaPT[t.diam]||0)+t.ml;});
     mpaPl+=c.ptPlacas;
@@ -970,6 +992,7 @@ function resumen(){
   Object.entries(mpaH).forEach(([t,v])=>add(SIS_MPA,"Hormigón "+t+" en pilotes","m³",v));
   Object.entries(mpaLong).forEach(([d,v])=>add(SIS_MPA,"Acero refuerzo longitudinal φ"+d+"mm","kg",v));
   Object.entries(mpaEst).forEach(([d,v])=>add(SIS_MPA,"Acero estribos φ"+d+"mm","kg",v));
+  Object.entries(mpaAn).forEach(([d,v])=>add(SIS_MPA,"Acero anillos rigidizadores φ"+d+"mm","kg",v));
   Object.entries(mpaVC).forEach(([pf,v])=>add(SIS_MPA,"Viga continua de coronación "+pf,"ml",v));
   Object.entries(mpaPT).forEach(([d,v])=>add(SIS_MPA,'Puntal/esquinero tubo Yoder Ø'+d+'"',"ml",v));
   add(SIS_MPA,"Placa de conexión puntal","un",mpaPl);
@@ -1149,7 +1172,7 @@ function basePrice(key){
     return{mat:0,mo:Math.round(9000+d*22),eq:Math.round(14000+d*45)};
   }
   if(key.startsWith("Hormigón G"))return{mat:118000,mo:22000,eq:16000};
-  if(key.startsWith("Acero refuerzo longitudinal")||key.startsWith("Acero estribos"))return{mat:1180,mo:420,eq:120};
+  if(key.startsWith("Acero refuerzo longitudinal")||key.startsWith("Acero estribos")||key.startsWith("Acero anillos"))return{mat:1180,mo:420,eq:120};
   if(key.startsWith("Barbacanas"))return{mat:5500,mo:3500,eq:1000};
   if(key==="Movilización / Desmovilización equipo shotcrete")return {...PBASE['Movilización / Desmovilización equipo shotcrete y perforación']};
   if(key.startsWith("Refuerzo barras FE 12"))return {...PBASE['Refuerzo barras FE 12mm']};
@@ -1214,7 +1237,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.62";
+const APP_VER="1.63";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1693,6 +1716,21 @@ function renderAG(){
 }
 
 /* ═════════════════ RENDER: PILOTAJE ═════════════════ */
+function pilExtrasUI(mod,i,s,c){
+  const p=`${mod}.${i}`, tb=traslapeDe(c.dBar), pt=Math.ceil(12*c.dBar/50-1e-9)/20;
+  return `<div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Embebido en fundación, patas y anillos rigidizadores</b>
+    <div class="grid g4" style="margin-top:6px">
+      <div><label>Embebido en fundación (m)${helpIco("Largo de cada barra longitudinal que queda anclado dentro del cabezal, viga o losa de fundación, por sobre el largo del pilote. Típico ≈ largo de desarrollo (40–50 db). Revisar planos.")}</label>${inp(`${p}.emb`,s.emb??0,0.1)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('${p}.emb',${tb})">= ${trasDb(c.dBar)} db (${fmt(tb,2)} m)</button></div>
+      <div><label>Pata / gancho en la base (m)${helpIco("Doblez de cada barra longitudinal en el fondo del pilote. Gancho normal a 90° ≈ 12 db. Revisar planos.")}</label>${inp(`${p}.pata`,s.pata??0,0.05)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('${p}.pata',${pt})">= 12 db (${fmt(pt,2)} m)</button></div>
+      <div><label>Anillos rigidizadores Ø (mm)</label><select onchange="setv('${p}.dAn',this.value)">
+        ${diamBar().map(d=>`<option ${c.dAn===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Separación anillos (m)${helpIco("Anillos interiores que rigidizan la jaula para el izaje. 0 = sin anillos. Típico φ16–φ22 cada 2–3 m. Largo de cada anillo = perímetro interior de la jaula + traslape de cierre.")}</label>${inp(`${p}.sepAn`,s.sepAn??0,0.5)}</div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:4px 0 0">Largo por barra: ${fmt(c.lBar,2)} + embebido ${fmt(c.emb,2)} + pata ${fmt(c.pata,2)} = <b>${fmt(c.lTotBar,2)} m</b> · empalmes por barra: <b>${c.empPorBar}</b> · total empalmes: <b>${c.nEmp}</b> · ml traslape: <b>${fmt(c.mlTras,1)}</b>${c.nAnPil?` · anillos: <b>${c.nAnPil}</b> por pilote de <b>${fmt(c.lAn,2)} m</b>`:""}</p>
+    ${trasAviso(p,c)}</div>`;
+}
 function renderPIL(){
   if(!S.pil)S.pil=[];
   let h="";
@@ -1716,18 +1754,20 @@ function renderPIL(){
       <div><label>Largo barra (m)${helpIco("Largo total de cada barra longitudinal, habitualmente igual o algo mayor que la longitud de perforación (anclaje en cabezal).")}</label>${inp(`pil.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
       <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
       <div><label>Largo comercial barra (m)${helpIco("Largo de las barras que llegan a obra (12 m estándar). Si el largo de la barra supera este valor, se generan empalmes con traslape.")}</label>${inp(`pil.${i}.lCom`,s.lCom??12,0.5)}</div>
-      <div><label>Traslape por empalme (m)${helpIco("Tabla Ngenco: φ25 = 0,135 m · φ28 = 0,150 m · φ32 = 0,170 m · φ36 = 0,190 m. Para otros diámetros se estima ≈5,3·d. Editable.")}</label>${inp(`pil.${i}.tras`,s.tras??traslapeDe(+s.dBar||16),0.005)}</div>
-      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.tras',${traslapeDe(+s.dBar||16)})">= tabla φ${+s.dBar||16} (${fmt(traslapeDe(+s.dBar||16),3)} m)</button></div>
-    </div>
-    <p style="font-size:12px;color:var(--mut);margin:4px 0 0">Empalmes por barra: <b>${c.empPorBar}</b> · total empalmes: <b>${c.nEmp}</b> · ml adicionales por traslape: <b>${fmt(c.mlTras,1)}</b></p></div>
+      <div><label>Traslape por empalme (m)${helpIco(HELP_TRAS)}</label>${inp(`pil.${i}.tras`,s.tras??traslapeDe(+s.dBar||16),0.05)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.tras',${traslapeDe(+s.dBar||16)})">= ${trasDb(+s.dBar||16)} db φ${+s.dBar||16} (${fmt(traslapeDe(+s.dBar||16),2)} m)</button></div>
+    </div></div>
+    ${pilExtrasUI("pil",i,s,c)}
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Estribos</b>${helpIco("N° de estribos por pilote = REDONDEAR.ARRIBA(longitud ÷ separación) + 1. Longitud de cada estribo = π × (Ø pilote − 2×recubrimiento) + ganchos.")}
     <div class="grid g4" style="margin-top:6px">
       <div><label>Separación estribos (m)</label>${inp(`pil.${i}.sep`,s.sep??0.2,0.05)}</div>
       <div><label>Ø estribo (mm)</label><select onchange="setv('pil.${i}.dEst',this.value)">
         ${diamBar().map(d=>`<option ${(+s.dEst||10)===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>Recubrimiento (cm)</label>${inp(`pil.${i}.rec`,s.rec??7.5,0.5)}</div>
-      <div><label>Ganchos por estribo (m)</label>${inp(`pil.${i}.gan`,s.gan??0.15,0.05)}</div>
-    </div></div>
+      <div><label>Cierre / ganchos por estribo (m)${helpIco("Largo adicional para cerrar cada estribo circular: traslape de cierre (≈40 db) o dos ganchos a 135° (≈2 × 10 db).")}</label>${inp(`pil.${i}.gan`,s.gan??0.15,0.05)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('pil.${i}.gan',${traslapeDe(+s.dEst||10)})">= traslape φ${+s.dEst||10} (${fmt(traslapeDe(+s.dEst||10),2)} m)</button></div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin:4px 0 0">Estribo: <b>${fmt(c.lEst,3)} m</b> c/u (perímetro ${fmt(c.lEst-c.gan,3)} + cierre ${fmt(c.gan,3)})</p></div>
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Hormigón</b>
     <div class="grid g4" style="margin-top:6px">
       <div><label>Tipo de hormigón</label><select onchange="setvs('pil.${i}.tipoH',this.value)">
@@ -1736,11 +1776,12 @@ function renderPIL(){
     <div class="kpi">
       <div><b>${c.cant}</b><span>pilotes Ø${c.D} mm</span></div>
       <div><b>${fmt(c.mlPerf,1)}</b><span>ml perforación</span></div>
-      <div><b>${fmt(c.mlLong,1)}</b><span>ml barra long. φ${c.dBar}${c.mlTras>0?` (incl. ${fmt(c.mlTras,1)} traslape)`:""}</span></div>
+      <div><b>${fmt(c.mlLong,1)}</b><span>ml barra long. φ${c.dBar}${c.mlTras>0?` (incl. ${fmt(c.mlTras,1)} traslape)`:""}${c.mlEmbPata>0?` (incl. ${fmt(c.mlEmbPata,1)} embebido + patas)`:""}</span></div>
       <div><b>${fmt(c.kgLong,0)}</b><span>kg barra long. (${fmt(kgml(c.dBar),3)} kg/m)</span></div>
       <div><b>${c.nEstPil}</b><span>estribos por pilote</span></div>
       <div><b>${fmt(c.mlEst,1)}</b><span>ml estribos φ${c.dEst} (${c.nEst} un)</span></div>
       <div><b>${fmt(c.kgEst,0)}</b><span>kg estribos</span></div>
+      ${c.kgAn>0?`<div><b>${fmt(c.kgAn,0)}</b><span>kg anillos φ${c.dAn} (${c.nAn} un)</span></div>`:""}
       <div><b>${fmt(c.kgTot,0)}</b><span>kg acero total</span></div>
       <div><b>${fmt(c.m3,1)}</b><span>m³ hormigón ${c.tipoH} (+${c.sobre}%)</span></div>
     </div></div>`;
@@ -1800,7 +1841,7 @@ function renderMSA(){
       <div><label>Largo barra (m)${helpIco("Largo de cada barra longitudinal; por defecto igual a la profundidad de la pila. Aumenta si hay desarrollo o anclaje en cabeza.")}</label>${inp(`msa.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
       <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('msa.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
       <div><label>Largo comercial barra (m)</label>${inp(`msa.${i}.lCom`,s.lCom??12,0.5)}</div>
-      <div><label>Traslape por empalme (m)${helpIco("Tabla Ngenco: φ25 = 0,135 · φ28 = 0,150 · φ32 = 0,170 · φ36 = 0,190 m. Otros diámetros ≈ 5,3·d.")}</label>${inp(`msa.${i}.tras`,s.tras??traslapeDe(c.dBar),0.005)}</div>
+      <div><label>Traslape por empalme (m)${helpIco(HELP_TRAS)}</label>${inp(`msa.${i}.tras`,s.tras??traslapeDe(c.dBar),0.05)}</div>
       <div><label>Ø estribo y traba (mm)</label><select onchange="setv('msa.${i}.dEst',this.value)">
         ${diamBar().map(d=>`<option ${c.dEst===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>Separación estribos (m)</label>${inp(`msa.${i}.sepEst`,s.sepEst??0.2,0.005)}</div>
@@ -1809,7 +1850,8 @@ function renderMSA(){
       <div><label>Recubrimiento (cm)</label>${inp(`msa.${i}.rec`,s.rec??5,0.5)}</div>
       <div><label>Ganchos por barra (m)</label>${inp(`msa.${i}.gan`,s.gan??0.15,0.05)}</div>
     </div>
-    <p style="font-size:12px;color:var(--mut);margin:6px 0 0">Estribo: <b>${fmt(c.lEst,3)} m</b> c/u · <b>${c.nEstPila}</b> por pila · Traba: <b>${fmt(c.lTra,3)} m</b> c/u · <b>${c.nTraPila}</b> por pila${c.nEmp>0?` · empalmes: <b>${c.nEmp}</b> (+${fmt(c.mlTras,1)} ml traslape)`:""}</p></div>
+    <p style="font-size:12px;color:var(--mut);margin:6px 0 0">Estribo: <b>${fmt(c.lEst,3)} m</b> c/u · <b>${c.nEstPila}</b> por pila · Traba: <b>${fmt(c.lTra,3)} m</b> c/u · <b>${c.nTraPila}</b> por pila${c.nEmp>0?` · empalmes: <b>${c.nEmp}</b> (+${fmt(c.mlTras,1)} ml traslape)`:""}</p>
+    ${trasAviso(`msa.${i}`,c)}</div>
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Anclajes</b>${helpIco("Según diseño, el anclaje puede ser de cables (torones de 0,6 pulgadas) o de perno / barra de acero.")}
     <div class="grid g4" style="margin:8px 0 4px">
       <div><label>qs bulbo (kN/m²)${helpIco("Fricción lateral unitaria del estrato del bulbo, según mecánica de suelos y N-SPT. Referencias: planilla Ferrara — arena N≈15: 75 (IRS) · arena N≈30: 150 · arena densa N≈40: 200. MC Pangea Ed. DÚO — SM/CL sueltos N<10: 135 · SM denso: 200.")}</label>${inp(`msa.${i}.rs`,s.rs??150,5)}</div>
@@ -1917,14 +1959,16 @@ function renderMPA(){
       <div><label>Largo barra (m)</label>${inp(`mpa.${i}.lBar`,s.lBar??s.L??0,0.5)}</div>
       <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('mpa.${i}.lBar',${+s.L||0})">= L (${fmt(+s.L||0,1)} m)</button></div>
       <div><label>Largo comercial barra (m)</label>${inp(`mpa.${i}.lCom`,s.lCom??12,0.5)}</div>
-      <div><label>Traslape por empalme (m)${helpIco("Tabla Ngenco: φ25 = 0,135 · φ28 = 0,150 · φ32 = 0,170 · φ36 = 0,190 m. Otros diámetros ≈ 5,3·d.")}</label>${inp(`mpa.${i}.tras`,s.tras??traslapeDe(+s.dBar||25),0.005)}</div>
+      <div><label>Traslape por empalme (m)${helpIco(HELP_TRAS)}</label>${inp(`mpa.${i}.tras`,s.tras??traslapeDe(+s.dBar||25),0.05)}</div>
       <div><label>Separación estribos (m)</label>${inp(`mpa.${i}.sep`,s.sep??0.2,0.05)}</div>
       <div><label>Ø estribo (mm)</label><select onchange="setv('mpa.${i}.dEst',this.value)">
         ${diamBar().map(d=>`<option ${(+s.dEst||10)===d?"selected":""}>${d}</option>`).join("")}</select></div>
       <div><label>Recubrimiento (cm)</label>${inp(`mpa.${i}.rec`,s.rec??7.5,0.5)}</div>
-      <div><label>Ganchos por estribo (m)</label>${inp(`mpa.${i}.gan`,s.gan??0.15,0.05)}</div>
+      <div><label>Cierre / ganchos por estribo (m)${helpIco("Largo adicional para cerrar cada estribo circular: traslape de cierre (≈40 db) o dos ganchos a 135° (≈2 × 10 db).")}</label>${inp(`mpa.${i}.gan`,s.gan??0.15,0.05)}</div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost sm" onclick="setv('mpa.${i}.gan',${traslapeDe(+s.dEst||10)})">Cierre = traslape φ${+s.dEst||10} (${fmt(traslapeDe(+s.dEst||10),2)} m)</button></div>
     </div>
     <p style="font-size:12px;color:var(--mut);margin:6px 0 0">Estribo: <b>${fmt(c.lEst,3)} m</b> c/u · <b>${c.nEstPil}</b> por pilote${c.nEmp>0?` · empalmes: <b>${c.nEmp}</b> (+${fmt(c.mlTras,1)} ml traslape)`:""}</p></div>
+    ${pilExtrasUI("mpa",i,s,c)}
     <div style="margin-top:12px"><b style="font-size:12.5px;color:var(--navy)">Anclajes</b>${helpIco("Mismo procedimiento del Muro Berlinés Anclado: Bustamante para el bulbo y ASTM A416 Gr270 para los cables.")}
     <div class="grid g4" style="margin:8px 0 4px">
       <div><label>qs bulbo (kN/m²)${helpIco("Fricción lateral unitaria del estrato del bulbo, según mecánica de suelos y N-SPT.")}</label>${inp(`mpa.${i}.rs`,s.rs??150,5)}</div>
@@ -2012,6 +2056,7 @@ function renderMPA(){
       <div><b>${fmt(c.m3,1)}</b><span>m³ hormigón ${c.tipoH} (+${c.sobre}%)</span></div>
       <div><b>${fmt(c.kgLong,0)}</b><span>kg long. φ${c.dBar} (${fmt(c.mlLong,1)} ml)</span></div>
       <div><b>${fmt(c.kgEst,0)}</b><span>kg estribos φ${c.dEst} (${c.nEst} un)</span></div>
+      ${c.kgAn>0?`<div><b>${fmt(c.kgAn,0)}</b><span>kg anillos φ${c.dAn} (${c.nAn} un)</span></div>`:""}
       <div><b>${fmt(c.kgTot,0)}</b><span>kg acero total</span></div>
       <div><b>${a.nAnc}</b><span>anclajes (${a.det.length} línea${a.det.length===1?"":"s"})</span></div>
       <div><b>${fmt(a.mlAnc,1)}</b><span>ml perforación Ø${a.dd} mm</span></div>
