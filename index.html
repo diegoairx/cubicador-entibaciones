@@ -832,7 +832,7 @@ function calcMT(){
 function resumen(){
   const R=[]; const add=(sis,key,unit,qty)=>{if(qty>0.0001)R.push({sis,key,unit,qty:rnd(qty)});};
   // MBA
-  let t20=0,t25=0,perf={},perfN={},vig=0,cab=0,ext=0,anc=0,cabl=0,ncab=0,mbaPernoML={},mbaCabAnc=0;
+  let t20=0,t25=0,perf={},perfN={},vig=0,cab=0,ext=0,anc=0,ancN=0,cabl=0,ncab=0,mbaPernoML={},mbaPernoN={},mbaCabAnc=0;
   S.mba.forEach(s=>{const c=calcMBA(s);
     if(String(s.tab)==="2.5")t25+=c.area; else t20+=c.area;
     perf[s.perfil]=(perf[s.perfil]||0)+c.mlPerf;
@@ -840,7 +840,8 @@ function resumen(){
     vig+=c.vigas;cab+=c.cabez;ext+=c.mlExt;cabl+=c.mlCab;ncab+=c.nCables;
     mbaCabAnc+=c.ancCable;
     // los ml de perforación se separan por tipo de anclaje
-    c.det.forEach(a=>{if(a.tipo==="Perno")mbaPernoML[a.pLbl]=(mbaPernoML[a.pLbl]||0)+a.ml; else anc+=a.ml;});});
+    c.det.forEach(a=>{if(a.tipo==="Perno"){mbaPernoML[a.pLbl]=(mbaPernoML[a.pLbl]||0)+a.ml; mbaPernoN[a.pLbl]=(mbaPernoN[a.pLbl]||0)+(+a.cant||0);}
+      else{anc+=a.ml; ancN+=(+a.cant||0);}});});
   add("Muro Berlinés Anclado",'Entibación tablones 2,0"',"m²",t20);
   add("Muro Berlinés Anclado",'Entibación tablones 2,5"',"m²",t25);
   Object.entries(perf).forEach(([p,v])=>add("Muro Berlinés Anclado","Perfil "+p+" hincado/retirado","ml",v));
@@ -849,9 +850,11 @@ function resumen(){
   add("Muro Berlinés Anclado","Vigas de amarre","un",vig);
   add("Muro Berlinés Anclado","Cabezales de anclaje (4 cables)","un",mbaCabAnc);
   add("Muro Berlinés Anclado","Anclajes postensados inyectados","ml",anc);
+  add("Muro Berlinés Anclado","Anclajes postensados inyectados (cantidad de anclajes)","un",ancN);
   add("Muro Berlinés Anclado",'Cables de acero 0,6" (incl. reserva)',"ml",cabl);
   add("Muro Berlinés Anclado","Cuñas cónicas / mordazas","un",ncab);
-  Object.entries(mbaPernoML).forEach(([k,v])=>add("Muro Berlinés Anclado","Anclaje de perno "+k+" inyectado","ml",v));
+  Object.entries(mbaPernoML).forEach(([k,v])=>{add("Muro Berlinés Anclado","Anclaje de perno "+k+" inyectado","ml",v);
+    add("Muro Berlinés Anclado","Anclaje de perno "+k+" inyectado (cantidad de anclajes)","un",mbaPernoN[k]||0);});
   if(S.mba.length)add("Muro Berlinés Anclado","Movilización / Desmovilización equipo de hinca","gl",1);
   // MBV
   let v20=0,v25=0,perfV={},perfVN={},vcV={},ptV={},ptPl=0;
@@ -974,7 +977,7 @@ function resumen(){
   // Muro de Pilotes Anclados
   const SIS_MPA="Muro Pilotes Anclados";
   let mpaPerf={},mpaH={},mpaLong={},mpaEst={},mpaAn={},mpaUn=0,mpaVC={},mpaPT={},mpaPl=0,
-      mpaAncML=0,mpaCable=0,mpaCunas=0,mpaCabz=0,mpaPernoML={},mpaTens=0,mpaBulbo=0;
+      mpaAncML=0,mpaAncN=0,mpaCable=0,mpaCunas=0,mpaCabz=0,mpaPernoML={},mpaPernoN={},mpaTens=0,mpaBulbo=0;
   (S.mpa||[]).forEach(x=>{const c=calcMPA(x), a=c.anc;
     mpaUn+=c.cant;
     if(c.mlPerf>0)mpaPerf[c.D]=(mpaPerf[c.D]||0)+c.mlPerf;
@@ -986,7 +989,8 @@ function resumen(){
     c.ptDet.forEach(t=>{if(t.ml>0)mpaPT[t.diam]=(mpaPT[t.diam]||0)+t.ml;});
     mpaPl+=c.ptPlacas;
     mpaBulbo+=a.mlBulbo; mpaCable+=a.mlCable; mpaCunas+=a.nCables; mpaCabz+=a.ancCable; mpaTens+=a.nAnc;
-    a.det.forEach(d=>{if(d.tipo==="Perno")mpaPernoML[d.pLbl]=(mpaPernoML[d.pLbl]||0)+d.ml; else mpaAncML+=d.ml;});});
+    a.det.forEach(d=>{if(d.tipo==="Perno"){mpaPernoML[d.pLbl]=(mpaPernoML[d.pLbl]||0)+d.ml; mpaPernoN[d.pLbl]=(mpaPernoN[d.pLbl]||0)+(+d.cant||0);}
+      else{mpaAncML+=d.ml; mpaAncN+=(+d.cant||0);}});});
   Object.entries(mpaPerf).forEach(([d,v])=>add(SIS_MPA,"Perforación pilote Ø"+d+"mm","ml",v));
   add(SIS_MPA,"Pilote hormigonado (cantidad de piezas)","un",mpaUn);
   Object.entries(mpaH).forEach(([t,v])=>add(SIS_MPA,"Hormigón "+t+" en pilotes","m³",v));
@@ -997,10 +1001,12 @@ function resumen(){
   Object.entries(mpaPT).forEach(([d,v])=>add(SIS_MPA,'Puntal/esquinero tubo Yoder Ø'+d+'"',"ml",v));
   add(SIS_MPA,"Placa de conexión puntal","un",mpaPl);
   add(SIS_MPA,"Anclajes postensados inyectados","ml",mpaAncML);
+  add(SIS_MPA,"Anclajes postensados inyectados (cantidad de anclajes)","un",mpaAncN);
   add(SIS_MPA,'Cables de acero 0,6" (incl. reserva)',"ml",mpaCable);
   add(SIS_MPA,"Cuñas cónicas / mordazas","un",mpaCunas);
   add(SIS_MPA,"Cabezales de anclaje (4 cables)","un",mpaCabz);
-  Object.entries(mpaPernoML).forEach(([k,v])=>add(SIS_MPA,"Anclaje de perno "+k+" inyectado","ml",v));
+  Object.entries(mpaPernoML).forEach(([k,v])=>{add(SIS_MPA,"Anclaje de perno "+k+" inyectado","ml",v);
+    add(SIS_MPA,"Anclaje de perno "+k+" inyectado (cantidad de anclajes)","un",mpaPernoN[k]||0);});
   add(SIS_MPA,"Inyección de bulbo de anclaje","ml",mpaBulbo);
   add(SIS_MPA,"Tensado y ensayo de anclajes","un",mpaTens);
   let mpaShot=0,mpaShM3=0,mpaAcma=0,mpaMKg=0,mpaBarb={};
@@ -1138,7 +1144,7 @@ const PBASE={
 };
 function basePrice(key){
   if(PBASE[key])return {...PBASE[key]};
-  if(key.endsWith("(cantidad de piezas)"))return{mat:0,mo:0,eq:0}; // informativa: el costo va en los ml
+  if(/\(cantidad de (piezas|anclajes)\)$/.test(key))return{mat:0,mo:0,eq:0}; // informativa: el costo va en los ml
   if(key.startsWith("Anclaje de perno")){   // barra + perforación + inyección, por metro lineal
     const d=parseFloat(key.replace(/\D+/g," ").trim())||32;
     return{mat:Math.round(kgml(d)*1400+2000),mo:9500,eq:14500};
@@ -1237,7 +1243,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.64";
+const APP_VER="1.65";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
