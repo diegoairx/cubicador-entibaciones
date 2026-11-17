@@ -1237,7 +1237,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.63";
+const APP_VER="1.64";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -2501,6 +2501,9 @@ function infoData(){
   const puEff=r=>{let pu=puOf(r.key).pu;
     if(r.key==="Anclajes postensados inyectados"&&r.qty>0)pu+=extraAnc/r.qty;
     return pu*adjSis(r.sis);};
+  // Solo partidas con precio: las que tienen P.U. 0 en el APU no se muestran en el informe
+  const nSinPU=R.filter(r=>!(puEff(r)>0)).length;
+  R=R.filter(r=>puEff(r)>0);
   const uf=+val("p_uf")||39500;
   const gg=+val("p_gg"),ut=+val("p_ut"),iva=+val("p_iva");
   let bySis={},tot=0;
@@ -2513,11 +2516,11 @@ function infoData(){
   const hoy=val("p_fec")||new Date().toISOString().slice(0,10);
   const grupos={};
   R.forEach(r=>{(grupos[r.sis]=grupos[r.sis]||[]).push(r);});
-  return{R,puEff,uf,gg,ut,iva,bySis,tot,m2mba,costoMBA,adjM,ivaT,totIva,top,hoy,grupos};
+  return{R,puEff,uf,gg,ut,iva,bySis,tot,m2mba,costoMBA,adjM,ivaT,totIva,top,hoy,grupos,nSinPU};
 }
 function renderInforme(){
   const D=infoData();
-  const {R,puEff,uf,gg,ut,iva,bySis,tot,m2mba,costoMBA,adjM,ivaT,totIva,top,hoy,grupos}=D;
+  const {R,puEff,uf,gg,ut,iva,bySis,tot,m2mba,costoMBA,adjM,ivaT,totIva,top,hoy,grupos,nSinPU}=D;
   const sisRows=Object.entries(bySis).map(([s,v])=>
     `<tr><td>${s}</td><td class="num">${clp(v)}</td><td class="num">UF ${fmt(v/uf,1)}</td><td class="num">${fmt(v/tot*100,1)}%</td></tr>`).join("");
   let qtyRows="";
@@ -2568,7 +2571,7 @@ function renderInforme(){
     <div class="chart-box"><h3>Partidas de mayor incidencia (CLP)</h3><canvas id="c2"></canvas></div>
   </div></div>
   <h2 style="margin-top:22px" id="h-partidas"><span class="secn">3.</span> Cubicación y Presupuesto por Partida
-    <span class="no-print" style="font-size:11.5px;font-weight:400;color:var(--mut);margin-left:10px">(clic en cada sistema para contraer/extender)</span></h2>
+    <span class="no-print" style="font-size:11.5px;font-weight:400;color:var(--mut);margin-left:10px">(clic en cada sistema para contraer/extender${nSinPU?` · ${nSinPU} partida${nSinPU===1?"":"s"} con P.U. 0 en el APU no se muestra${nSinPU===1?"":"n"}`:""})</span></h2>
   <div id="partidas-wrap"><table><tr><th>Sistema</th><th>Partida</th><th>Un</th><th class="num">Cantidad</th><th class="num">P.U. (UF · CLP)</th><th class="num">Total (UF · CLP)</th></tr>${qtyRows}</table></div>
   <h2 style="margin-top:22px" id="h-obs"><span class="secn">4.</span> Observaciones</h2>
   <p style="font-size:13px;line-height:1.7;color:var(--txt)">
