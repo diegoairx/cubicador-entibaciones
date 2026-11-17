@@ -218,7 +218,8 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div class="card">
     <h2>Parámetros Económicos</h2>
     <div class="grid g4">
-      <div><label>Valor UF (CLP)</label><input id="p_uf" type="number" value="39500" step="10"></div>
+      <div><label>Valor UF (CLP)</label><input id="p_uf" type="number" value="39500" step="10">
+        <div id="uf-memo" style="font-size:11px;color:var(--mut);margin-top:4px;line-height:1.5"></div></div>
       <div><label>Gastos Generales %</label><input id="p_gg" type="number" value="12" step="0.5"></div>
       <div><label>Utilidad %</label><input id="p_ut" type="number" value="10" step="0.5"></div>
       <div><label>IVA %</label><input id="p_iva" type="number" value="19" step="0.5"></div>
@@ -1243,7 +1244,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.65";
+const APP_VER="1.66";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1253,6 +1254,7 @@ function estadoHash(){                       // huella del proyecto en pantalla
 }
 function syncGuardado(){SYNC.savedHash=estadoHash();SYNC.savedAt=Date.now();SYNC.db=true;pintarSync();}
 function pintarSync(){
+  if(typeof ufMemoPintar==="function")ufMemoPintar();
   const el=document.getElementById("sync-chip"); if(!el)return;
   let dot="#7fc8ec", txt="Listo", pulse="";
   if(SYNC.logged===false){dot="#8e9bab";txt="Sin sesión";}
@@ -3214,6 +3216,32 @@ function importJSON(ev){
   r.readAsText(f);
 }
 document.getElementById("p_fec").value=hoyLocal();
+/* ── Valor UF: se recuerda el último valor ingresado por el usuario (este navegador) ──
+   Al abrir la app se carga el último valor guardado. Abrir un proyecto de la base de datos
+   muestra la UF con que se cotizó ese proyecto, sin reemplazar el valor guardado. */
+const UF_KEY="ngenco_cubicador_uf";
+function ufLeer(){try{const m=JSON.parse(localStorage.getItem(UF_KEY)||"null");return (m&&+m.v>0)?m:null;}catch(_){return null;}}
+function ufMemoPintar(){
+  const e=document.getElementById("uf-memo"); if(!e)return;
+  const m=ufLeer(); if(!m){e.innerHTML="";return;}
+  const actual=+val("p_uf")||0;
+  e.innerHTML=actual===+m.v
+    ?`✔ Último valor guardado: <b>${clp(m.v)}</b> · ${m.at}`
+    :`Último valor guardado: <b>${clp(m.v)}</b> · ${m.at} <button class="btn ghost sm" style="margin-left:4px;padding:1px 8px" onclick="ufAplicar()">Usar este valor</button>`;
+}
+function ufRefrescar(){ if(curV==="apu")renderAPU(); else if(curV==="informe")renderInforme(); pintarSync(); }
+function ufAplicar(){ const m=ufLeer(); if(!m)return; document.getElementById("p_uf").value=m.v; ufRefrescar(); }
+(function ufInit(){
+  const el=document.getElementById("p_uf"); if(!el)return;
+  const m=ufLeer(); if(m)el.value=m.v;
+  el.addEventListener("change",()=>{
+    const v=+el.value; if(!(v>0))return;
+    const d=new Date();
+    const at=fecCL(ymdLocal(d))+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+    try{localStorage.setItem(UF_KEY,JSON.stringify({v,at}));}catch(_){}
+    ufRefrescar();
+  });
+})();
 setTimeout(pintarSync,0);   // el indicador se pinta cuando ya existe en el DOM
 </script>
 <span id="sync-chip" class="sync-chip no-print" title="Versión de la app y estado de sincronización"></span>
