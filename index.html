@@ -246,6 +246,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-s="pil" onclick="goSub('pil')">Pilotaje</button>
     <button data-s="mpa" onclick="goSub('mpa')">Pilotes Anclados</button>
     <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
+    <button data-s="fhwa" onclick="goSub('fhwa')">✔ Comprob. Anclajes</button>
     <button data-s="ag" onclick="goSub('ag')">💧 Agotamiento</button>
     <button data-s="dca" onclick="goSub('dca')">💧 Drenes Cal.</button>
     <button data-s="mt" onclick="goSub('mt')">Mov. de Tierra</button>
@@ -259,6 +260,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div id="sub-pil" style="display:none"></div>
   <div id="sub-mpa" style="display:none"></div>
   <div id="sub-fab" style="display:none"></div>
+  <div id="sub-fhwa" style="display:none"></div>
   <div id="sub-ag" style="display:none"></div>
   <div id="sub-dca" style="display:none"></div>
   <div id="sub-mt" style="display:none"></div>
@@ -361,6 +363,7 @@ let S={
  mp:{per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}},
  mt:{areas:[],mej:{A:0,h:0},mejC:[],geo:[]},
  fab:{num:1,dias:5,rows:[]},
+ fhwa:{lin:[]},
  ag:[],
  dca:[],
  pil:[],
@@ -800,6 +803,113 @@ function calcMPA(s){
   return{...P,anc:A,sepEje,Hexc,largoMuro,area,
     vcOn,vcDet,vcML,vcTon,ptOn,ptDet,ptCant,ptML,ptPlacas,shOn,sh};
 }
+/* ═════ COMPROBACIÓN DE ANCLAJES — FHWA GEC N°4 (FHWA-IF-99-015, 1999) ═════
+   Bulbo: Qult = Tult·Lb, con Tult = transferencia última de carga por metro de bulbo (tabla 5 de GEC-4,
+   anclajes de diámetro pequeño, fuste recto e inyección por gravedad). FS ≥ 2,0 en suelo y ≥ 3,0 en roca.
+   Tendón: carga de diseño DL ≤ 0,60·SMTS y carga de ensayo Pt = 1,33·DL ≤ 0,80·SMTS.
+   Longitudes: libre ≥ 4,5 m (cable) / 3,0 m (barra) y ≥ distancia a la superficie de falla + máx(1,5 m; H/5);
+   bulbo ≥ 4,5 m en suelo (3,0 m en roca) y sin ganancia significativa de capacidad sobre 12 m;
+   tope del bulbo a ≥ 4,5 m bajo la superficie del terreno. */
+const FHWA_SUELOS=[
+  {k:"gg1",n:"Arena y grava · suelta (N 4–10)",c:"Arena y grava suelta",t:145},
+  {k:"gg2",n:"Arena y grava · med. densa (N 11–30)",c:"Arena y grava med. densa",t:220},
+  {k:"gg3",n:"Arena y grava · densa (N 31–50)",c:"Arena y grava densa",t:290},
+  {k:"ar1",n:"Arena · suelta (N 4–10)",c:"Arena suelta",t:100},
+  {k:"ar2",n:"Arena · med. densa (N 11–30)",c:"Arena med. densa",t:145},
+  {k:"ar3",n:"Arena · densa (N 31–50)",c:"Arena densa",t:190},
+  {k:"al1",n:"Arena y limo · suelta (N 4–10)",c:"Arena y limo suelta",t:70},
+  {k:"al2",n:"Arena y limo · med. densa (N 11–30)",c:"Arena y limo med. densa",t:100},
+  {k:"al3",n:"Arena y limo · densa (N 31–50)",c:"Arena y limo densa",t:130},
+  {k:"lc1",n:"Limo-arcilla baja plasticidad · firme (N 10–20)",c:"Limo-arcilla firme",t:30},
+  {k:"lc2",n:"Limo-arcilla baja plasticidad · dura (N 21–40)",c:"Limo-arcilla dura",t:60},
+  {k:"pers",n:"Personalizado (kN/m: ensayos, inyección a presión, Bustamante)",c:"Personalizado",t:null},
+  {k:"roca",n:"Roca (τ último × π·Dd)",c:"Roca",t:null}];
+const FHWA_PERNO_ULT={R32:280,R38:500,R51:800,T40:660};   // carga última referencial de fabricante (kN), verificar ficha técnica
+function fhwaCfg(){
+  if(!S.fhwa)S.fhwa={lin:[]}; const f=S.fhwa; if(!Array.isArray(f.lin))f.lin=[];
+  const n=(v,d)=>(v===""||v==null||isNaN(+v))?d:+v;
+  return {fpu:n(f.fpu,260.7),fsS:n(f.fsS,2.0),fsR:n(f.fsR,3.0),kT:n(f.kT,1.33),kD:n(f.kD,0.60),kE:n(f.kE,0.80),lj:n(f.lj,1.0),E:195000,A1:140};
+}
+function calcFHWA(a,cfg){
+  cfg=cfg||fhwaCfg();
+  const has=v=>!(v===""||v==null||isNaN(+v)), n=(v,d)=>has(v)?+v:d;
+  const tipo=a.tipo==="Perno"?"Perno":"Cable";
+  const DL=n(a.DL,0), Ll=n(a.Ll,0), Lb=n(a.Lb,0), Dd=n(a.Dd,117), inc=n(a.inc,20);
+  const nc=Math.max(0,Math.round(n(a.nc,0)));
+  // Tendón
+  let smts=0, tLbl="";
+  if(tipo==="Cable"){smts=nc*cfg.fpu; tLbl=nc+" cable"+(nc===1?"":"s")+' 0,6"';}
+  else{const std=FHWA_PERNO_ULT[a.perno]; const per=!(std!=null&&a.perno!=="Personalizado");
+    smts=per?n(a.tu,0):std; tLbl=per?"Barra "+fmt(smts,0)+" kN":"Perno "+a.perno;}
+  const PT=rnd(cfg.kT*DL,1);
+  const rD=smts>0?DL/smts:Infinity, rT=smts>0?PT/smts:Infinity;
+  // Bulbo
+  const suelo=FHWA_SUELOS.find(x=>x.k===a.suelo)||FHWA_SUELOS[4];
+  const roca=suelo.k==="roca";
+  let tult=suelo.t;
+  if(suelo.k==="pers")tult=n(a.tult,0);
+  if(roca)tult=rnd(Math.PI*(Dd/1000)*n(a.tau,0),1);       // τ en kPa → kN/m
+  const FS=roca?cfg.fsR:cfg.fsS;
+  const Qult=rnd(tult*Lb,1), fsReal=DL>0?Qult/DL:0;
+  const LbReq=(tult>0&&DL>0)?Math.ceil(FS*DL/tult*2-1e-9)/2:0;
+  const LbMin=roca?3.0:4.5, LlMin=tipo==="Cable"?4.5:3.0;
+  // Geometría
+  const zTope=has(a.z)?rnd(+a.z+Ll*Math.sin(inc*Math.PI/180),2):null;
+  const H=has(a.H)?+a.H:null, dF=has(a.df)?+a.df:null;
+  const LlFalla=dF!=null?rnd(dF+Math.max(1.5,H!=null?H/5:0),2):null;
+  const sh=has(a.sh)?+a.sh:null, shMin=rnd(3*Dd/1000,2);
+  const ncMin=(tipo==="Cable"&&DL>0)?Math.max(1,Math.ceil(Math.max(DL/(cfg.kD*cfg.fpu),PT/(cfg.kE*cfg.fpu))-1e-9)):null;
+  const C=[], ck=(id,lbl,ok,lvl,val,lim)=>C.push({id,lbl,ok,lvl,val,lim});
+  ck("td","DL ≤ "+fmt(cfg.kD,2)+"·SMTS",smts>0?rD<=cfg.kD+1e-9:false,"err",smts>0?fmt(rD,2):"–","≤ "+fmt(cfg.kD,2));
+  ck("te","Pt ≤ "+fmt(cfg.kE,2)+"·SMTS",smts>0?rT<=cfg.kE+1e-9:false,"err",smts>0?fmt(rT,2):"–","≤ "+fmt(cfg.kE,2));
+  ck("fs","FS bulbo ≥ "+fmt(FS,1),(DL>0&&tult>0)?fsReal>=FS-1e-9:false,"err",fmt(fsReal,2),"≥ "+fmt(FS,1));
+  ck("lbm","Lb ≥ "+fmt(LbMin,1)+" m",Lb>=LbMin-1e-9,"err",fmt(Lb,1),"≥ "+fmt(LbMin,1));
+  ck("lbx","Lb ≤ 12 m",Lb<=12+1e-9,"warn",fmt(Lb,1),"≤ 12");
+  ck("llm","Ll ≥ "+fmt(LlMin,1)+" m",Ll>=LlMin-1e-9,"err",fmt(Ll,1),"≥ "+fmt(LlMin,1));
+  ck("llf","Ll ≥ falla + máx(1,5; H/5)",LlFalla==null?null:Ll>=LlFalla-1e-9,"err",LlFalla==null?"–":fmt(Ll,1),LlFalla==null?"sin dato":"≥ "+fmt(LlFalla,2));
+  ck("zb","Tope bulbo ≥ 4,5 m",zTope==null?null:zTope>=4.5-1e-9,"err",zTope==null?"–":fmt(zTope,2),"≥ 4,5");
+  ck("inc","Inclinación 10°–45°",inc>=10-1e-9&&inc<=45+1e-9,"warn",fmt(inc,0)+"°","10–45°");
+  ck("sh","Separación ≥ 3·Dd",sh==null?null:sh>=shMin-1e-9,"warn",sh==null?"–":fmt(sh,2),sh==null?"sin dato":"≥ "+fmt(shMin,2));
+  const nErr=C.filter(c=>c.lvl==="err"&&c.ok===false).length, nWarn=C.filter(c=>c.lvl==="warn"&&c.ok===false).length;
+  const estado=nErr?"NO CUMPLE":(nWarn?"REVISAR":"CUMPLE");
+  // Programa de ensayo de prueba (GEC-4) y control de alargamiento
+  const AL=rnd(0.05*DL,1);
+  const pasos=[0.25,0.50,0.75,1.00,1.20,cfg.kT].map(k=>rnd(k*DL,1));
+  const lockMin=rnd(0.75*DL,1), lockMax=rnd(1.00*DL,1);
+  const laMin=rnd(0.8*Ll+cfg.lj,2), laMax=rnd(Ll+0.5*Lb+cfg.lj,2);
+  const Aten=tipo==="Cable"?nc*cfg.A1:null;
+  const dEl=Aten?rnd((PT-AL)*(Ll+cfg.lj)*1e6/(Aten*cfg.E),1):null;   // mm: ΔP·L/(A·E)
+  return {tipo,tLbl,DL,Ll,Lb,Dd,inc,nc,smts:rnd(smts,1),PT,rD,rT,suelo,tult,roca,FS,Qult,fsReal,LbReq,LbMin,LlMin,
+    zTope,LlFalla,sh,shMin,ncMin,C,nErr,nWarn,estado,AL,pasos,lockMin,lockMax,laMin,laMax,Aten,dEl};
+}
+/* Importa las líneas de anclaje de los módulos de cubicación; conserva los datos de terreno ya ingresados */
+function fhwaImportar(){
+  fhwaCfg(); const f=S.fhwa;
+  const prev={}; f.lin.filter(l=>l.imp).forEach(l=>{prev[l.imp]=l;});
+  const nuevas=[];
+  const push=(key,o)=>{const p=prev[key]||{};
+    nuevas.push({...o,imp:key,suelo:p.suelo||"ar2",tult:p.tult??"",tau:p.tau??"",inc:p.inc??20,z:p.z??"",df:p.df??"",
+      tu:p.tu??""});};
+  (S.mba||[]).forEach((s,i)=>{const c=calcMBA(s);
+    const ll=(s.ll===""||s.ll==null)?4.5:+s.ll, dd=+s.dd||117;
+    const bust=rnd(Math.PI*(+s.alfaB||1.25)*(dd/1000)*(+s.rs||150),1);
+    c.det.forEach((a,j)=>{if(!(+a.len>0))return;
+      push(`mba.${i}.${j}`,{org:`MBA · ${s.nom||"Sección "+(i+1)} · L${j+1}`,tipo:a.tipo,nc:+a.nc||0,perno:a.perno||"R32",
+        DL:+a.kn||0,Ll:ll,Lb:rnd(+a.len-ll,2),Dd:dd,cant:a.cant,sh:(a.cant>0&&+s.L>0)?rnd(+s.L/a.cant,2):"",H:+s.H||"",bust});});});
+  (S.mpa||[]).forEach((s,i)=>{const A=calcAncLineas(s);
+    const bust=rnd(Math.PI*A.alfaB*(A.dd/1000)*A.rs,1), largo=(+s.cant||0)*(+s.sepEje||0);
+    A.det.forEach((a,j)=>{if(!(+a.len>0))return;
+      push(`mpa.${i}.${j}`,{org:`Pilotes anclados · ${s.nom||"Sección "+(i+1)} · L${j+1}`,tipo:a.tipo,nc:+a.nc||0,perno:a.perno||"R32",
+        DL:+a.kn||0,Ll:A.ll,Lb:rnd(+a.len-A.ll,2),Dd:A.dd,cant:a.cant,sh:(a.cant>0&&largo>0)?rnd(largo/a.cant,2):"",H:+s.Hexc||"",bust});});});
+  (S.msa||[]).forEach((s,i)=>{const c=calcMSA(s);
+    const bust=rnd(Math.PI*(c.alfaB||1.25)*(c.dd/1000)*c.rs,1);
+    (c.ancDet||[]).forEach((a,j)=>{if(!(+a.len>0))return;
+      push(`msa.${i}.${j}`,{org:`Socalzado · ${s.nom||"Grupo "+(i+1)} · L${j+1}`,tipo:a.tipo,nc:+a.nc||0,perno:a.perno||"R32",
+        DL:+a.kn||0,Ll:c.ll,Lb:rnd(+a.len-c.ll,2),Dd:c.dd,cant:a.cant,sh:"",H:+s.L||"",bust});});});
+  if(!nuevas.length){alert("No hay líneas de anclaje en Berlinés Anclado, Pilotes Anclados ni Socalzado para importar.");return;}
+  f.lin=[...f.lin.filter(l=>!l.imp),...nuevas];
+  renderSub();
+}
 /* Drenes californianos (drenes horizontales de alivio) */
 function calcDCA(s){
   const cant=Math.round(+s.cant||0);
@@ -1238,13 +1348,13 @@ function optRecargar(){
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","msa","pil","mpa","fab","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","sn","mp","msa","pil","mpa","fab","fhwa","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.67";
+const APP_VER="1.68";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1268,7 +1378,7 @@ function pintarSync(){
 }
 setInterval(pintarSync,20000);               // refresca el "hace X minutos"
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,mpa:renderMPA,fab:renderFAB,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,mpa:renderMPA,fab:renderFAB,fhwa:renderFHWA,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
@@ -1281,6 +1391,7 @@ function clearMod(m){
   else if(m==="mp")S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
   else if(m==="mt")S.mt={areas:[],mej:{A:0,h:0},mejC:[],geo:[]};
   else if(m==="fab")S.fab={num:1,dias:5,rows:[]};
+  else if(m==="fhwa")S.fhwa={lin:[]};
   else if(m==="ag")S.ag=[];
   else if(m==="dca")S.dca=[];
   else if(m==="msa")S.msa=[];
@@ -1292,6 +1403,7 @@ function clearMod(m){
     S.mp={per:[],placas:[],viga:{L:0,b:0,h:0,cuant:90}};
     S.mt={areas:[],mej:{A:0,h:0},mejC:[],geo:[]};
     S.fab={num:1,dias:5,rows:[]};
+    S.fhwa={lin:[]};
     S.ag=[];
     S.dca=[];
     S.pil=[];
@@ -2086,6 +2198,96 @@ function renderMPA(){
   <button class="btn ghost" onclick="addPerfil()">+ Perfil WF personalizado</button>
   <button class="btn ghost" onclick="addDiamPil()">+ Diámetro de perforación</button>`;
   document.getElementById("sub-mpa").innerHTML=`<div class="card">${modHead("Muro de Pilotes Anclados","mpa")}${h}</div>`;
+}
+
+/* ═════════════════ RENDER: COMPROBACIÓN DE ANCLAJES (FHWA) ═════════════════ */
+function fhwaAdd(){fhwaCfg(); const L=S.fhwa.lin, u=L[L.length-1];
+  L.push(u&&!u.imp?{...u,org:"Anclaje "+(L.length+1)}:{org:"Anclaje "+(L.length+1),tipo:"Cable",nc:3,perno:"R38",DL:300,Ll:4.5,Lb:6,Dd:117,suelo:"ar2",inc:20,z:"",sh:"",df:"",H:""});
+  renderSub();}
+function fhwaChip(e){const c=e==="CUMPLE"?"#27ae60":e==="NO CUMPLE"?"#e05252":"#f2994a";
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:${c};color:#fff;font-size:11px;font-weight:700;white-space:nowrap">${e}</span>`;}
+function fhwaCel(c){
+  if(c.ok===null)return `<td class="num" style="color:var(--mut)" title="${c.lbl}: sin dato">–</td>`;
+  const col=c.ok?"var(--ok)":(c.lvl==="err"?"var(--danger)":"var(--accent)"), ic=c.ok?"✔":(c.lvl==="err"?"✖":"!");
+  return `<td class="num" style="font-weight:600;color:${col};white-space:nowrap" title="${c.lbl} (${c.lim})">${ic} ${c.val}</td>`;
+}
+function renderFHWA(){
+  const cfg=fhwaCfg(), f=S.fhwa, L=f.lin, R=L.map(a=>calcFHWA(a,cfg));
+  const nOk=R.filter(r=>r.estado==="CUMPLE").length, nNo=R.filter(r=>r.estado==="NO CUMPLE").length, nRv=R.filter(r=>r.estado==="REVISAR").length;
+  const P=j=>`fhwa.lin.${j}`;
+  const inpT=(path,v,w)=>`<input value="${String(v??"").replace(/"/g,"&quot;")}" style="width:${w||150}px" onchange="setvs('${path}',this.value)">`;
+  let h=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <button class="btn" onclick="fhwaImportar()" title="Trae las líneas de anclaje de Berlinés Anclado, Pilotes Anclados y Socalzado. Conserva el suelo, inclinación y profundidades ya ingresados.">⤓ Importar anclajes desde la cubicación</button>
+    <button class="btn ghost" onclick="fhwaAdd()">+ Agregar anclaje</button>
+    <button class="btn ghost" id="btnFhwaPDF" onclick="fhwaPDF()" style="margin-left:auto">⬇ Memoria de comprobación PDF (vectorial)</button></div>
+  <div class="grid g4" style="margin-bottom:6px">
+    <div><label>SMTS por cable 0,6" (kN)${helpIco("Resistencia mínima especificada a tracción de un torón de 15,2 mm Gr. 270 (ASTM A416): 260,7 kN, área 140 mm².")}</label>${inp("fhwa.fpu",cfg.fpu,0.1)}</div>
+    <div><label>FS bulbo en suelo</label>${inp("fhwa.fsS",cfg.fsS,0.1)}</div>
+    <div><label>FS bulbo en roca</label>${inp("fhwa.fsR",cfg.fsR,0.1)}</div>
+    <div><label>Carga de ensayo Pt (× DL)</label>${inp("fhwa.kT",cfg.kT,0.01)}</div>
+    <div><label>Límite de diseño (× SMTS)</label>${inp("fhwa.kD",cfg.kD,0.01)}</div>
+    <div><label>Límite en ensayo (× SMTS)</label>${inp("fhwa.kE",cfg.kE,0.01)}</div>
+    <div><label>Largo libre del gato Lj (m)${helpIco("Largo del tendón entre la placa de apoyo y las cuñas del gato; se usa en el control de longitud libre aparente.")}</label>${inp("fhwa.lj",cfg.lj,0.1)}</div>
+  </div>
+  <p class="note" style="margin-top:4px">Valores por defecto de FHWA GEC N°4 (FHWA-IF-99-015). La transferencia de carga de la tabla corresponde a anclajes de diámetro pequeño, fuste recto e inyección por gravedad; para inyección a presión (IRS) usar "Personalizado" con resultados de ensayos o el valor de Bustamante que se indica como referencia.</p>`;
+  if(!L.length){
+    h+=`<p class="note">No hay anclajes para comprobar. Usa <b>Importar anclajes desde la cubicación</b> o <b>+ Agregar anclaje</b>.</p>`;
+  }else{
+    h+=`<div class="kpi" style="margin:6px 0 14px">
+      <div><b>${L.length}</b><span>anclajes comprobados</span></div>
+      <div><b style="color:var(--ok)">${nOk}</b><span>cumplen</span></div>
+      <div><b style="color:var(--accent)">${nRv}</b><span>revisar (advertencias)</span></div>
+      <div><b style="color:var(--danger)">${nNo}</b><span>no cumplen</span></div></div>
+    <h2>1. Datos de los anclajes</h2>
+    <div style="overflow-x:auto"><table><tr><th>#</th><th>Origen / identificación</th><th>Tipo</th><th>Tendón</th><th>DL (kN)${helpIco("Carga de diseño por anclaje (To del proyecto).")}</th>
+      <th>Ll libre (m)</th><th>Lb bulbo (m)</th><th>Suelo del bulbo (GEC-4 tabla 5)</th><th>Tult (kN/m)</th><th>Dd (mm)</th><th>Incl. (°)</th>
+      <th>Prof. cabezal (m)${helpIco("Profundidad del cabezal bajo la superficie del terreno. Con la inclinación y Ll se calcula la profundidad del tope del bulbo (≥ 4,5 m). En blanco = no se evalúa.")}</th>
+      <th>Separación (m)</th><th>Dist. a falla (m)${helpIco("Distancia desde el cabezal hasta la superficie de falla crítica, medida a lo largo del anclaje (análisis de estabilidad). En blanco = no se evalúa.")}</th><th>H (m)</th><th></th></tr>
+    ${L.map((a,j)=>{const r=R[j], sp=r.suelo.k;
+      return `<tr><td>${j+1}</td>
+      <td>${inpT(P(j)+".org",a.org,170)}${a.imp?`<br><span style="font-size:10.5px;color:var(--mut)">importado · ${a.cant||0} un</span>`:""}</td>
+      <td><select onchange="setvs('${P(j)}.tipo',this.value)">${["Cable","Perno"].map(t=>`<option ${r.tipo===t?"selected":""}>${t}</option>`).join("")}</select></td>
+      <td>${r.tipo==="Cable"?`${inp(P(j)+".nc",a.nc??0,1,50)}<span style="font-size:11px;color:var(--mut)"> cables</span>`
+        :`<select onchange="setvs('${P(j)}.perno',this.value)">${["R32","R38","R51","T40","Personalizado"].map(t=>`<option ${(a.perno||"R38")===t?"selected":""}>${t}</option>`).join("")}</select>
+          ${(a.perno==="Personalizado"||!FHWA_PERNO_ULT[a.perno])?`<br>${inp(P(j)+".tu",a.tu??"",10,70)}<span style="font-size:11px;color:var(--mut)"> kN últ.</span>`:""}`}
+        <br><span style="font-size:10.5px;color:var(--mut)">SMTS ${fmt(r.smts,0)} kN</span></td>
+      <td>${inp(P(j)+".DL",a.DL??0,5,70)}</td>
+      <td>${inp(P(j)+".Ll",a.Ll??0,0.5,60)}</td>
+      <td>${inp(P(j)+".Lb",a.Lb??0,0.5,60)}</td>
+      <td><select style="max-width:230px" onchange="setvs('${P(j)}.suelo',this.value)">${FHWA_SUELOS.map(x=>`<option value="${x.k}" ${sp===x.k?"selected":""}>${x.n}${x.t?" — "+x.t:""}</option>`).join("")}</select></td>
+      <td>${sp==="pers"?inp(P(j)+".tult",a.tult??"",5,70):sp==="roca"?`${inp(P(j)+".tau",a.tau??"",50,70)}<span style="font-size:11px;color:var(--mut)"> kPa τ</span><br><b>${fmt(r.tult,1)}</b>`:`<b>${fmt(r.tult,0)}</b>`}
+        ${a.bust?`<br><span style="font-size:10.5px;color:var(--mut)" title="Referencia: π·α·Dd·qs del módulo de origen (Bustamante, valor último)">Bustamante ${fmt(a.bust,0)}</span>`:""}</td>
+      <td>${inp(P(j)+".Dd",a.Dd??117,1,60)}</td>
+      <td>${inp(P(j)+".inc",a.inc??20,1,50)}</td>
+      <td>${inp(P(j)+".z",a.z??"",0.5,60)}</td>
+      <td>${inp(P(j)+".sh",a.sh??"",0.1,60)}</td>
+      <td>${inp(P(j)+".df",a.df??"",0.5,60)}</td>
+      <td>${inp(P(j)+".H",a.H??"",0.5,55)}</td>
+      <td><button class="btn warn sm" onclick="S.fhwa.lin.splice(${j},1);renderSub()">✕</button></td></tr>`;}).join("")}
+    </table></div>
+    <h2 style="margin-top:18px">2. Comprobaciones</h2>
+    <div style="overflow-x:auto"><table><tr><th>#</th><th>Origen</th><th class="num">Pt (kN)</th><th class="num">DL/SMTS ≤ ${fmt(cfg.kD,2)}</th><th class="num">Pt/SMTS ≤ ${fmt(cfg.kE,2)}</th>
+      <th class="num">Qult (kN)</th><th class="num">FS bulbo</th><th class="num">Lb mín.</th><th class="num">Lb ≤ 12 m</th><th class="num">Ll mín.</th><th class="num">Ll vs falla</th>
+      <th class="num">Tope bulbo (m)</th><th class="num">Incl.</th><th class="num">Separación</th><th>Sugerencia</th><th>Estado</th></tr>
+    ${R.map((r,j)=>{const c=id=>fhwaCel(r.C.find(x=>x.id===id));
+      const sug=[]; if(r.LbReq>0&&r.LbReq>r.Lb+1e-9)sug.push(`Lb ≥ ${fmt(Math.max(r.LbReq,r.LbMin),1)} m`);
+      if(r.ncMin&&r.ncMin>r.nc)sug.push(`≥ ${r.ncMin} cables`);
+      if(r.Ll<r.LlMin-1e-9)sug.push(`Ll ≥ ${fmt(r.LlMin,1)} m`);
+      if(r.LlFalla!=null&&r.Ll<r.LlFalla-1e-9)sug.push(`Ll ≥ ${fmt(r.LlFalla,1)} m (falla)`);
+      return `<tr><td>${j+1}</td><td>${L[j].org||""}<br><span style="font-size:10.5px;color:var(--mut)">${r.tLbl} · DL ${fmt(r.DL,0)} kN · ${r.suelo.c}</span></td>
+      <td class="num">${fmt(r.PT,0)}</td>${c("td")}${c("te")}<td class="num">${fmt(r.Qult,0)}</td>${c("fs")}${c("lbm")}${c("lbx")}${c("llm")}${c("llf")}${c("zb")}${c("inc")}${c("sh")}
+      <td style="font-size:11.5px;color:var(--mut)">${sug.join(" · ")||"—"}</td><td>${fhwaChip(r.estado)}</td></tr>`;}).join("")}
+    </table></div>
+    <h2 style="margin-top:18px">3. Programa de ensayo de prueba y control en terreno</h2>
+    <div style="overflow-x:auto"><table><tr><th>#</th><th>Origen</th><th class="num">AL 0,05 DL</th><th class="num">0,25 DL</th><th class="num">0,50 DL</th><th class="num">0,75 DL</th><th class="num">1,00 DL</th><th class="num">1,20 DL</th>
+      <th class="num">Pt ${fmt(cfg.kT,2)} DL</th><th class="num">Bloqueo 0,75–1,00 DL</th><th class="num">L libre aparente (m)</th><th class="num">δ elástico a Pt (mm)</th></tr>
+    ${R.map((r,j)=>`<tr><td>${j+1}</td><td>${L[j].org||""}</td><td class="num">${fmt(r.AL,0)}</td>${r.pasos.map(v=>`<td class="num">${fmt(v,0)}</td>`).join("")}
+      <td class="num">${fmt(r.lockMin,0)} – ${fmt(r.lockMax,0)}</td><td class="num">${fmt(r.laMin,2)} – ${fmt(r.laMax,2)}</td><td class="num">${r.dEl!=null?fmt(r.dEl,1):"–"}</td></tr>`).join("")}
+    </table></div>
+    <p class="note">Cargas en kN por anclaje. Mantener Pt durante 10 min: aceptación por fluencia si el movimiento entre 1 y 10 min es ≤ 1 mm (si lo supera, ≤ 2 mm entre 6 y 60 min). Longitud libre aparente aceptable entre 0,8·Ll + Lj y Ll + 0,5·Lb + Lj. δ elástico estimado con E = 195 GPa y 140 mm² por cable, sobre Ll + Lj.</p>`;
+  }
+  h+=`<p class="note" style="margin-top:10px"><b>Criterios FHWA GEC N°4:</b> tendón con DL ≤ 0,60·SMTS y Pt ≤ 0,80·SMTS · bulbo con Qult = Tult·Lb y FS ≥ 2,0 en suelo (3,0 en roca) · Lb ≥ 4,5 m en suelo (3,0 m en roca), sin ganancia significativa de capacidad sobre 9–12 m · Ll ≥ 4,5 m en cables y 3,0 m en barras, y al menos 1,5 m o H/5 más allá de la superficie de falla · tope del bulbo a ≥ 4,5 m bajo la superficie · inclinación habitual 10°–45° · separación entre anclajes ≥ 3 veces el diámetro de perforación. Cargas últimas de pernos (R32 280 · R38 500 · R51 800 · T40 660 kN) referenciales de fabricante: verificar con la ficha técnica.</p>`;
+  document.getElementById("sub-fhwa").innerHTML=`<div class="card">${modHead("Comprobación de Anclajes — FHWA GEC N°4","fhwa")}${h}</div>`;
 }
 
 /* ═════════════════ RENDER: DRENES CALIFORNIANOS ═════════════════ */
@@ -3203,6 +3405,110 @@ async function fabPDF(){
     pdf.save(`Solicitud_Fabricacion_Anclajes_N${num}_${(val("p_num")||"").replace(/\s/g,"_")}_${fec}.pdf`);
   }catch(e){console.error(e);alert("Error al generar PDF: "+(e&&e.message?e.message:e));}
   if(btn){btn.disabled=false;btn.textContent="⬇ Descargar solicitud PDF (vectorial)";}
+}
+
+/* Memoria de comprobación de anclajes FHWA — PDF vectorial nativo (A4 horizontal, ancho completo) */
+async function fhwaPDF(){
+  const cfg=fhwaCfg(), L=S.fhwa.lin; if(!L.length){alert("No hay anclajes para incluir en la memoria.");return;}
+  const JsPDF=getJsPDF(); if(!JsPDF){alert("No se pudo cargar la librería de PDF. Recarga la página (F5).");return;}
+  const btn=document.getElementById("btnFhwaPDF"); if(btn){btn.disabled=true;btn.textContent="Generando PDF…";}
+  try{
+    const R=L.map(a=>calcFHWA(a,cfg));
+    const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"landscape",compress:true});
+    const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight();
+    const M=10, UW=PW-2*M, rowH=5.4, headH=8.6, yTop=M+21, yMax=PH-M-9;
+    const NAVY=[11,42,74], SKY=[53,167,222], LINE=[221,222,238], MUT=[95,115,133], TXT=[28,43,58], BAND=[226,233,242];
+    const OK=[39,174,96], ERR=[224,82,82], WAR=[214,120,40];
+    const fec=fecCL(hoyLocal()), obra=val("p_nom")||"Proyecto sin nombre";
+    const sub=[val("p_num")?"Proyecto N° "+val("p_num"):"",val("p_ubi"),val("p_cli")?"Cliente: "+val("p_cli"):""].filter(Boolean).join(" · ");
+    const T=(t,x,y,o)=>pdf.text(pdfTxt(t),x,y,o);
+    const clip=(t,w,sz)=>{t=pdfTxt(t);pdf.setFontSize(sz); if(pdf.getTextWidth(t)<=w)return t;
+      while(t.length>3&&pdf.getTextWidth(t+"..")>w)t=t.slice(0,-1); return t+"..";};
+    const header=()=>{
+      pdf.setFillColor(...NAVY);pdf.rect(0,0,PW,3.2,"F");pdf.setFillColor(...SKY);pdf.rect(0,3.2,PW,0.8,"F");
+      pdf.setTextColor(...NAVY);pdf.setFont("helvetica","bold");pdf.setFontSize(14);
+      T("MEMORIA DE COMPROBACIÓN DE ANCLAJES — FHWA GEC N°4",M,M+3.5);
+      pdf.setFontSize(11);pdf.setTextColor(...TXT);pdf.text(clip("Obra: "+obra,PW*0.6,11),M,M+9.5);
+      if(sub){pdf.setFont("helvetica","normal");pdf.setFontSize(8);pdf.setTextColor(...MUT);pdf.text(clip(sub,PW*0.6,8),M,M+14);}
+      pdf.setFont("helvetica","bold");pdf.setFontSize(9.5);pdf.setTextColor(...NAVY);T("NGENCO SpA",PW-M,M+3.5,{align:"right"});
+      pdf.setFontSize(8.5);pdf.setTextColor(...TXT);T("Fecha: "+fec,PW-M,M+9,{align:"right"});
+      pdf.setFont("helvetica","normal");pdf.setFontSize(7.5);pdf.setTextColor(...MUT);
+      T("Referencia: FHWA-IF-99-015 Ground Anchors and Anchored Systems",PW-M,M+13.5,{align:"right"});
+      pdf.setDrawColor(...NAVY);pdf.setLineWidth(0.5);pdf.line(M,M+17,PW-M,M+17);
+    };
+    const nueva=()=>{pdf.addPage("a4","landscape");header();};
+    const secT=(t,y)=>{pdf.setFillColor(...NAVY);pdf.rect(M,y,2,5.5,"F");pdf.setFont("helvetica","bold");pdf.setFontSize(10.5);
+      pdf.setTextColor(...NAVY);T(t,M+4.5,y+4.3);return y+8;};
+    /* tabla genérica: cols=[[título,sub,ancho rel,alin]], filas=[[celdas]] ; celda puede ser {t,col,b} */
+    const tabla=(y,cols,filas)=>{
+      const sw=cols.reduce((a,c)=>a+c[2],0), W=cols.map(c=>c[2]*UW/sw), X=[]; let ac=M; W.forEach(w=>{X.push(ac);ac+=w;});
+      const cx=k=>cols[k][3]==="l"?X[k]+1.6:X[k]+W[k]-1.6, al=k=>cols[k][3]==="l"?{}:{align:"right"};
+      const th=yy=>{pdf.setFillColor(...NAVY);pdf.rect(M,yy,UW,headH,"F");pdf.setTextColor(255,255,255);
+        cols.forEach((c,k)=>{pdf.setFont("helvetica","bold");pdf.setFontSize(7);
+          if(c[1]){T(c[0],cx(k),yy+3.5,al(k));pdf.setFont("helvetica","normal");pdf.setFontSize(6.4);T(c[1],cx(k),yy+6.9,al(k));}
+          else T(c[0],cx(k),yy+5.3,al(k));});return yy+headH;};
+      let top=y; y=th(y);
+      filas.forEach((f,i)=>{
+        if(y+rowH>yMax){pdf.setDrawColor(...LINE);pdf.setLineWidth(0.25);pdf.rect(M,top,UW,y-top,"S");nueva();top=yTop;y=th(yTop);}
+        if(i%2===1){pdf.setFillColor(248,249,252);pdf.rect(M,y,UW,rowH,"F");}
+        f.forEach((c,k)=>{const o=(c&&typeof c==="object")?c:{t:c};
+          pdf.setFont("helvetica",o.b?"bold":"normal");pdf.setFontSize(7.4);pdf.setTextColor(...(o.col||TXT));
+          pdf.text(cols[k][3]==="l"?clip(o.t,W[k]-3,7.4):pdfTxt(o.t),cx(k),y+3.7,al(k));});
+        pdf.setDrawColor(...LINE);pdf.setLineWidth(0.12);pdf.line(M,y+rowH,M+UW,y+rowH); y+=rowH;});
+      pdf.setDrawColor(...LINE);pdf.setLineWidth(0.25);pdf.rect(M,top,UW,y-top,"S");
+      return y;
+    };
+    const ck=(r,id)=>{const c=r.C.find(x=>x.id===id); if(c.ok===null)return {t:"–",col:MUT};
+      return {t:(c.ok?"OK ":(c.lvl==="err"?"NO ":"! "))+c.val,col:c.ok?OK:(c.lvl==="err"?ERR:WAR),b:!c.ok};};
+    const est=r=>({t:r.estado,b:1,col:r.estado==="CUMPLE"?OK:r.estado==="NO CUMPLE"?ERR:WAR});
+    header();
+    let y=yTop;
+    /* resumen */
+    const nOk=R.filter(r=>r.estado==="CUMPLE").length, nNo=R.filter(r=>r.estado==="NO CUMPLE").length, nRv=R.length-nOk-nNo;
+    pdf.setFont("helvetica","normal");pdf.setFontSize(8.3);pdf.setTextColor(...TXT);
+    T(`Anclajes comprobados: ${R.length}  ·  Cumplen: ${nOk}  ·  Revisar: ${nRv}  ·  No cumplen: ${nNo}`,M,y+3);
+    pdf.setTextColor(...MUT);pdf.setFontSize(7.4);
+    T(`Parámetros: SMTS cable 0,6" = ${fmt(cfg.fpu,1)} kN · FS bulbo suelo ${fmt(cfg.fsS,1)} / roca ${fmt(cfg.fsR,1)} · Pt = ${fmt(cfg.kT,2)}·DL · DL ≤ ${fmt(cfg.kD,2)}·SMTS · Pt ≤ ${fmt(cfg.kE,2)}·SMTS · Lj = ${fmt(cfg.lj,2)} m`,M,y+7.5);
+    y+=12;
+    y=secT("1. Datos y comprobaciones",y);
+    y=tabla(y,[["#","",4,"r"],["Anclaje","",27,"l"],["Tendón","SMTS kN",20,"l"],["DL","kN",9,"r"],["Pt","kN",9,"r"],["DL/SMTS","",11,"r"],["Pt/SMTS","",11,"r"],
+      ["Suelo bulbo","GEC-4",20,"l"],["Tult","kN/m",9,"r"],["Lb","m",7,"r"],["Qult","kN",10,"r"],["FS","bulbo",10,"r"],["Lb mín.","",10,"r"],
+      ["Ll","m",7,"r"],["Ll mín.","",10,"r"],["Ll falla","",10,"r"],["Tope bulbo","m",11,"r"],["Incl.","",9,"r"],["Estado","",14,"r"]],
+      R.map((r,j)=>[String(j+1),L[j].org||"",(r.tipo==="Cable"?r.nc+' x 0,6"':r.tLbl)+" · "+fmt(r.smts,0),fmt(r.DL,0),fmt(r.PT,0),ck(r,"td"),ck(r,"te"),r.suelo.c,fmt(r.tult,0),fmt(r.Lb,1),
+        fmt(r.Qult,0),ck(r,"fs"),ck(r,"lbm"),fmt(r.Ll,1),ck(r,"llm"),ck(r,"llf"),ck(r,"zb"),ck(r,"inc"),est(r)]));
+    /* observaciones por anclaje */
+    const obs=[]; R.forEach((r,j)=>{const m=[];
+      r.C.filter(c=>c.ok===false).forEach(c=>m.push(c.lbl+" ("+c.val+", requiere "+c.lim+")"));
+      if(r.LbReq>r.Lb+1e-9)m.push("Lb requerida "+fmt(Math.max(r.LbReq,r.LbMin),1)+" m");
+      if(r.ncMin&&r.ncMin>r.nc)m.push("mínimo "+r.ncMin+" cables");
+      if(m.length)obs.push((j+1)+". "+(L[j].org||"")+": "+m.join("; ")+".");});
+    y+=6;
+    if(obs.length){ if(y+14>yMax){nueva();y=yTop;}
+      y=secT("2. Observaciones",y);
+      pdf.setFont("helvetica","normal");pdf.setFontSize(7.8);pdf.setTextColor(...TXT);
+      obs.forEach(o=>{const ls=pdf.splitTextToSize(pdfTxt(o),UW-4); if(y+ls.length*3.7>yMax){nueva();y=yTop;}
+        pdf.text(ls,M+2,y+3);y+=ls.length*3.7+0.8;});
+      y+=4;}
+    if(y+30>yMax){nueva();y=yTop;}
+    y=secT((obs.length?"3. ":"2. ")+"Programa de ensayo de prueba y control en terreno (kN por anclaje)",y);
+    y=tabla(y,[["#","",4,"r"],["Anclaje","",40,"l"],["AL","0,05 DL",10,"r"],["0,25 DL","",10,"r"],["0,50 DL","",10,"r"],["0,75 DL","",10,"r"],["1,00 DL","",10,"r"],
+      ["1,20 DL","",10,"r"],["Pt",fmt(cfg.kT,2)+" DL",10,"r"],["Bloqueo","0,75-1,00 DL",16,"r"],["L libre aparente","mín - máx (m)",19,"r"],["d elástico","a Pt (mm)",13,"r"]],
+      R.map((r,j)=>[String(j+1),L[j].org||"",fmt(r.AL,0),...r.pasos.map(v=>fmt(v,0)),fmt(r.lockMin,0)+" - "+fmt(r.lockMax,0),
+        fmt(r.laMin,2)+" - "+fmt(r.laMax,2),r.dEl!=null?fmt(r.dEl,1):"-"]));
+    y+=6;
+    const crit=["Criterios FHWA GEC N°4 (FHWA-IF-99-015): tendón con DL ≤ 0,60·SMTS y carga de ensayo Pt ≤ 0,80·SMTS. Capacidad del bulbo Qult = Tult·Lb con transferencia última de carga de la tabla 5 (anclajes de diámetro pequeño, fuste recto, inyección por gravedad) y FS ≥ 2,0 en suelo (3,0 en roca).",
+      "Longitudes: bulbo ≥ 4,5 m en suelo (3,0 m en roca), sin ganancia significativa sobre 9–12 m; libre ≥ 4,5 m en cables y 3,0 m en barras, y al menos máx(1,5 m; H/5) más allá de la superficie de falla; tope del bulbo a ≥ 4,5 m bajo la superficie; inclinación habitual 10°–45°; separación ≥ 3 Dd.",
+      "Ensayo: mantener Pt 10 min; fluencia ≤ 1 mm entre 1 y 10 min (o ≤ 2 mm entre 6 y 60 min). Longitud libre aparente entre 0,8·Ll + Lj y Ll + 0,5·Lb + Lj. Cargas últimas de pernos referenciales de fabricante; verificar ficha técnica. Comprobación preliminar: la capacidad definitiva se valida con ensayos en obra."];
+    pdf.setFont("helvetica","normal");pdf.setFontSize(7.2);pdf.setTextColor(...MUT);
+    crit.forEach(o=>{const ls=pdf.splitTextToSize(pdfTxt(o),UW); if(y+ls.length*3.4>yMax){nueva();y=yTop;} pdf.text(ls,M,y+3);y+=ls.length*3.4+1.2;});
+    const tot=pdf.getNumberOfPages();
+    for(let p=1;p<=tot;p++){pdf.setPage(p);pdf.setDrawColor(...LINE);pdf.setLineWidth(0.2);pdf.line(M,PH-M+1,PW-M,PH-M+1);
+      pdf.setFont("helvetica","normal");pdf.setFontSize(7.5);pdf.setTextColor(...MUT);
+      T("Ngenco SpA · Servicios y Maquinarias · www.ngencospa.com",M,PH-M+5);T("Comprobación de anclajes · "+fec+" · Página "+p+" de "+tot,PW-M,PH-M+5,{align:"right"});}
+    pdf.setProperties({title:"Comprobación de anclajes FHWA · "+obra,author:"Ngenco SpA",subject:"Comprobación de anclajes según FHWA GEC N°4",creator:"Cubicador de Entibaciones · Ngenco SpA"});
+    pdf.save(`Comprobacion_Anclajes_FHWA_${(val("p_num")||val("p_nom")||"proyecto").replace(/\s/g,"_")}_${hoyLocal()}.pdf`);
+  }catch(e){console.error(e);alert("Error al generar PDF: "+(e&&e.message?e.message:e));}
+  if(btn){btn.disabled=false;btn.textContent="⬇ Memoria de comprobación PDF (vectorial)";}
 }
 
 /* ═════════════════ IMPORT / EXPORT ═════════════════ */
