@@ -1342,7 +1342,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.71";
+const APP_VER="1.72";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -3024,8 +3024,8 @@ function pfResultado(){
       ${canal?`<p class="note" style="margin-top:10px">Los canales U no tienen un equivalente directo en WF (sección asimétrica y otra posición del centro de corte). La equivalencia se calcula por módulo resistente Wx con altura similar; verificar Wy, pandeo lateral y conexiones antes de reemplazar.</p>`:""}
       <div class="pf-grid"><div>${pfComp(eu,wf)}</div><div style="text-align:center">${pfSVG(eu,wf)}
         <h3 style="font-size:14px;color:var(--navy);margin:8px 0 6px;text-align:left">Opciones WF para ${eu.des}</h3>
-        <table style="font-size:12.5px"><tr><th>WF</th><th>Criterio</th><th class="num">kg/m</th><th class="num">Wx cm³</th><th class="num">Δ peso</th><th></th></tr>
-        ${opts.map(o=>`<tr ${o.p.des===wf.des?'style="outline:2px solid var(--sky)"':""}><td><b>${o.p.des}</b> <span style="color:var(--mut)">${o.p.imp}</span></td><td>${tag(o.t,o.c)}</td><td class="num">${fmt(o.p.kg,1)}</td><td class="num">${fmt(o.p.Wx,1)}</td>
+        <table style="font-size:12.5px"><tr><th>WF</th><th>Criterio</th><th class="num">kg/m</th><th class="num">Wx cm³</th><th class="num">Iy cm⁴</th><th class="num">Δ peso</th><th></th></tr>
+        ${opts.map(o=>`<tr ${o.p.des===wf.des?'style="outline:2px solid var(--sky)"':""}><td><b>${o.p.des}</b> <span style="color:var(--mut)">${o.p.imp}</span></td><td>${tag(o.t,o.c)}</td><td class="num">${fmt(o.p.kg,1)}</td><td class="num">${fmt(o.p.Wx,1)}</td><td class="num">${fmt(o.p.Iy,0)}</td>
           <td class="num" style="white-space:nowrap">${o.p.kg>eu.kg?"+":""}${fmt((o.p.kg-eu.kg)/eu.kg*100,1)} %</td><td>${o.p.des===wf.des?"":`<button class="btn ghost sm" onclick="pfSel('${o.p.des}')">Comparar</button>`}</td></tr>`).join("")}</table></div></div>`;
   }
   /* búsqueda inversa: WF → europeos */
@@ -3039,8 +3039,8 @@ function pfResultado(){
       <div>${btnApp(eu)}</div></div>
     <div class="pf-grid"><div>${pfComp(eu,wf)}</div><div style="text-align:center">${pfSVG(eu,wf)}
       <h3 style="font-size:14px;color:var(--navy);margin:8px 0 6px;text-align:left">Perfiles europeos equivalentes a ${wf.des}</h3>
-      <table style="font-size:12.5px"><tr><th>Perfil</th><th>Criterio</th><th class="num">kg/m</th><th class="num">Wx cm³</th><th></th></tr>
-      ${lista.map(o=>`<tr ${o.p.des===eu.des?'style="outline:2px solid var(--sky)"':""}><td><b>${o.p.des}</b></td><td>${tag(o.t,o.c)}</td><td class="num">${fmt(o.p.kg,1)}</td><td class="num">${fmt(o.p.Wx,1)}</td>
+      <table style="font-size:12.5px"><tr><th>Perfil</th><th>Criterio</th><th class="num">kg/m</th><th class="num">Wx cm³</th><th class="num">Iy cm⁴</th><th></th></tr>
+      ${lista.map(o=>`<tr ${o.p.des===eu.des?'style="outline:2px solid var(--sky)"':""}><td><b>${o.p.des}</b></td><td>${tag(o.t,o.c)}</td><td class="num">${fmt(o.p.kg,1)}</td><td class="num">${fmt(o.p.Wx,1)}</td><td class="num">${fmt(o.p.Iy,0)}</td>
         <td>${o.p.des===eu.des?"":`<button class="btn ghost sm" onclick="pfSel('${o.p.des}')">Comparar</button>`}</td></tr>`).join("")}</table></div></div>`;
 }
 function pfRender(){const el=document.getElementById("pfRes"); if(el)el.innerHTML=pfResultado();
