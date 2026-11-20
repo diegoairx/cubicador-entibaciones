@@ -248,6 +248,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-s="fab" onclick="goSub('fab')">Fab. Anclajes</button>
     <button data-s="fhwa" onclick="goSub('fhwa')">✔ Bulbo FHWA</button>
     <button data-s="cv" onclick="goSub('cv')">⇄ Conversor</button>
+    <button data-s="pf" onclick="goSub('pf')">⇆ Equiv. Perfiles</button>
     <button data-s="ag" onclick="goSub('ag')">💧 Agotamiento</button>
     <button data-s="dca" onclick="goSub('dca')">💧 Drenes Cal.</button>
     <button data-s="mt" onclick="goSub('mt')">Mov. de Tierra</button>
@@ -263,6 +264,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div id="sub-fab" style="display:none"></div>
   <div id="sub-fhwa" style="display:none"></div>
   <div id="sub-cv" style="display:none"></div>
+  <div id="sub-pf" style="display:none"></div>
   <div id="sub-ag" style="display:none"></div>
   <div id="sub-dca" style="display:none"></div>
   <div id="sub-mt" style="display:none"></div>
@@ -1334,13 +1336,13 @@ function optRecargar(){
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","msa","pil","mpa","fab","fhwa","cv","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","sn","mp","msa","pil","mpa","fab","fhwa","cv","pf","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.70";
+const APP_VER="1.71";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1364,7 +1366,7 @@ function pintarSync(){
 }
 setInterval(pintarSync,20000);               // refresca el "hace X minutos"
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,mpa:renderMPA,fab:renderFAB,fhwa:renderFHWA,cv:renderCV,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,mpa:renderMPA,fab:renderFAB,fhwa:renderFHWA,cv:renderCV,pf:renderPF,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
@@ -2712,6 +2714,368 @@ function renderCV(){
      <div id="cvEqT">${CV.open?cvEqTable(c,v):""}</div></div>
    <p class="cvx-foot">Definiciones exactas del SI y de las unidades internacionales (1 in = 25,4 mm, 1 lb = 0,45359237 kg). Unidades técnicas con g = 9,80665 m/s². Mes = 30 días y año = 365 días. El darcy se expresa como conductividad hidráulica equivalente para agua a 20 °C (aprox.).</p>
   </div>`;
+}
+
+/* ═════ EQUIVALENCIAS DE PERFILES: NORMA EUROPEA ↔ NORMA AMERICANA (WF) ═════
+   Datos: Catálogo Técnico Vigas de Acero Prodalam (2019). Fila: [designación, kg/m, h, b, t, e (mm), A cm², Ix, Iy cm⁴, Wx, Wy cm³, ix, iy cm (, imperial)] */
+const PF_FAM={
+ IPE:[
+  ["80",6,80,46,3.8,5.2,7.6,80.1,8.49,20,3.69,3.24,1.05],
+  ["100",8.1,100,55,4.1,5.7,10.3,171,15.9,34.2,5.79,4.07,1.24],
+  ["120",10.4,120,64,4.4,6.3,13.2,318,27.7,53,8.65,4.9,1.45],
+  ["140",12.9,140,73,4.7,6.9,16.4,541,44.9,77.3,12.3,5.74,1.65],
+  ["160",15.8,160,82,5,7.4,20.1,869,68.3,109,16.7,6.58,1.84],
+  ["180",18.8,180,91,5.3,8,23.9,1320,101,146,22.2,7.43,2.05],
+  ["200",22.4,200,100,5.6,8.5,28.5,1940,142,194,28.5,8.25,2.24],
+  ["220",26.2,220,110,5.9,9.2,33.4,2770,205,252,37.3,9.11,2.48],
+  ["240",30.7,240,120,6.2,9.8,39.1,3890,284,324,47.3,9.97,2.7],
+  ["270",36.1,270,135,6.6,10.2,45.9,5790,420,429,62.2,11.23,3.02],
+  ["300",42.2,300,150,7.1,10.7,53.8,8360,604,557,80.5,12.47,3.35],
+  ["330",49.1,330,160,7.5,11.5,62.6,11770,788,713,98.5,13.7,3.55],
+  ["360",57.1,360,170,8,12.7,72.7,16270,1040,904,123,14.96,3.78],
+  ["400",66.3,400,180,8.6,13.5,84.5,23130,1320,1160,146,16.54,3.95],
+  ["450",77.7,450,190,9.4,14.6,98.8,33740,1680,1500,176,18.48,4.12],
+  ["500",90.7,500,200,10.2,16,116,48200,2140,1930,214,20.38,4.3],
+  ["550",106,550,210,11.1,17.2,134,67120,2670,2440,254,22.38,4.45],
+  ["600",122,600,220,12,19,156,92080,3387,3070,308,24.3,4.66]],
+ IPN:[
+  ["100",8.32,100,50,4.5,6.8,10.6,171,12.2,34.2,4.88,4.01,1.07],
+  ["120",11.2,120,58,5.1,7.7,14.2,328,21.5,54.7,7.41,4.81,1.23],
+  ["140",14.4,140,66,5.7,8.6,18.3,573,35.2,81.9,10.7,5.61,1.4],
+  ["160",17.9,160,74,6.3,9.5,22.8,935,54.7,117,14.8,6.4,1.55],
+  ["180",21.9,180,82,6.9,10.4,27.9,1450,81.3,161,19.8,7.2,1.71],
+  ["200",26.3,200,90,7.5,11.3,33.5,2140,117,214,26,8,1.87],
+  ["220",31.1,220,98,8.1,12.2,39.6,3060,162,278,33.1,8.8,2.02],
+  ["240",36.2,240,106,8.7,13.1,46.1,4250,221,354,41.7,9.59,2.2],
+  ["260",41.9,260,113,9.4,14.1,53.4,5740,288,442,51,10.4,2.32],
+  ["300",54.2,300,125,10.8,16.2,69.1,9800,451,653,72.2,11.9,2.56],
+  ["340",68.1,340,137,12.2,18.3,86.8,15700,674,923,98.4,13.5,2.8],
+  ["360",76.2,360,143,13,19.5,97.1,19610,818,1090,114,14.2,2.9],
+  ["400",92.6,400,155,14.4,21.6,118,29210,1160,1460,149,15.7,3.13],
+  ["450",115,450,170,16.2,24.3,147,45850,1730,2040,203,17.7,3.43],
+  ["500",141,500,185,18,27,180,68740,2480,2750,268,19.6,3.72],
+  ["550",167,550,200,19,30,213,99180,3490,3610,349,21.6,4.02]],
+ HEA:[
+  ["100",16.7,96,100,5,8,21.2,349,134,72.8,26.8,4.06,2.51],
+  ["120",19.9,114,120,5,8,25.3,606,231,106,38.5,4.89,3.02],
+  ["140",24.7,133,140,5.5,8.5,31.4,1030,389,155,55.6,5.73,3.52],
+  ["160",30.4,152,160,6,9,38.8,1670,616,220,76.9,6.57,3.98],
+  ["180",35.5,171,180,6,9.5,45.3,2510,925,294,103,7.45,4.52],
+  ["200",42.3,190,200,6.5,10,53.8,3690,1340,389,134,8.28,4.98],
+  ["220",50.5,210,220,7,11,64.3,5410,1950,515,178,9.17,5.51],
+  ["240",60.3,230,240,7.5,12,76.8,7760,2770,675,231,10.1,6],
+  ["260",68.2,250,260,7.5,12.5,86.8,10450,3670,836,282,11,6.5],
+  ["280",76.4,270,280,8,13,97.3,13670,4760,1010,340,11.9,7],
+  ["300",88.3,290,300,8.5,14,112,18260,6310,1260,421,12.8,7.5],
+  ["320",97.6,310,300,9,15.5,124.4,22928,6985,1480,466,13.6,7.49],
+  ["340",105,330,300,9.5,16.5,133.5,27693,7436,1680,496,14.4,7.46],
+  ["360",112,350,300,10,17.5,142.8,33090,7887,1890,526,15.2,7.43],
+  ["400",125,390,300,11,19,159,45069,8564,2310,571,16.8,7.34],
+  ["450",140,440,300,11.5,21,178,63722,9465,2900,631,18.9,7.29],
+  ["500",155,490,300,12,23,197.5,86975,10367,3550,691,21,7.24]],
+ HEB:[
+  ["100",20.4,100,100,6,10,26,450,167,89.9,33.5,4.16,2.53],
+  ["120",26.7,120,120,6.5,11,34,864,318,144,52.9,5.04,3.06],
+  ["140",33.7,140,140,7,12,43,1510,550,216,78.5,5.93,3.58],
+  ["160",42.6,160,160,8,13,54.3,2490,889,311,111,6.77,4.05],
+  ["180",51.2,180,180,8.5,14,65.3,3830,1360,426,151,7.66,4.56],
+  ["200",61.3,200,200,9,15,78.1,5700,2000,570,200,8.54,5.06],
+  ["220",71.5,220,220,9.5,16,91,8090,2840,736,258,9.43,5.59],
+  ["240",83.2,240,240,10,17,106,11260,3920,938,327,10.31,6.08],
+  ["260",93,260,260,10,17.5,118,14920,5130,1150,395,11.24,6.59],
+  ["280",103,280,280,10.5,18,131,19270,6590,1380,471,12.12,7.09],
+  ["300",117,300,300,11,19,149,25170,8560,1680,571,13,7.58],
+  ["320",127,320,300,11.5,20.5,161.3,30820,9239,1930,616,13.84,7.58],
+  ["340",134,340,300,12,21.5,170.9,36656,9690,2160,646,14.6,7.53],
+  ["360",142,360,300,12.5,22.5,180.6,43193,10141,2400,676,15.5,7.49],
+  ["400",155,400,300,13.5,24,197.8,57680,10819,2880,721,17.1,7.4],
+  ["450",171,450,300,14,26,218,79887,11721,3550,781,19.1,7.33],
+  ["500",187,500,300,14.5,28,238.6,107176,12624,4290,842,21.2,7.27]],
+ UPN:[
+  ["50",5.59,50,38,5,7,7.1,26.4,9.12,10.6,3.75,1.93,1.13],
+  ["65",7.09,65,42,5.5,7.5,9,57.5,14.1,17.7,5.07,2.52,1.25],
+  ["80",8.64,80,45,6,8,11,106,19.4,26.5,6.36,3.1,1.33],
+  ["100",10.6,100,50,6,8.5,13.5,206,29.3,41.2,8.49,3.91,1.47],
+  ["120",13.4,120,55,7,9,17,364,43.2,60.7,11.1,4.62,1.59],
+  ["140",16,140,60,7,10,20.4,605,62.7,86.4,14.8,5.45,1.75],
+  ["160",18.8,160,65,7.5,10.5,24,925,85.3,116,18.3,6.21,1.89],
+  ["180",22,180,70,8,11,28,1350,114,150,22.4,6.95,2.02],
+  ["200",25.3,200,75,8.5,11.5,32.2,1910,148,191,27,7.7,2.14],
+  ["220",29.4,220,80,9,12.5,37.4,2690,197,245,33.6,8.48,2.3],
+  ["240",33.2,240,85,9.5,13,42.3,3600,248,300,39.6,9.22,2.42],
+  ["260",37.9,260,90,10,14,48.3,4820,317,371,47.7,9.99,2.56],
+  ["280",41.8,280,95,10,15,53.3,6280,399,448,57.2,10.9,2.74],
+  ["300",46.2,300,100,10,16,58.8,8030,495,535,67.8,11.69,2.9],
+  ["320",59.5,320,100,14,17.5,75.8,10870,597,679,80.6,12.1,2.81],
+  ["350",60.6,350,100,14,16,77.3,12840,570,734,75,12.9,2.72],
+  ["380",63.1,380,102,13.5,16,80.4,15760,615,829,78.7,14,2.77],
+  ["400",71.8,400,110,14,18,91.5,20350,846,1020,102,14.9,3.04]],
+ UPE:[
+  ["80",7.9,80,50,4,7,10.1,107,25.4,26.8,7.98,3.26,1.59],
+  ["100",9.82,100,55,4.5,7.5,12.5,207,38.2,41.4,10.6,4.07,1.75],
+  ["120",12.1,120,60,5,8,15.4,364,55.4,60.6,13.8,4.86,1.9],
+  ["140",14.5,140,65,5,9,18.4,599,78.7,85.6,18.2,5.71,2.07],
+  ["160",17,160,70,5.5,9.5,21.7,911,107,114,22.6,6.48,2.22],
+  ["180",19.7,180,75,5.5,10.5,25.1,1353,144,150,28.6,7.34,2.39],
+  ["200",22.8,200,80,6,11,29,1909,187,191,34.4,8.11,2.54],
+  ["220",26.6,220,85,6.5,12,33.9,2682,246,244,42.5,8.9,2.7],
+  ["240",30.2,240,90,7,12.5,38.5,3599,311,300,50.1,9.67,2.84],
+  ["270",35.2,270,95,7.5,13.5,44.8,5255,401,389,60.7,10.8,2.99],
+  ["300",44.4,300,100,9.5,15,56.6,7823,538,522,75.6,11.8,3.08],
+  ["330",53.2,330,105,11,16,67.8,11008,681,667,89.7,12.7,3.17],
+  ["360",61.2,360,110,12,17,77.9,14825,844,824,105,13.8,3.29],
+  ["400",72.2,400,115,13.5,18,91.9,20981,1045,1049,123,15.1,3.37]],
+ WF:[
+  ["W150x13",13,148,100,4.3,4.9,16.6,635,82,85.8,16.4,6.18,2.22,"W6x8.5"],
+  ["W150x18",18,153,102,5.8,7.1,23.4,939,126,122.8,24.7,6.34,2.32,"W6x12"],
+  ["W150x22.5",22.5,152,152,5.8,6.6,29,1229,387,161.7,50.9,6.51,3.65,"W6x15"],
+  ["W150x24",24,160,102,6.6,10.3,30.6,1384,183,173,35.9,6.73,2.45,"W6x16"],
+  ["W150x29.8",29.8,157,153,6.6,9.3,38.5,1739,556,221.5,72.6,6.72,3.8,"W6x20"],
+  ["W150x37.1",37.1,162,154,8.1,11.6,47.8,2244,707,277,91.8,6.85,3.84,"W6x25"],
+  ["W200x19.3",19.3,203,102,5.8,6.5,25.1,1686,116,166.1,22.7,8.19,2.14,"W8x13"],
+  ["W200x22.5",22.5,206,102,6.2,8,29,2029,142,197,27.9,8.37,2.22,"W8x15"],
+  ["W200x26.6",26.6,207,133,5.8,8.4,34.2,2611,330,252.3,49.6,8.73,3.1,"W8x18"],
+  ["W200x31.3",31.3,210,134,6.4,10.2,40.3,3168,410,301.7,61.2,8.86,3.19,"W8x21"],
+  ["W200x35.9",35.9,201,165,6.2,10.2,45.7,3450,762,342,92.3,8.69,4.09,"W8x24"],
+  ["W200x41.7",41.7,205,166,7.2,11.8,53.2,4080,903,398,109,8.76,4.11,"W8x28"],
+  ["W200x46.1",46.1,203,203,7.2,11,58.6,4580,1540,451,152,8.81,5.13,"W8x31"],
+  ["W200x52",52,206,204,7.9,12.7,66.5,5290,1770,511,174,8.92,5.16,"W8x35"],
+  ["W200x59",59,210,205,9.1,14.2,75.5,6080,2040,582,200,8.97,5.18,"W8x40"],
+  ["W200x71",71,216,206,10.2,17.4,91,7660,2537,709.2,246.3,9.17,5.28,"W8x48"],
+  ["W200x86",86,222,209,12.9,20.6,110.3,9490,3130,852,300,9.27,5.33,"W8x58"],
+  ["W250x22.3",22.3,254,102,5.9,6.9,28.9,2939,123,231.4,24.1,10.09,2.06,"W10x15"],
+  ["W250x25.3",25.3,257,102,6.1,8.4,32.6,3473,149,270.2,29.3,10.31,2.14,"W10x17"],
+  ["W250x28.4",28.4,260,102,6.4,10,36.6,4046,178,311.2,34.8,10.51,2.2,"W10x19"],
+  ["W250x32.7",32.7,258,146,6.1,9.1,42.1,4937,473,382.7,64.8,10.83,3.35,"W10x22"],
+  ["W250x38.5",38.5,262,147,6.6,11.2,49.6,6057,594,462.4,80.8,11.05,3.46,"W10x26"],
+  ["W250x44.8",44.8,266,148,7.6,13,57.6,7158,704,538.2,95.1,11.15,3.5,"W10x30"],
+  ["W250x58",58,252,203,8,13.5,74.2,8700,1870,690,185,10.8,5.03,"W10x39"],
+  ["W250x67",67,257,204,8.9,15.8,85.8,10300,2220,805,218,11,5.11,"W10x45"],
+  ["W250x73",73,253,254,8.6,14.2,92.7,11257,3880,889.9,305.5,11.02,6.47,"W10x49"],
+  ["W250x80",80,256,255,9.4,15.6,101.9,12550,4313,980.5,338.3,11.1,6.51,"W10x54"],
+  ["W250x89",89,260,256,10.7,17.3,113.9,14237,4841,1095.1,378.2,11.18,6.52,"W10x60"],
+  ["W250x101",101,264,257,11.9,19.6,129,16400,5580,1240,433,11.3,6.58,"W10x68"],
+  ["W310x23.8",23.8,305,101,5.6,6.7,30.7,4346,113,285,22.9,11.89,1.94,"W12x16"],
+  ["W310x28.3",28.3,309,102,6,8.9,36.5,5500,157,356,31,12.28,2.08,"W12x19"],
+  ["W310x32.7",32.7,313,102,6.6,10.8,42.1,6570,192,419.8,37.6,12.49,2.13,"W12x22"],
+  ["W310x38.7",38.7,310,165,5.8,9.7,49.7,8581,727,553.6,88.1,13.14,3.82,"W12x26"],
+  ["W310x44.5",44.5,313,166,6.6,11.2,57.2,9997,855,638.8,103,13.22,3.87,"W12x30"],
+  ["W310x52",52,317,167,7.6,13.2,67,11909,1026,751.4,122.9,13.33,3.91,"W12x35"],
+  ["W310x59.5",59.5,303,203,7.1,13.1,75.1,12900,1840,850,180,13,4.9,"W12x40"],
+  ["W310x74",74,310,205,9.4,16.3,94.8,16400,2340,1060,228,13.2,4.98,"W12x50"],
+  ["W310x97",97,308,305,9.9,15.4,123.6,22284,7286,1447,477.8,13.43,7.68,"W12x65"],
+  ["W310x107",107,311,306,10.9,17,136.4,24839,8123,1597.3,530.9,13.49,7.72,"W12x72"],
+  ["W310x117",117,314,307,11.9,18.7,149.9,27563,9024,1755.6,587.9,13.56,7.76,"W12x79"],
+  ["W310x129",129,318,308,13.1,20.5,165.2,30800,10000,1930,651,13.7,7.8,"W12x87"],
+  ["W360x32.9",32.9,349,127,5.8,8.5,42.1,8358,291,479,45.9,14.09,2.63,"W14x22"],
+  ["W360x39",39,353,128,6.5,10.7,50.2,10331,375,585.3,58.6,14.35,2.73,"W14x26"],
+  ["W360x44",44,352,171,6.9,9.8,57.7,12258,818,696.5,95.7,14.58,3.77,"W14x30"],
+  ["W360x51",51,355,171,7.2,11.6,64.8,14222,968,801.2,113.3,14.81,3.87,"W14x34"],
+  ["W360x57.8",57.8,358,172,7.9,13.1,72.5,16143,1113,901.8,129.4,14.92,3.92,"W14x38"],
+  ["W360x64",64,347,203,7.7,13.5,81.7,17890,1885,1031.1,185.7,14.8,4.8,"W14x43"],
+  ["W360x72",72,350,204,8.6,15.1,91.3,20169,2140,1152.5,209.8,14.86,4.84,"W14x48"],
+  ["W360x79",79,354,205,9.4,16.8,101.2,22713,2416,1283.2,235.7,14.98,4.89,"W14x53"],
+  ["W360x91",91,353,254,9.5,16.4,115.5,26600,4450,1510,352,15.2,6.22,"W14x61"],
+  ["W360x101",101,357,255,10.5,18.3,129,30100,5040,1690,397,15.3,6.25,"W14x68"],
+  ["W360x110",110,360,256,11.4,19.9,140.6,35100,5580,1840,436,15.3,6.3,"W14x74"],
+  ["W360x122",122,363,257,13,21.7,155.3,36700,6160,2020,480,15.4,6.3,"W14x82"],
+  ["W360x134",134,356,369,11.2,18,171,41600,15100,2340,818,15.6,9.4,"W14x90"],
+  ["W360x147",147,360,370,12.3,19.8,187.7,46200,16700,2570,905,15.7,9.42,"W14x99"],
+  ["W360x162",162,364,371,13.3,21.8,206.5,51600,18600,2830,1000,15.8,9.47,"W14x109"],
+  ["W360x179",179,368,373,15,23.9,227.7,57400,20600,3110,1110,15.8,9.5,"W14x120"],
+  ["W360x196",196,372,374,16.4,26.2,250.3,63700,22800,3420,1220,16,9.55,"W14x132"],
+  ["W410x38.8",38.8,399,140,6.4,8.8,50.3,12777,404,640.5,57.7,15.94,2.83,"W16x26"],
+  ["W410x46.1",46.1,403,140,7,11.2,59.2,15690,514,778.7,73.4,16.27,2.95,"W16x31"],
+  ["W410x53",53,403,177,7.5,10.9,68.4,18734,1009,929.7,114,16.55,3.84,"W16x36"],
+  ["W410x60",60,407,178,7.7,12.8,76.2,21707,1205,1066.7,135.4,16.88,3.98,"W16x40"],
+  ["W410x67",67,410,179,8.8,14.4,86.3,24678,1379,1203.8,154.1,16.91,4,"W16x45"],
+  ["W410x75",75,413,180,9.7,16,95.8,27616,1559,1337.3,173.2,16.98,4.03,"W16x50"],
+  ["W410x85",85,417,181,10.9,18.2,108.4,31600,1790,1510,198,17.1,4.06,"W16x57"],
+  ["W460x52",52,450,152,7.6,10.8,66.6,21370,634,949.8,83.5,17.91,3.09,"W18x35"],
+  ["W460x60",60,455,153,8,13.3,76.2,25652,796,1127.6,104.1,18.35,3.23,"W18x40"],
+  ["W460x68",68,459,154,9.1,15.4,87.6,29851,941,1300.7,122.2,18.46,3.28,"W18x46"],
+  ["W460x74",74,457,190,9,14.5,94.9,33415,1661,1462.4,174.8,18.77,4.18,"W18x50"],
+  ["W460x82",82,460,191,9.9,16,104.7,37157,1862,1615.5,195,18.84,4.22,"W18x55"],
+  ["W460x89",89,463,192,10.5,17.7,114.1,41105,2093,1775.6,218,18.98,4.28,"W18x60"],
+  ["W460x97",97,466,193,11.4,19.1,123.2,44500,2280,1920,236,19,4.29,"W18x65"],
+  ["W460x106",106,469,194,12.6,20.6,134.2,48700,2510,2080,259,19,4.32,"W18x71"],
+  ["W530x66",66,525,165,8.9,11.4,83.6,34971,857,1332.2,103.9,20.46,3.2,"W21x44"],
+  ["W530x72",72,524,207,9,10.9,91.6,39969,1615,1525.5,156,20.89,4.2,"W21x48"],
+  ["W530x74",74,529,166,9.7,13.6,95.1,40969,1041,1548.9,125.5,20.76,3.31,"W21x50"],
+  ["W530x82",82,528,209,9.5,13.3,104.5,47569,2028,1801.8,194.1,21.34,4.41,"W21x55"],
+  ["W530x85",85,535,166,10.3,16.5,107.7,48453,1263,1811.3,152.2,21.21,3.42,"W21x57"],
+  ["W530x92",92,533,209,10.2,15.6,117.6,55157,2379,2069.7,227.6,21.65,4.5,"W21x62"],
+  ["W530x101",101,537,210,10.9,17.4,129,61600,2690,2290,267,21.8,4.57,"W21x68"],
+  ["W530x109",109,539,211,11.6,18.8,139.7,67226,2952,2495,279.8,21.94,4.6,"W21x73"],
+  ["W610x101",101,603,228,10.5,14.9,130.3,77003,2951,2554,258.8,24.31,4.76,"W24x68"],
+  ["W610x113",113,608,228,11.2,17.3,145.3,88196,3426,2901.2,300.5,24.64,4.86,"W24x76"],
+  ["W610x125",125,612,229,11.9,19.6,160.1,99184,3933,3241.3,343.5,24.89,4.96,"W24x84"],
+  ["W610x140",140,617,230,13.1,22.2,178.7,114151,4607,3638.8,393.8,25.06,5.03,"W24x94"],
+  ["W610x153",153,623,229,14,24.9,195.5,125787,5048,3973.7,434.8,25.17,5.03,"W24x103"],
+  ["W610x155",155,611,324,12.7,19,198.1,129583,10783,4241.7,665.6,25.58,7.38,"W24x104"],
+  ["W610x174",174,616,325,14,21.6,222.8,147754,12374,4797.2,761.5,25.75,7.45,"W24x117"]],
+};
+const PF_PARES=[["IPE 160", "W150x18"], ["IPE 180", "W150x24"], ["IPE 200", "W200x22.5"], ["IPE 220", "W200x26.6"], ["IPE 240", "W250x28.4"], ["IPE 270", "W250x38.5"], ["IPE 300", "W310x38.7"], ["IPE 330", "W360x44"], ["IPE 360", "W360x57.8"], ["IPE 400", "W410x67"], ["IPE 450", "W460x74"], ["IPE 500", "W530x85"], ["IPE 550", "W530x109"], ["IPE 600", "W610x125"], ["IPN 120", "W150x13"], ["IPN 140", "W150x13"], ["IPN 160", "W150x18"], ["IPN 180", "W200x19.3"], ["IPN 200", "W200x26.6"], ["IPN 220", "W200x31.3"], ["IPN 240", "W250x32.7"], ["IPN 260", "W250x38.5"], ["IPN 300", "W310x44.5"], ["IPN 400", "W410x85"], ["HEA 140", "W150x22.5"], ["HEA 160", "W150x29.8"], ["HEA 200", "W200x46.1"], ["HEA 220", "W200x52"], ["HEA 260", "W250x73"], ["HEB 140", "W150x29.8"], ["HEB 160", "W150x37.1"], ["HEB 200", "W200x59"], ["HEB 220", "W200x71"], ["HEB 240", "W250x73"], ["HEB 260", "W250x89"], ["HEB 300", "W310x117"]];   // tablas 1.3 del catálogo (europeo → WF)
+const PF_COLS=["kg","h","b","t","e","A","Ix","Iy","Wx","Wy","ix","iy"];
+const PF_INFO={
+  IPE:{tipo:"I",d:"Viga I de alas paralelas",nor:"UNE 36526 / EN 10034",cal:"ASTM A36 / S275JR"},
+  IPN:{tipo:"I",d:"Viga I de alas inclinadas",nor:"UNE 36521 / EN 10024",cal:"ASTM A36 / S275JR"},
+  HEA:{tipo:"H",d:"Viga H de ala ancha, serie ligera",nor:"UNE 36524 / EN 10034",cal:"ASTM A36 / S275JR"},
+  HEB:{tipo:"H",d:"Viga H de ala ancha, serie normal",nor:"UNE 36524 / EN 10034",cal:"ASTM A36 / S275JR"},
+  UPN:{tipo:"U",d:"Canal U de alas inclinadas",nor:"UNE 36522 / EN 10279",cal:"ASTM A36 / S275JR"},
+  UPE:{tipo:"U",d:"Canal U de alas paralelas",nor:"EN 10279",cal:"ASTM A36 / S275JR"},
+  WF:{tipo:"I",d:"Viga W de ala ancha (norma americana)",nor:"ASTM A6",cal:"ASTM A572 Gr. 50"}};
+const PF_ALIAS={U:"UPN",CH:"UPN",PFC:"UPE"};
+const PF_FY={A36:250,S275:275,S355:355,A572:345};
+const PF_ALL=(()=>{const a=[];Object.keys(PF_FAM).forEach(f=>PF_FAM[f].forEach(r=>{const o={fam:f,des:f==="WF"?r[0]:f+" "+r[0]};
+  PF_COLS.forEach((c,i)=>o[c]=r[i+1]); if(f==="WF")o.imp=r[13]; a.push(o);}));return a;})();
+const pfFind=d=>PF_ALL.find(p=>p.des===d);
+let PFS=(()=>{try{return JSON.parse(localStorage.getItem("ngenco_pfeq")||"null");}catch(_){return null;}})()||{};
+PFS={q:"HEB 200",crit:"wx",fyE:"A36",fyW:"A572",tabla:0,...PFS,sel:null};
+function pfSave(){try{const {sel,...o}=PFS;localStorage.setItem("ngenco_pfeq",JSON.stringify(o));}catch(_){}}
+function pfParse(q){
+  let s=String(q||"").toUpperCase().replace(/,/g,".").replace(/\s+/g,"");
+  if(!s)return null;
+  let m=s.match(/^HE(\d{2,3})([AB])$/); if(m)s="HE"+m[2]+m[1];
+  m=s.match(/^(IPE|IPN|HEA|HEB|UPN|UPE|U|CH|PFC)(\d{2,3})(X[\d.]+)?$/);
+  if(m){const fam=PF_ALIAS[m[1]]||m[1], r=pfFind(fam+" "+(+m[2]));
+    return r?{r,alias:PF_ALIAS[m[1]]?m[1]:null}:{err:`${fam} ${+m[2]} no figura en el catálogo. Disponibles: ${PF_FAM[fam].map(x=>x[0]).join(", ")}.`};}
+  m=s.match(/^W?F?(\d{1,3})X([\d.]+)$/);
+  if(m){const a=+m[1], b=+m[2], W=PF_ALL.filter(p=>p.fam==="WF");
+    const r=W.find(p=>+p.des.slice(1).split("x")[0]===a&&Math.abs(+p.des.split("x")[1]-b)<0.06)
+         ||W.find(p=>+p.imp.slice(1).split("x")[0]===a&&Math.abs(+p.imp.split("x")[1]-b)<0.06);
+    return r?{r}:{err:`W${a}x${b} no figura en el catálogo WF.`};}
+  return {err:"Formato no reconocido. Ejemplos: HEB 200 · HE 200 B · IPE 300 · UPN 200 · W200x59 · W8x40"};
+}
+/* WF candidatos para un perfil europeo: criterio Wx (mismo módulo resistente) o capacidad Wx·fy (considera calidad del acero) */
+function pfCands(e,crit){
+  const W=PF_ALL.filter(p=>p.fam==="WF"), need=crit==="cap"?e.Wx*PF_FY[PFS.fyE]/PF_FY[PFS.fyW]:e.Wx;
+  const canal=PF_INFO[e.fam].tipo==="U";
+  const geo=p=>p.h>=0.75*e.h&&p.h<=1.25*e.h&&(canal||p.b>=0.7*e.b);
+  let c=W.filter(p=>p.Wx>=need-1e-9&&geo(p)); if(!c.length)c=W.filter(p=>p.Wx>=need-1e-9);
+  return c.sort((a,b)=>a.kg-b.kg||Math.abs(a.h-e.h)-Math.abs(b.h-e.h));
+}
+/* Europeo más liviano de cada familia que iguala al WF (búsqueda inversa) */
+function pfEuroDe(w,crit){
+  const need=crit==="cap"?w.Wx*PF_FY[PFS.fyW]/PF_FY[PFS.fyE]:w.Wx;
+  return ["HEB","HEA","IPE","IPN","UPN","UPE"].map(f=>PF_ALL.filter(p=>p.fam===f&&p.Wx>=need-1e-9).sort((a,b)=>a.kg-b.kg)[0]).filter(Boolean);
+}
+function pfApp(p){ // designación en formato de la lista de perfiles de la app
+  return p.fam==="WF"?p.des:p.fam+p.des.split(" ")[1]+"x"+p.kg;}
+function pfAgregar(d){S.perfCustom=S.perfCustom||[]; if(!perfiles().includes(d))S.perfCustom.push(d); pintarSync(); pfRender();}
+function pfSVG(a,b){
+  const H=Math.max(a.h,b.h), sc=200/H, W=520, base=230;
+  const shape=(p,x0,col,der)=>{const h=p.h*sc,bb=p.b*sc,t=Math.max(p.t*sc,1.6),e=Math.max(p.e*sc,1.6), y0=base-h, U=PF_INFO[p.fam].tipo==="U";
+    const path=U?`M${x0},${y0} h${bb} v${e} h${-(bb-t)} v${h-2*e} h${bb-t} v${e} h${-bb} z`
+      :`M${x0},${y0} h${bb} v${e} h${-(bb-t)/2} v${h-2*e} h${(bb-t)/2} v${e} h${-bb} v${-e} h${(bb-t)/2} v${-(h-2*e)} h${-(bb-t)/2} z`;
+    return `<path d="${path}" fill="${col}" fill-opacity=".18" stroke="${col}" stroke-width="1.6"/>
+      <text x="${x0+bb/2}" y="${base+18}" font-size="13" font-weight="700" text-anchor="middle" fill="${col}">${p.des}</text>
+      <text x="${x0+bb/2}" y="${base+33}" font-size="11" text-anchor="middle" fill="#5f7385">${fmt(p.h,0)} × ${fmt(p.b,0)} mm · ${fmt(p.kg,1)} kg/m</text>
+      ${der?`<line x1="${x0+bb+10}" y1="${y0}" x2="${x0+bb+10}" y2="${base}" stroke="#8e9bab"/><text x="${x0+bb+14}" y="${y0+h/2}" font-size="10.5" fill="#5f7385">h ${fmt(p.h,0)}</text>`
+        :`<line x1="${x0-10}" y1="${y0}" x2="${x0-10}" y2="${base}" stroke="#8e9bab"/><text x="${x0-14}" y="${y0+h/2}" font-size="10.5" text-anchor="end" fill="#5f7385">h ${fmt(p.h,0)}</text>`}`;};
+  const bw=Math.max(a.b,b.b)*sc;
+  return `<svg viewBox="0 0 ${W} 275" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI,Arial,sans-serif" style="width:100%;max-width:560px;height:auto">
+    <line x1="20" y1="${base}" x2="${W-20}" y2="${base}" stroke="#dde3ea"/>
+    ${shape(a,W*0.27-a.b*sc/2,"#0b2a4a",0)}${shape(b,W*0.73-b.b*sc/2,"#1d6fb8",1)}
+    <text x="${W/2}" y="${base-90}" font-size="24" text-anchor="middle" fill="#35a7de">⇄</text></svg>`;
+}
+function pfComp(eu,wf){
+  const fE=PF_FY[PFS.fyE], fW=PF_FY[PFS.fyW];
+  const rows=[["Peso","kg","kg/m",1,"menos"],["Altura h","h","mm",0,""],["Ancho de ala b","b","mm",0,""],["Espesor de alma t","t","mm",1,""],["Espesor de ala e","e","mm",1,""],
+    ["Área A","A","cm²",1,"mas"],["Inercia Ix","Ix","cm⁴",0,"mas"],["Inercia Iy","Iy","cm⁴",0,"mas"],["Módulo resistente Wx","Wx","cm³",1,"mas"],["Módulo resistente Wy","Wy","cm³",1,"mas"],
+    ["Radio de giro ix","ix","cm",2,"mas"],["Radio de giro iy","iy","cm",2,"mas"]];
+  const cel=(a,b,dir)=>{const d=a?(b-a)/a*100:0; let col="var(--mut)";
+    if(dir==="mas")col=d>=-0.5?"var(--ok)":(d>=-5?"var(--accent)":"var(--danger)"); if(dir==="menos")col=d<=0.5?"var(--ok)":"var(--accent)";
+    return `<td class="num" style="color:${col};font-weight:600">${d>0?"+":""}${fmt(d,1)} %</td>`;};
+  const myE=eu.Wx*fE/1000, myW=wf.Wx*fW/1000;
+  return `<table style="font-size:13px"><tr><th>Propiedad</th><th class="num">${eu.des}</th><th class="num">${wf.des}${wf.imp?` <span style="opacity:.75;font-weight:400">(${wf.imp})</span>`:""}</th><th class="num">Diferencia</th></tr>
+    ${rows.map(([n,k,u,dd,dir])=>`<tr><td>${n} <span style="color:var(--mut);font-size:11.5px">${u}</span></td><td class="num">${fmt(eu[k],dd)}</td><td class="num"><b>${fmt(wf[k],dd)}</b></td>${cel(eu[k],wf[k],dir)}</tr>`).join("")}
+    <tr class="res"><td>Momento de fluencia M<sub>y</sub> = Wx · f<sub>y</sub> <span style="font-weight:400;font-size:11.5px">kN·m (f<sub>y</sub> ${fE} / ${fW} MPa)</span></td><td class="num">${fmt(myE,1)}</td><td class="num">${fmt(myW,1)}</td>${cel(myE,myW,"mas")}</tr></table>`;
+}
+function pfSel(d){PFS.sel=d; pfRender();}
+function pfIr(q){PFS.q=q; PFS.sel=null; pfSave(); const i=document.getElementById("pfQ"); if(i)i.value=q; pfRender();}
+function pfOpt(k,v){PFS[k]=v; PFS.sel=null; pfSave(); pfRender();}
+function pfCopiar(t,b){if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>{if(b){b.textContent="✔ Copiado";setTimeout(()=>{b.textContent="Copiar resumen";},1500);}});else prompt("Copia:",t);}
+function pfResultado(){
+  const P=pfParse(PFS.q);
+  if(!P)return `<p class="note">Escribe un perfil europeo (HEB 200, IPE 300, UPN 200…) o americano (W200x59, W8x40) para ver su equivalencia.</p>`;
+  if(P.err)return `<p class="note" style="border-color:var(--danger);background:#fdeeee">${P.err}</p>`;
+  const r=P.r, inApp=d=>perfiles().includes(d);
+  const btnApp=p=>{const d=pfApp(p); return inApp(d)?`<span style="font-size:12px;color:var(--ok);font-weight:700">✔ ${d} ya está en la lista de perfiles de cubicación</span>`
+    :`<button class="btn ghost sm" onclick="pfAgregar('${d}')">＋ Agregar ${d} a los perfiles de cubicación</button>`;};
+  const tag=(t,c)=>`<span style="display:inline-block;border-radius:10px;padding:2px 9px;font-size:11px;font-weight:700;color:#fff;background:${c}">${t}</span>`;
+  if(r.fam!=="WF"){
+    const eu=r, cat=PF_PARES.find(([a])=>a===eu.des), wfCat=cat?pfFind(cat[1]):null;
+    const cW=pfCands(eu,"wx"), cC=pfCands(eu,"cap"), sug=(PFS.crit==="cap"?cC:cW)[0];
+    const opts=[]; const addO=(p,t,c)=>{if(p&&!opts.some(o=>o.p.des===p.des))opts.push({p,t,c});};
+    addO(wfCat,(wfCat&&cW[0]&&cW[0].des===wfCat.des)?"Catálogo · mismo Wx":"Catálogo","#27ae60"); addO(cW[0],"Mismo Wx","#1d6fb8"); addO(cC[0],"Misma capacidad Wx·fy","#7b5ea7");
+    (PFS.crit==="cap"?cC:cW).slice(1,4).forEach(p=>addO(p,"Alternativa","#8e9bab"));
+    const wf=(PFS.sel&&pfFind(PFS.sel))||wfCat||sug;
+    if(!wf)return `<p class="note">No hay un perfil WF del catálogo que alcance el módulo resistente de ${eu.des}.</p>`;
+    const esCat=wfCat&&wf.des===wfCat.des;
+    const canal=PF_INFO[eu.fam].tipo==="U";
+    const res=`${eu.des} → ${wf.des} (${wf.imp}) · ${esCat?"equivalencia del catálogo":"equivalencia calculada ("+(PFS.crit==="cap"?"capacidad Wx·fy":"mismo Wx")+")"} · ${fmt(eu.kg,1)} → ${fmt(wf.kg,1)} kg/m · Wx ${fmt(eu.Wx,1)} → ${fmt(wf.Wx,1)} cm³`;
+    return `<div class="pf-hero">
+      <div><div style="font-size:12px;color:var(--mut)">${P.alias?`«${P.alias}» se interpreta como ${eu.fam} · `:""}${PF_INFO[eu.fam].d} · ${PF_INFO[eu.fam].nor}</div>
+        <div class="pf-big">${eu.des} <span style="color:#35a7de">→</span> ${wf.des} <span class="pf-imp">${wf.imp}</span></div>
+        <div style="margin-top:6px">${esCat?tag("Equivalencia del catálogo (tabla 1.3)","#27ae60"):tag(wfCat?"Alternativa elegida":"Equivalencia calculada · no tabulada en el catálogo","#e08a1e")}
+          <span style="font-size:12.5px;color:var(--mut);margin-left:6px">${fmt(eu.kg,1)} → ${fmt(wf.kg,1)} kg/m · Wx ${fmt(eu.Wx,1)} → ${fmt(wf.Wx,1)} cm³</span></div></div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">${btnApp(wf)}<button class="btn ghost sm" onclick="pfCopiar(${JSON.stringify(res).replace(/"/g,"&quot;")},this)">Copiar resumen</button></div></div>
+      ${canal?`<p class="note" style="margin-top:10px">Los canales U no tienen un equivalente directo en WF (sección asimétrica y otra posición del centro de corte). La equivalencia se calcula por módulo resistente Wx con altura similar; verificar Wy, pandeo lateral y conexiones antes de reemplazar.</p>`:""}
+      <div class="pf-grid"><div>${pfComp(eu,wf)}</div><div style="text-align:center">${pfSVG(eu,wf)}
+        <h3 style="font-size:14px;color:var(--navy);margin:8px 0 6px;text-align:left">Opciones WF para ${eu.des}</h3>
+        <table style="font-size:12.5px"><tr><th>WF</th><th>Criterio</th><th class="num">kg/m</th><th class="num">Wx cm³</th><th class="num">Δ peso</th><th></th></tr>
+        ${opts.map(o=>`<tr ${o.p.des===wf.des?'style="outline:2px solid var(--sky)"':""}><td><b>${o.p.des}</b> <span style="color:var(--mut)">${o.p.imp}</span></td><td>${tag(o.t,o.c)}</td><td class="num">${fmt(o.p.kg,1)}</td><td class="num">${fmt(o.p.Wx,1)}</td>
+          <td class="num" style="white-space:nowrap">${o.p.kg>eu.kg?"+":""}${fmt((o.p.kg-eu.kg)/eu.kg*100,1)} %</td><td>${o.p.des===wf.des?"":`<button class="btn ghost sm" onclick="pfSel('${o.p.des}')">Comparar</button>`}</td></tr>`).join("")}</table></div></div>`;
+  }
+  /* búsqueda inversa: WF → europeos */
+  const wf=r, desdeCat=PF_PARES.filter(([,b])=>b===wf.des).map(([a])=>pfFind(a)).filter(Boolean), calc=pfEuroDe(wf,PFS.crit);
+  const lista=[]; desdeCat.forEach(p=>lista.push({p,t:"Catálogo",c:"#27ae60"})); calc.forEach(p=>{if(!lista.some(o=>o.p.des===p.des))lista.push({p,t:PFS.crit==="cap"?"Misma capacidad":"Mismo Wx",c:"#1d6fb8"});});
+  const eu=(PFS.sel&&pfFind(PFS.sel))||lista[0]?.p;
+  if(!eu)return `<p class="note">No hay perfiles europeos del catálogo que igualen a ${wf.des}.</p>`;
+  return `<div class="pf-hero"><div><div style="font-size:12px;color:var(--mut)">${PF_INFO.WF.d} · ${PF_INFO.WF.nor} · ${PF_INFO.WF.cal}</div>
+      <div class="pf-big">${wf.des} <span class="pf-imp">${wf.imp}</span> <span style="color:#35a7de">→</span> ${eu.des}</div>
+      <div style="margin-top:6px">${desdeCat.some(p=>p.des===eu.des)?tag("Equivalencia del catálogo (tabla 1.3)","#27ae60"):tag("Equivalencia calculada","#e08a1e")}</div></div>
+      <div>${btnApp(eu)}</div></div>
+    <div class="pf-grid"><div>${pfComp(eu,wf)}</div><div style="text-align:center">${pfSVG(eu,wf)}
+      <h3 style="font-size:14px;color:var(--navy);margin:8px 0 6px;text-align:left">Perfiles europeos equivalentes a ${wf.des}</h3>
+      <table style="font-size:12.5px"><tr><th>Perfil</th><th>Criterio</th><th class="num">kg/m</th><th class="num">Wx cm³</th><th></th></tr>
+      ${lista.map(o=>`<tr ${o.p.des===eu.des?'style="outline:2px solid var(--sky)"':""}><td><b>${o.p.des}</b></td><td>${tag(o.t,o.c)}</td><td class="num">${fmt(o.p.kg,1)}</td><td class="num">${fmt(o.p.Wx,1)}</td>
+        <td>${o.p.des===eu.des?"":`<button class="btn ghost sm" onclick="pfSel('${o.p.des}')">Comparar</button>`}</td></tr>`).join("")}</table></div></div>`;
+}
+function pfRender(){const el=document.getElementById("pfRes"); if(el)el.innerHTML=pfResultado();
+  const t=document.getElementById("pfTab"); if(t)t.innerHTML=PFS.tabla?pfTablaCat():"";}
+function pfTablaCat(){
+  const g={}; PF_PARES.forEach(([a,b])=>{const f=a.split(" ")[0];(g[f]=g[f]||[]).push([a,b]);});
+  return `<div class="pf-cat">${Object.entries(g).map(([f,l])=>`<div><h3 style="font-size:13.5px;color:var(--navy);margin:0 0 6px">${f} versus WF</h3><table style="font-size:12.5px"><tr><th>${f}</th><th>WF equivalente</th><th class="num">kg/m</th></tr>
+    ${l.map(([a,b])=>{const e=pfFind(a), w=pfFind(b);return `<tr style="cursor:pointer" onclick="pfIr('${a}')"><td><b>${a}</b></td><td>${b} <span style="color:var(--mut)">${w?w.imp:""}</span></td><td class="num">${fmt(e.kg,1)} → ${w?fmt(w.kg,1):"–"}</td></tr>`;}).join("")}</table></div>`).join("")}</div>`;
+}
+function renderPF(){
+  if(!document.getElementById("pf-css")){const st=document.createElement("style");st.id="pf-css";st.textContent=`
+.pf-search{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.pf-search .q{flex:1;min-width:240px}.pf-search .q input{font-size:20px;font-weight:700;padding:12px 14px;border:2px solid var(--sky);text-align:left}
+.pf-chips button{background:#fff;border:1px solid var(--line);border-radius:16px;padding:5px 11px;font-size:12px;font-weight:600;margin:8px 6px 0 0;cursor:pointer;color:var(--navy)}
+.pf-chips button:hover{border-color:var(--sky)}
+.pf-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,#f3f8fc,#e8f3fb);border:1px solid #cfe3f2;border-radius:12px;padding:16px 18px;margin-top:16px}
+.pf-big{font-size:30px;font-weight:800;color:var(--navy);line-height:1.15;margin-top:4px}
+.pf-imp{font-size:15px;font-weight:600;color:var(--mut)}
+.pf-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:22px;margin-top:16px;align-items:start}
+@media(max-width:1000px){.pf-grid{grid-template-columns:1fr}}
+.pf-cat{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:10px}`;document.head.appendChild(st);}
+  const opts=PF_ALL.map(p=>`<option value="${p.des}">${p.fam==="WF"?p.imp+" · ":""}${p.kg} kg/m</option>`).join("")+PF_ALL.filter(p=>p.fam==="WF").map(p=>`<option value="${p.imp}">${p.des}</option>`).join("");
+  document.getElementById("sub-pf").innerHTML=`<div class="card"><h2>Equivalencias de perfiles — Norma Europea ↔ Norma Americana (WF)</h2>
+    <div class="pf-search"><div class="q"><label>Perfil solicitado en el proyecto</label>
+      <input id="pfQ" list="pfList" value="${PFS.q.replace(/"/g,"&quot;")}" placeholder="Ej: HEB 200, IPE 300, UPN 200, W200x59" oninput="PFS.q=this.value;PFS.sel=null;pfSave();pfRender()" autocomplete="off"><datalist id="pfList">${opts}</datalist></div>
+      <div><label>Criterio de cálculo${helpIco("Cuando el catálogo no tabula la equivalencia, se busca el WF más liviano de altura similar (±25 %) que iguala el módulo resistente Wx, o la capacidad a flexión Wx·fy considerando la calidad de cada acero.")}</label>
+        <select onchange="pfOpt('crit',this.value)"><option value="wx" ${PFS.crit==="wx"?"selected":""}>Mismo módulo resistente Wx</option><option value="cap" ${PFS.crit==="cap"?"selected":""}>Misma capacidad Wx·fy</option></select></div>
+      <div><label>Acero europeo</label><select onchange="pfOpt('fyE',this.value)">${[["A36","ASTM A36 · 250 MPa"],["S275","S275JR · 275 MPa"],["S355","S355 · 355 MPa"]].map(([v,t])=>`<option value="${v}" ${PFS.fyE===v?"selected":""}>${t}</option>`).join("")}</select></div>
+      <div><label>Acero WF</label><select onchange="pfOpt('fyW',this.value)">${[["A572","A572 Gr.50 · 345 MPa"],["A36","ASTM A36 · 250 MPa"]].map(([v,t])=>`<option value="${v}" ${PFS.fyW===v?"selected":""}>${t}</option>`).join("")}</select></div></div>
+    <div class="pf-chips">${["HEB 200","HEA 220","IPE 300","IPN 200","HEB 280","UPN 200","UPE 240","W310x44.5","W8x40"].map(x=>`<button onclick="pfIr('${x}')">${x}</button>`).join("")}</div>
+    <div id="pfRes">${pfResultado()}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:20px"><h2 style="margin:0">Tabla de equivalencias del catálogo</h2>
+      <button class="btn ghost sm" onclick="PFS.tabla=PFS.tabla?0:1;pfSave();pfRender();this.textContent=PFS.tabla?'Ocultar':'Mostrar ${PF_PARES.length} equivalencias'">${PFS.tabla?"Ocultar":`Mostrar ${PF_PARES.length} equivalencias`}</button></div>
+    <div id="pfTab">${PFS.tabla?pfTablaCat():""}</div>
+    <p class="note" style="margin-top:14px">Fuente: Catálogo Técnico Vigas de Acero, Prodalam (2019), secciones 1.3 (equivalencias IPE, IPN, HEA y HEB versus WF) y 1.4 (propiedades de IPE, IPN, HEA, HEB, UPE, UPN y WF). Los perfiles europeos se entregan en ASTM A36 / S275JR y los WF en ASTM A572 Gr. 50. U y CH se interpretan como UPN, y PFC como UPE (canal de alas paralelas). Se corrigieron erratas evidentes del catálogo verificadas por consistencia entre Ix, A y W: ancho de ala de HEB 320 a 500 (300 mm), Wx y Wy de UPN 260, área de IPE 140, Iy de W200x46,1 y W460x97, y Wx de W360x122.</p></div>`;
 }
 
 /* ═════════════════ RENDER: DRENES CALIFORNIANOS ═════════════════ */
