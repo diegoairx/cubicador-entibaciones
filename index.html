@@ -1342,7 +1342,7 @@ function goSub(s){curS=s;
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.72";
+const APP_VER="1.73";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -2191,26 +2191,26 @@ function renderMPA(){
 /* ═════════════════ RENDER: DISEÑO DE BULBO DE ANCLAJE (FHWA) ═════════════════ */
 function fbCSS(){ if(document.getElementById("fb-css"))return; const st=document.createElement("style"); st.id="fb-css";
   st.textContent=`
-.fb{--fi:#17181a;--fm:#6b6f76;--fl:#e7e1d8;--fa:#ff6a2a;--fs:#f5eee4;--fok:#1f9d55;--fer:#d64545;--fwa:#d98a1c;color:var(--fi)}
+.fb{--fi:var(--navy);--fm:var(--mut);--fl:var(--line);--fa:var(--blue);--fs:#eef6fc;--fok:var(--ok);--fer:var(--danger);--fwa:var(--accent);color:var(--txt)}
 .fb .fh,.fb h3{font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:700;letter-spacing:.1px;color:var(--fi)}
 .fb h3{font-size:19px;margin:20px 0 6px}
 .fb-sub{font-size:13px;color:var(--fm);margin:-4px 0 12px}
 .fb-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--fl)}
-.fb-chip{border:1px solid var(--fl);background:#fff;border-radius:18px;padding:5px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;gap:7px;align-items:center;color:var(--fi)}
-.fb-chip:hover{border-color:#bdb5aa}.fb-chip.on{background:var(--fi);border-color:var(--fi);color:#fff}
+.fb-chip{border:1px solid var(--fl);background:#fff;border-radius:18px;padding:5px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;gap:7px;align-items:center;color:var(--mut);font-weight:600}
+.fb-chip:hover{border-color:var(--sky)}.fb-chip.on{background:var(--sky);border-color:var(--sky);color:#fff}
 .fb-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .fb-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);gap:26px;align-items:start}
 @media(max-width:1000px){.fb-grid{grid-template-columns:1fr}}
 .fb-fig{border:1px solid var(--fl);border-radius:12px;overflow:hidden;background:#fff;line-height:0}
 .fb-fig svg{width:100%;height:auto;display:block}
 .fb-cap{font-size:12px;color:var(--fm);margin:8px 2px 0;line-height:1.7}
-.fb-res{background:var(--fs);border-radius:12px;padding:16px 18px 6px;margin-top:16px}
+.fb-res{background:var(--fs);border:1px solid var(--sky2);border-radius:12px;padding:16px 18px 6px;margin-top:16px}
 .fb-res .k{font-size:12px;color:var(--fm)}
-.fb-big{font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:800;font-size:66px;line-height:1.02;letter-spacing:-1px;display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
+.fb-big{color:var(--navy);font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:800;font-size:66px;line-height:1.02;letter-spacing:-1px;display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
 .fb-big small{font-size:32px;font-weight:700}
 .fb-tag{border-radius:12px;padding:3px 11px;color:#fff;font-size:12.5px;font-weight:700;align-self:center;margin-left:10px;letter-spacing:0;font-family:'Segoe UI',system-ui,Arial,sans-serif}
 .fb-line{font-size:13.5px;margin:6px 0 10px}
-.fb-ck{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid #e9dccb}
+.fb-ck{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid #cfe3f2}
 .fb-ck .ic{width:20px;height:20px;border-radius:50%;border:1.7px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none;margin-top:1px}
 .fb-ck .tx{flex:1;font-size:13.5px}.fb-ck .tx small{display:block;color:var(--fm);font-size:11.5px;margin-top:3px}
 .fb-ck .st{font-size:12px;font-weight:700;white-space:nowrap}
@@ -2220,32 +2220,32 @@ function fbCSS(){ if(document.getElementById("fb-css"))return; const st=document
 .fb table.fb-tbl td.v{text-align:right;font-weight:700;white-space:nowrap}
 .fb-pan{border:1px solid var(--fl);border-radius:12px;padding:12px 16px 6px;margin-bottom:14px;background:#fff}
 .fb-pan .fh{font-size:17px;margin:0 0 4px}
-.fb-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #f0ebe4}
+.fb-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #edf2f7}
 .fb-pan .fh+.fb-row{border-top:none}
 .fb-row .lb{flex:1;font-size:13.5px;min-width:0}.fb-row .lb small{display:block;color:var(--fm);font-size:11px;margin-top:1px}
 .fb .fb-row input,.fb .fb-row select{width:128px;flex:none;border:1px solid var(--fl);border-radius:9px;padding:9px 11px;font-size:14px;background:#fff}
 .fb .fb-row input[type=text]{flex:1;width:auto;min-width:0;text-align:left}
 .fb .fb-row select{text-align:left}
-.fb .fb-row input:disabled{background:#f7f5f2;color:#a3a7ad}
+.fb .fb-row input:disabled{background:var(--bg);color:#9aa9b7}
 .fb-row .u{width:40px;flex:none;font-size:12px;color:var(--fm)}
 .fb-row.wide{flex-wrap:wrap}.fb .fb-row.wide select{width:100%}
 .fb .fb-range{width:100%;accent-color:var(--fa);padding:0;border:none;margin:6px 0 0}
 .fb-rl{display:flex;justify-content:space-between;font-size:11px;color:var(--fm);padding-bottom:8px}
-.fb-btn{background:var(--fi);color:#fff;border:1px solid var(--fi);border-radius:9px;padding:10px 15px;font-weight:700;font-size:13.5px;cursor:pointer}
-.fb-btn.gh{background:#fff;color:var(--fi)}.fb-btn.sm{padding:6px 11px;font-size:12.5px;border-radius:18px}
-.fb-link{background:none;border:none;color:#c4501b;font-size:11.5px;cursor:pointer;padding:0;text-decoration:underline}
+.fb-btn{background:var(--blue);color:#fff;border:1px solid var(--blue);border-radius:9px;padding:10px 15px;font-weight:700;font-size:13.5px;cursor:pointer}
+.fb-btn:hover{background:var(--navy2);border-color:var(--navy2)}.fb-btn.gh{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}.fb-btn.gh:hover{background:#eef6fc}.fb-btn.sm{padding:6px 11px;font-size:12.5px;border-radius:18px}
+.fb-link{background:none;border:none;color:var(--blue);font-size:11.5px;cursor:pointer;padding:0;text-decoration:underline}
 .fb details{border:1px solid var(--fl);border-radius:12px;padding:12px 16px;margin-top:18px;background:#fff}
-.fb details summary{font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:700;font-size:17px;cursor:pointer}
+.fb details summary{font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:700;font-size:17px;cursor:pointer;color:var(--navy)}
 .fb table.fb-ft{font-size:13px;margin-top:8px}
 .fb table.fb-ft th{background:transparent;color:var(--fm);font-weight:600;font-size:11.5px;border-bottom:1px solid var(--fl);padding:8px 6px}
-.fb table.fb-ft td{background:transparent!important;border-bottom:1px solid #f0ebe4;padding:8px 6px;cursor:pointer}
-.fb table.fb-ft tr:hover td{background:#faf5ee!important}.fb table.fb-ft tr.on td{background:#f6e6cf!important}
-.fb table.fb-sum th{background:#2a2c30}
-.fb table.fb-sum tr{cursor:pointer}.fb table.fb-sum tr.on td{background:#f6e6cf!important}
+.fb table.fb-ft td{background:transparent!important;border-bottom:1px solid #edf2f7;padding:8px 6px;cursor:pointer}
+.fb table.fb-ft tr:hover td{background:#f3f8fc!important}.fb table.fb-ft tr.on td{background:#dcebf7!important}
+.fb table.fb-sum th{background:var(--navy)}
+.fb table.fb-sum tr{cursor:pointer}.fb table.fb-sum tr.on td{background:#dcebf7!important}
 .fb-note{font-size:11.5px;color:var(--fm);margin-top:8px}`;
   document.head.appendChild(st);}
 let fbTabOpen=true;
-const FB_COL={"Cumple":"#1f9d55","No cumple":"#d64545","Revisar":"#d98a1c"};
+const FB_COL={"Cumple":"#27ae60","No cumple":"#e05252","Revisar":"#f2994a"};
 function fbSVG(r){
   const a=r.a, W=560, H=310, gy=46, wx=86;
   const incD=Math.max(0,Math.min(60,+a.inc||0)), inc=incD*Math.PI/180;
@@ -2256,34 +2256,34 @@ function fbSVG(r){
   const P=d=>[hx+d*s*Math.cos(inc),hy+d*s*Math.sin(inc)];
   const [bx,by]=P(Ll),[mx,my]=P(Ll/2);
   const f=(v,d)=>fmt(v,d);
-  const ticks=[]; const step=Lb>8?1:0.5; for(let d=0;d<=Lb+1e-9;d+=step){const big=Math.abs(d-Math.round(d))<1e-9; ticks.push(`<line x1="${d*s}" y1="17" x2="${d*s}" y2="${big?24:21}" stroke="#2b2b2b" stroke-width="1"/>`);}
-  const band=r.roca?"":(()=>{const [x1,y1]=P(Ll+4.5),[x2,y2]=P(Ll+12);return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ff6a2a" stroke-opacity=".5" stroke-width="5" stroke-linecap="round"/>`;})();
-  const lm=r.LbMin>0&&r.LbMin<=span?`<line x1="${r.LbMin*s}" y1="-17" x2="${r.LbMin*s}" y2="17" stroke="#e03a2f" stroke-width="2.2"/>`:"";
+  const ticks=[]; const step=Lb>8?1:0.5; for(let d=0;d<=Lb+1e-9;d+=step){const big=Math.abs(d-Math.round(d))<1e-9; ticks.push(`<line x1="${d*s}" y1="17" x2="${d*s}" y2="${big?24:21}" stroke="#1c2b3a" stroke-width="1"/>`);}
+  const band=r.roca?"":(()=>{const [x1,y1]=P(Ll+4.5),[x2,y2]=P(Ll+12);return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#f2994a" stroke-opacity=".6" stroke-width="5" stroke-linecap="round"/>`;})();
+  const lm=r.LbMin>0&&r.LbMin<=span?`<line x1="${r.LbMin*s}" y1="-17" x2="${r.LbMin*s}" y2="17" stroke="#e05252" stroke-width="2.2"/>`:"";
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI,Arial,sans-serif">
-  <defs><pattern id="fbS" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#d8a656"/>
-    <circle cx="2" cy="2.5" r="1" fill="#b8873f"/><circle cx="7" cy="6.5" r=".9" fill="#c5944a"/><circle cx="4.5" cy="8.6" r=".6" fill="#a97a35"/></pattern>
-    <linearGradient id="fbG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9ecef"/><stop offset=".45" stop-color="#b4bac1"/><stop offset="1" stop-color="#7d858e"/></linearGradient>
-    <marker id="fbA" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#ee5a2b"/></marker></defs>
+  <defs><pattern id="fbS" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#dfe8f0"/>
+    <circle cx="2" cy="2.5" r="1" fill="#a9bccd"/><circle cx="7" cy="6.5" r=".9" fill="#b9c9d8"/><circle cx="4.5" cy="8.6" r=".6" fill="#8e9bab"/></pattern>
+    <linearGradient id="fbG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef6fc"/><stop offset=".45" stop-color="#7fc8ec"/><stop offset="1" stop-color="#1d6fb8"/></linearGradient>
+    <marker id="fbA" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#f2994a"/></marker></defs>
   <rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>
   <rect x="${wx+5}" y="${gy}" width="${W-wx-5}" height="${H-gy}" fill="url(#fbS)"/>
-  <line x1="${wx}" y1="${gy}" x2="${W}" y2="${gy}" stroke="#2b2b2b" stroke-width="2"/>
-  <line x1="0" y1="${H-8}" x2="${wx-4}" y2="${H-8}" stroke="#2b2b2b" stroke-width="1.5"/>
-  <rect x="${wx-5}" y="${gy-12}" width="10" height="${H-gy+4}" fill="#a6aeb7" stroke="#6f7881"/>
+  <line x1="${wx}" y1="${gy}" x2="${W}" y2="${gy}" stroke="#1c2b3a" stroke-width="2"/>
+  <line x1="0" y1="${H-8}" x2="${wx-4}" y2="${H-8}" stroke="#1c2b3a" stroke-width="1.5"/>
+  <rect x="${wx-5}" y="${gy-12}" width="10" height="${H-gy+4}" fill="#8e9bab" stroke="#5f7385"/>
   ${band}
-  <line x1="${hx}" y1="${hy}" x2="${bx}" y2="${by}" stroke="#1d1d1d" stroke-width="2"/>
-  <text x="${mx}" y="${my-8}" font-size="12" fill="#fff" stroke="#3b2c14" stroke-width="2.6" paint-order="stroke" transform="rotate(${incD} ${mx} ${my-8})" text-anchor="middle">tramo libre</text>
+  <line x1="${hx}" y1="${hy}" x2="${bx}" y2="${by}" stroke="#0b2a4a" stroke-width="2"/>
+  <text x="${mx}" y="${my-8}" font-size="12" fill="#fff" stroke="#0b2a4a" stroke-width="2.6" paint-order="stroke" transform="rotate(${incD} ${mx} ${my-8})" text-anchor="middle">tramo libre</text>
   <g transform="translate(${bx} ${by}) rotate(${incD})">
-    <line x1="0" y1="0" x2="${Lb*s+10}" y2="0" stroke="#1d1d1d" stroke-width="1.6"/>
-    <rect x="0" y="-10" width="${Lb*s}" height="20" rx="10" fill="url(#fbG)" stroke="#6f7881"/>
+    <line x1="0" y1="0" x2="${Lb*s+10}" y2="0" stroke="#0b2a4a" stroke-width="1.6"/>
+    <rect x="0" y="-10" width="${Lb*s}" height="20" rx="10" fill="url(#fbG)" stroke="#004080"/>
     ${lm}
-    <line x1="0" y1="20" x2="${Lb*s}" y2="20" stroke="#2b2b2b" stroke-width="1"/>${ticks.join("")}
-    <text x="0" y="37" font-size="11.5" fill="#fff" stroke="#3b2c14" stroke-width="2.6" paint-order="stroke" text-anchor="middle">0</text>
-    <text x="${Lb*s}" y="37" font-size="11.5" fill="#fff" stroke="#3b2c14" stroke-width="2.6" paint-order="stroke" text-anchor="middle">${f(Lb,1)} m</text>
-    <text x="${Lb*s/2}" y="-15" font-size="12.5" font-weight="700" fill="#111" stroke="#fff" stroke-width="3" paint-order="stroke" text-anchor="middle">L<tspan font-size="9" dy="3">b</tspan><tspan dy="-3"> = ${f(Lb,2)} m</tspan></text>
+    <line x1="0" y1="20" x2="${Lb*s}" y2="20" stroke="#1c2b3a" stroke-width="1"/>${ticks.join("")}
+    <text x="0" y="37" font-size="11.5" fill="#fff" stroke="#0b2a4a" stroke-width="2.6" paint-order="stroke" text-anchor="middle">0</text>
+    <text x="${Lb*s}" y="37" font-size="11.5" fill="#fff" stroke="#0b2a4a" stroke-width="2.6" paint-order="stroke" text-anchor="middle">${f(Lb,1)} m</text>
+    <text x="${Lb*s/2}" y="-15" font-size="12.5" font-weight="700" fill="#0b2a4a" stroke="#fff" stroke-width="3" paint-order="stroke" text-anchor="middle">L<tspan font-size="9" dy="3">b</tspan><tspan dy="-3"> = ${f(Lb,2)} m</tspan></text>
   </g>
-  <rect x="${hx-7}" y="${hy-11}" width="8" height="22" fill="#111"/><path d="M${hx+1},${hy-7} L${hx+9},${hy} L${hx+1},${hy+7} z" fill="#111"/>
-  <line x1="${hx-9}" y1="${hy}" x2="${hx-58}" y2="${hy}" stroke="#ee5a2b" stroke-width="2.4" marker-end="url(#fbA)"/>
-  <text x="${hx-60}" y="${hy-10}" font-size="12.5" font-weight="700" fill="#111">Q<tspan font-size="9" dy="3">L</tspan><tspan dy="-3"> ${f(r.QL,1)} t</tspan></text>
+  <rect x="${hx-7}" y="${hy-11}" width="8" height="22" fill="#0b2a4a"/><path d="M${hx+1},${hy-7} L${hx+9},${hy} L${hx+1},${hy+7} z" fill="#0b2a4a"/>
+  <line x1="${hx-9}" y1="${hy}" x2="${hx-58}" y2="${hy}" stroke="#f2994a" stroke-width="2.4" marker-end="url(#fbA)"/>
+  <text x="${hx-60}" y="${hy-10}" font-size="12.5" font-weight="700" fill="#0b2a4a">Q<tspan font-size="9" dy="3">L</tspan><tspan dy="-3"> ${f(r.QL,1)} t</tspan></text>
   </svg>`;
 }
 function fbSel(j){fbCfg().sel=j; renderSub();}
@@ -2350,7 +2350,7 @@ function renderFHWA(){
     const left=`<div>
       <div class="fb-fig">${fbSVG(r)}</div>
       <p class="fb-cap">${row.g} – ${row.n} · N<sub>SPT</sub> ${fmt(+a.nspt||0,0)} · inyección ${(FB_INY[a.iny]||FB_INY.IU).n}${r.Ll!=null?` · L<sub>l</sub> ${fmt(r.Ll,2)} m · ${fmt(+a.inc||0,0)}°`:""}<br>
-        <span style="color:#e03a2f;font-weight:700">—</span> L<sub>b</sub> mínima · <span style="display:inline-block;width:12px;height:5px;background:#ff6a2a;opacity:.5;vertical-align:middle"></span> rango usual FHWA en suelos (4,5 a 12 m)</p>
+        <span style="color:#e05252;font-weight:700">—</span> L<sub>b</sub> mínima · <span style="display:inline-block;width:12px;height:5px;background:#f2994a;opacity:.6;vertical-align:middle"></span> rango usual FHWA en suelos (4,5 a 12 m)</p>
       <div class="fb-res"><div class="k">Longitud de bulbo adoptada${r.auto?"":" · ingresada (proyecto)"}</div>
         <div class="fb-big">${fmt(r.Lb,2)}<small>m</small><span class="fb-tag" style="background:${FB_COL[r.estado]}">${r.estado}</span></div>
         <div class="fb-line">Mínimo <b>${fmt(r.LbMin,2)} m</b> · q = ${fmt(r.q,3)} t/m · Q<sub>a</sub> = ${fmt(r.Qa,1)} t · FS efectivo ${fmt(r.FSef,2)}</div>
@@ -2547,44 +2547,44 @@ function cvParse(t){t=String(t).trim().replace(/\s/g,""); if(t.includes(","))t=C
   t=t.replace(/×10\^?/,"e"); const v=parseFloat(t); return isFinite(v)?v:NaN;}
 function cvCSS(){ if(document.getElementById("cv-css"))return; const st=document.createElement("style"); st.id="cv-css";
   st.textContent=`
-.cvx{container-type:inline-size;--cb:#3d2c20;--cs:#f3efe9;--cl:#e4ddd2;--ci:#17181a;--cm:#6d6f74;--cblue:#1f5fa8;--cbl:#edf3fb;--cor:#e8642c;color:var(--ci);background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--cl)}
-.cvx .ch{font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:700}
-.cvx-head{background:var(--cb);color:#fff;padding:28px 34px 26px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.cvx{container-type:inline-size;--cb:var(--navy);--cs:var(--bg);--cl:var(--line);--ci:var(--txt);--cm:var(--mut);--cblue:var(--blue);--cbl:#eef6fc;--cor:var(--accent);color:var(--ci);background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--cl)}
+.cvx .ch{color:var(--navy);font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:700}
+.cvx-head{background:linear-gradient(120deg,var(--navy) 0%,var(--navy2) 55%,var(--blue) 100%);color:#fff;padding:28px 34px 26px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
 .cvx-head h2{font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:800;font-size:34px;line-height:1.08;color:#fff;margin:0;letter-spacing:-.3px}
 .cvx-head h2::before{display:none}
-.cvx-head p{font-size:13px;color:#e9dfd4;margin:8px 0 0;max-width:430px;line-height:1.5}
+.cvx-head p{font-size:13px;color:var(--sky2);margin:8px 0 0;max-width:430px;line-height:1.5}
 .cvx-ctrl{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
-.cvx-ctrl label{color:#e9dfd4;font-size:10.5px;text-transform:none;letter-spacing:0;font-weight:700;margin:0 0 5px}
+.cvx-ctrl label{color:var(--sky2);font-size:10.5px;text-transform:none;letter-spacing:0;font-weight:700;margin:0 0 5px}
 .cvx .cvx-ctrl input,.cvx .cvx-ctrl select{border:none;border-radius:6px;padding:9px 11px;font-size:13.5px;text-align:left}
 .cvx-srch{position:relative}.cvx .cvx-srch input{width:280px}
-.cvx-sug{position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:20;margin-top:4px;max-height:300px;overflow:auto}
-.cvx-sug div{padding:8px 11px;font-size:13px;color:var(--ci);cursor:pointer;border-bottom:1px solid #f1ede7}.cvx-sug div:hover{background:#f7f2ea}
+.cvx-sug{position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(11,42,74,.25);z-index:20;margin-top:4px;max-height:300px;overflow:auto}
+.cvx-sug div{padding:8px 11px;font-size:13px;color:var(--ci);cursor:pointer;border-bottom:1px solid #edf2f7}.cvx-sug div:hover{background:#eef6fc}
 .cvx-sug small{color:var(--cm);margin-left:6px}
 .cvx-body{display:grid;grid-template-columns:170px minmax(0,1fr) minmax(0,1.18fr);gap:22px;padding:28px 34px 10px;align-items:start}
 @container (max-width:1100px){.cvx-body{grid-template-columns:1fr 1fr}.cvx-nav{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px}.cvx-nav .cvsec{width:100%}.cvx-nav button{width:auto}}
 @container (max-width:720px){.cvx-body{grid-template-columns:1fr}.cvx-head,.cvx-body,.cvx-eq{padding-left:18px;padding-right:18px}.cvx .cvx-srch input{width:200px}}
-.cvx-nav .cvsec{font-size:10.5px;color:var(--cm);font-weight:700;border-left:3px solid #c9b79f;padding:2px 0 2px 9px;margin:14px 0 6px}
+.cvx-nav .cvsec{font-size:10.5px;color:var(--cm);font-weight:700;border-left:3px solid var(--sky);padding:2px 0 2px 9px;margin:14px 0 6px}
 .cvx-nav .cvsec:first-child{margin-top:4px}
 .cvx-nav button{display:block;width:100%;text-align:left;background:none;border:none;border-radius:6px;padding:7px 9px;font-size:13px;font-weight:600;color:var(--ci);cursor:pointer}
-.cvx-nav button:hover{background:#f4efe8}.cvx-nav button.on{background:var(--cb);color:#fff}
+.cvx-nav button:hover{background:#eef6fc}.cvx-nav button.on{background:var(--cb);color:#fff}
 .cvx-pan{background:var(--cs);border:1px solid var(--cl);border-radius:14px;padding:20px}
 .cvx-pt{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
 .cvx-pt .ch{font-size:20px}.cvx-pt small{font-size:11.5px;color:var(--cm)}
 .cvx-box{background:#fff;border:1px solid var(--cl);border-radius:10px;padding:12px 12px 12px}
-.cvx-box.out{background:var(--cbl);border-color:#9dbbe3}
+.cvx-box.out{background:var(--cbl);border-color:var(--sky2)}
 .cvx-box .lb{font-size:10.5px;font-weight:700;color:var(--cm)}.cvx-box.out .lb{color:var(--cblue)}
 .cvx .cvx-num{border:none;background:transparent;font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:700;font-size:34px;padding:2px 0 6px;text-align:left;width:100%;color:var(--ci)}
 .cvx .cvx-num:focus{outline:none}
 .cvx-res{font-family:"Barlow Condensed","Roboto Condensed","Arial Narrow",Arial,sans-serif;font-weight:700;font-size:34px;color:var(--cblue);padding:2px 0 6px;word-break:break-all}
 .cvx-uu{display:flex;gap:8px}.cvx .cvx-uu select{flex:1;min-width:0;border-radius:7px;font-size:13.5px}
 .cvx-btn{background:#fff;border:1px solid var(--cl);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ci);white-space:nowrap}
-.cvx-btn:hover{border-color:#b9ab98}.cvx-btn.dark{background:var(--ci);color:#fff;border-color:var(--ci)}
+.cvx-btn:hover{border-color:var(--sky)}.cvx-btn.dark{background:var(--blue);color:#fff;border-color:var(--blue)}.cvx-btn.dark:hover{background:var(--navy2);border-color:var(--navy2)}
 .cvx-swap{display:flex;justify-content:center;margin:-8px 0}
 .cvx-swap button{width:34px;height:34px;border-radius:50%;border:1px solid var(--cl);background:#fff;font-size:16px;cursor:pointer;position:relative;z-index:2}
 .cvx-eqline{font-size:12px;margin:12px 0 18px;color:var(--ci)}
 .cvx-fr .lb{font-size:10.5px;font-weight:700;color:var(--cm);margin-bottom:8px}
 .cvx-fr button{background:#fff;border:1px solid var(--cl);border-radius:16px;padding:6px 11px;font-size:12px;font-weight:600;margin:0 6px 8px 0;cursor:pointer;color:var(--ci)}
-.cvx-fr button:hover{border-color:#b9ab98}
+.cvx-fr button:hover{border-color:var(--sky)}
 .cvx-nota{background:#fff;border-left:3px solid var(--cor);border-radius:4px 8px 8px 4px;padding:11px 13px;font-size:12px;line-height:1.65;margin-top:18px}
 .cvx-vis{background:var(--cs);border:1px solid var(--cl);border-radius:14px;padding:20px}
 .cvx-gw{background:#fff;border:1px solid var(--cl);border-radius:10px;padding:10px;line-height:0}.cvx-gw svg{width:100%;height:auto}
@@ -2592,12 +2592,12 @@ function cvCSS(){ if(document.getElementById("cv-css"))return; const st=document
 .cvx-eq{padding:18px 34px 6px}
 .cvx-eqh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.cvx-eqh .ch{font-size:20px;margin-right:auto}
 .cvx table.cvx-t{border:1px solid var(--cl);border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;font-size:13px}
-.cvx table.cvx-t th{background:var(--cs);color:var(--cm);font-size:11px;font-weight:700;padding:10px 12px;border-bottom:1px solid var(--cl)}
-.cvx table.cvx-t td{padding:8px 12px;border-bottom:1px solid #eee9e2;background:#fff}
+.cvx table.cvx-t th{background:var(--navy);color:#fff;font-size:11px;font-weight:700;padding:10px 12px;border-bottom:1px solid var(--cl)}
+.cvx table.cvx-t td{padding:8px 12px;border-bottom:1px solid #edf2f7;background:#fff}
 .cvx table.cvx-t tr:nth-child(even) td{background:#fff}
-.cvx table.cvx-t tr.g td{background:var(--cs)!important;font-size:11px;font-weight:700;color:var(--cm);padding:7px 12px}
-.cvx table.cvx-t tr.r{cursor:pointer}.cvx table.cvx-t tr.r:hover td{background:#faf7f2}
-.cvx table.cvx-t tr.o td{background:#efefef!important}.cvx table.cvx-t tr.d td{background:#e9f1fb!important}.cvx table.cvx-t tr.d td.s,.cvx table.cvx-t tr.d td.v{color:var(--cblue)}
+.cvx table.cvx-t tr.g td{background:#dcebf7!important;font-size:11px;font-weight:700;color:var(--navy);padding:7px 12px}
+.cvx table.cvx-t tr.r{cursor:pointer}.cvx table.cvx-t tr.r:hover td{background:#f3f8fc}
+.cvx table.cvx-t tr.o td{background:#fff8ef!important}.cvx table.cvx-t tr.d td{background:#e8f4fb!important}.cvx table.cvx-t tr.d td.s,.cvx table.cvx-t tr.d td.v{color:var(--cblue)}
 .cvx table.cvx-t td.s{font-weight:700}.cvx table.cvx-t td.s small{font-weight:600;color:var(--cm);font-size:10px;margin-left:5px}
 .cvx table.cvx-t td.v{text-align:right;font-weight:700}
 .cvx-foot{font-size:11.5px;color:var(--cm);padding:12px 34px 22px;margin:0;border-top:1px solid var(--cl);margin:10px 34px 0;padding:12px 0 22px}`;
@@ -2615,25 +2615,25 @@ function cvGauge(c,v){
   // escala exterior (origen)
   const maj=max/6;
   for(let i=0;i<=30;i++){const f=i/30, big=i%5===0, [x1,y1]=pt(f,158), [x2,y2]=pt(f,big?140:149);
-    g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d1d1d" stroke-width="${big?2:1}"/>`;
-    if(big){const [tx,ty]=pt(f,124); g+=`<text x="${tx}" y="${ty+4}" font-size="11" text-anchor="middle" fill="#1d1d1d">${F(sgn*maj*(i/5))}</text>`;}}
+    g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#0b2a4a" stroke-width="${big?2:1}"/>`;
+    if(big){const [tx,ty]=pt(f,124); g+=`<text x="${tx}" y="${ty+4}" font-size="11" text-anchor="middle" fill="#0b2a4a">${F(sgn*maj*(i/5))}</text>`;}}
   // escala interior (destino): ticks "redondos" en la unidad de destino, ubicados por conversión inversa
   const d0=cvConv(c,0,uo[0],ud[0]), d1=cvConv(c,sgn*max,uo[0],ud[0]);
-  let inner=`<path d="M${pt(0,98).join(",")} A98,98 0 1 1 ${pt(1,98).join(",")}" fill="none" stroke="#1f5fa8" stroke-width="1.4"/>`;
+  let inner=`<path d="M${pt(0,98).join(",")} A98,98 0 1 1 ${pt(1,98).join(",")}" fill="none" stroke="#1d6fb8" stroke-width="1.4"/>`;
   if(isFinite(d0)&&isFinite(d1)&&d0!==d1){
     const lo=Math.min(d0,d1), hi=Math.max(d0,d1), st=cvStep(hi-lo,4);
     for(let t=Math.ceil(lo/st-1e-9)*st;t<=hi+1e-9*Math.abs(hi);t+=st){
       const o=cvConv(c,t,ud[0],uo[0]); const f=Math.abs(o)/max; if(!isFinite(f)||f<-1e-9||f>1+1e-9)continue;
       const [x1,y1]=pt(f,98),[x2,y2]=pt(f,108),[tx,ty]=pt(f,84);
-      inner+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1f5fa8" stroke-width="1.4"/><text x="${tx}" y="${ty+3.5}" font-size="9.5" text-anchor="middle" fill="#1f5fa8">${F(t)}</text>`;}}
+      inner+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d6fb8" stroke-width="1.4"/><text x="${tx}" y="${ty+3.5}" font-size="9.5" text-anchor="middle" fill="#1d6fb8">${F(t)}</text>`;}}
   const f=Math.min(1,val/max), [nx,ny]=pt(f,150), [bx,by]=pt(f,-22);
   const res=cvConv(c,v,uo[0],ud[0]);
   return `<svg viewBox="0 0 ${W} ${W}" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI,Arial,sans-serif">
-    <circle cx="${cx}" cy="${cy}" r="172" fill="#fff" stroke="#1d1d1d" stroke-width="2.4"/>${g}${inner}
-    <line x1="${bx}" y1="${by}" x2="${nx}" y2="${ny}" stroke="#ee5a2b" stroke-width="4" stroke-linecap="round"/>
-    <circle cx="${cx}" cy="${cy}" r="9" fill="#1d1d1d"/>
-    <text x="${cx}" y="${cy+84}" font-size="14" font-weight="700" text-anchor="middle" fill="#1d1d1d">${cvFmt(v)} ${uo[0]}</text>
-    <text x="${cx}" y="${cy+103}" font-size="13.5" font-weight="700" text-anchor="middle" fill="#1f5fa8">${cvFmt(res)} ${ud[0]}</text></svg>`;
+    <circle cx="${cx}" cy="${cy}" r="172" fill="#fff" stroke="#0b2a4a" stroke-width="2.4"/>${g}${inner}
+    <line x1="${bx}" y1="${by}" x2="${nx}" y2="${ny}" stroke="#f2994a" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="9" fill="#0b2a4a"/>
+    <text x="${cx}" y="${cy+84}" font-size="14" font-weight="700" text-anchor="middle" fill="#0b2a4a">${cvFmt(v)} ${uo[0]}</text>
+    <text x="${cx}" y="${cy+103}" font-size="13.5" font-weight="700" text-anchor="middle" fill="#1d6fb8">${cvFmt(res)} ${ud[0]}</text></svg>`;
 }
 function cvEqTable(c,v){
   const uo=CV.uo, ud=CV.ud; let h=`<table class="cvx-t"><tr><th style="width:22%">Unidad</th><th>Nombre</th><th style="text-align:right">Valor</th><th style="width:70px"></th></tr>`;
@@ -4205,8 +4205,8 @@ async function fhwaPDF(){
     const pdf=new JsPDF({unit:"mm",format:"a4",orientation:"landscape",compress:true});
     const PW=pdf.internal.pageSize.getWidth(), PH=pdf.internal.pageSize.getHeight();
     const M=10, UW=PW-2*M, rowH=5.4, headH=8.2, yTop=M+21, yMax=PH-M-9;
-    const NAVY=[23,24,26], ACC=[255,106,42], LINE=[231,225,216], MUT=[107,111,118], TXT=[23,24,26], SAND=[245,238,228];
-    const OK=[31,157,85], ERR=[214,69,69], WAR=[217,138,28];
+    const NAVY=[11,42,74], ACC=[53,167,222], LINE=[221,230,238], MUT=[95,115,133], TXT=[28,43,58], SAND=[232,244,251];
+    const OK=[39,174,96], ERR=[224,82,82], WAR=[242,153,74];
     const colE=e=>e==="Cumple"?OK:e==="No cumple"?ERR:WAR;
     const fec=fecCL(hoyLocal()), obra=val("p_nom")||"Proyecto sin nombre";
     const sub=[val("p_num")?"Proyecto N° "+val("p_num"):"",val("p_ubi"),val("p_cli")?"Cliente: "+val("p_cli"):""].filter(Boolean).join(" · ");
@@ -4237,7 +4237,7 @@ async function fhwaPDF(){
       let top=y; y=th(y);
       filas.forEach((fl,i)=>{
         if(y+rowH>yMax){pdf.setDrawColor(...LINE);pdf.setLineWidth(0.25);pdf.rect(M,top,UW,y-top,"S");nueva();top=yTop;y=th(yTop);}
-        if(i%2===1){pdf.setFillColor(250,247,243);pdf.rect(M,y,UW,rowH,"F");}
+        if(i%2===1){pdf.setFillColor(248,250,252);pdf.rect(M,y,UW,rowH,"F");}
         fl.forEach((c,k)=>{const o=(c&&typeof c==="object")?c:{t:c};
           pdf.setFont("helvetica",o.b?"bold":"normal");pdf.setFontSize(7.4);pdf.setTextColor(...(o.col||TXT));
           pdf.text(cols[k][3]==="l"?clip(o.t,W[k]-3,7.4):pdfTxt(o.t),cx(k),y+3.7,al(k));});
