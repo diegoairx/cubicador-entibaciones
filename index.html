@@ -164,7 +164,6 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
     <button data-v="cubicacion" onclick="go('cubicacion')">Cubicación</button>
     <button data-v="apu" onclick="go('apu')">APU</button>
     <button data-v="informe" onclick="go('informe')">Informe Ejecutivo</button>
-    <button data-v="opt" onclick="go('opt')">⚙ Optimizador</button>
     <button data-v="nube" onclick="go('nube')">☁ Base de Datos</button>
     <div class="apps-wrap">
       <button onclick="toggleApps(event)">⊞ Mis Apps ▾</button>
@@ -240,6 +239,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   <div class="subtabs">
     <button class="act" data-s="mba" onclick="goSub('mba')">Berlinés Anclado</button>
     <button data-s="mbv" onclick="goSub('mbv')">Berlinés en Voladizo</button>
+    <button data-s="opt" onclick="goSub('opt')">⚙ Optimizador</button>
     <button data-s="sn" onclick="goSub('sn')">Soil Nailing</button>
     <button data-s="mp" onclick="goSub('mp')">Micropilotes</button>
     <button data-s="msa" onclick="goSub('msa')">Socalzado Anclado</button>
@@ -256,6 +256,18 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   </div>
   <div id="sub-mba"></div>
   <div id="sub-mbv" style="display:none"></div>
+  <!-- Optimizador de Perfiles H: la aplicación completa vive en optimizador.html (mismo repositorio)
+       y se muestra aquí dentro de un marco, conservando sus 6 secciones y su informe PDF. -->
+  <div id="sub-opt" style="display:none">
+  <div class="card no-print" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div><h2 style="margin-bottom:2px">Optimizador de Perfiles Tipo H</h2>
+      <p class="note" style="margin:0">Modelo de corte y empalme soldado multi-largo. Los diseños se ingresan manualmente o con los ejemplos precargados.</p></div>
+    <button class="btn ghost" style="margin-left:auto" onclick="optRecargar()">↻ Reiniciar optimizador</button>
+    <a class="btn ghost" href="#" onclick="const f=document.getElementById('opt-frame');window.open(f.src||OPT_REMOTO,'_blank','noopener');return false">⧉ Abrir en pestaña nueva</a>
+  </div>
+  <iframe id="opt-frame" title="Optimizador de Perfiles Tipo H"
+    style="width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;min-height:78vh;display:block"></iframe>
+  </div>
   <div id="sub-sn" style="display:none"></div>
   <div id="sub-mp" style="display:none"></div>
   <div id="sub-msa" style="display:none"></div>
@@ -296,20 +308,6 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:18px}
   </div>
 </section>
 
-<!-- ══════════ OPTIMIZADOR DE PERFILES H ══════════
-     La aplicación completa vive en optimizador.html (mismo repositorio) y se muestra
-     aquí dentro de un marco: conserva íntegras sus 6 secciones y su informe PDF,
-     con los datos ingresados a mano como en la versión original. -->
-<section id="view-opt" class="view" style="display:none">
-  <div class="card no-print" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-    <div><h2 style="margin-bottom:2px">Optimizador de Perfiles Tipo H</h2>
-      <p class="note" style="margin:0">Modelo de corte y empalme soldado multi-largo. Los diseños se ingresan manualmente o con los ejemplos precargados.</p></div>
-    <button class="btn ghost" style="margin-left:auto" onclick="optRecargar()">↻ Reiniciar optimizador</button>
-    <a class="btn ghost" href="#" onclick="const f=document.getElementById('opt-frame');window.open(f.src||OPT_REMOTO,'_blank','noopener');return false">⧉ Abrir en pestaña nueva</a>
-  </div>
-  <iframe id="opt-frame" title="Optimizador de Perfiles Tipo H"
-    style="width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;min-height:78vh;display:block"></iframe>
-</section>
 
 <!-- ══════════ INFORME ══════════ -->
 <section id="view-informe" class="view" style="display:none">
@@ -1300,7 +1298,8 @@ function ajMBA(d){
 
 /* ═════════════════ NAVEGACIÓN ═════════════════ */
 let curV="proyecto",curS="mba";
-function go(v){curV=v;
+function go(v){ if(v==="opt"){go("cubicacion");goSub("opt");return;}   // el optimizador ahora es subpestaña de Cubicación
+  curV=v;
   document.querySelectorAll(".view").forEach(e=>e.style.display="none");
   document.getElementById("view-"+v).style.display="block";
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("act",b.dataset.v===v));
@@ -1308,7 +1307,6 @@ function go(v){curV=v;
   if(v==="apu")renderAPU();
   if(v==="informe")renderInforme();
   if(v==="nube"){nubeListar();equipoListar();}
-  if(v==="opt")initOpt();
 }
 /* ════════ OPTIMIZADOR DE PERFILES H (marco integrado) ════════
    Carga optimizador.html una sola vez y ajusta el alto del marco al contenido,
@@ -1336,13 +1334,13 @@ function optRecargar(){
 }
 function goSub(s){curS=s;
   document.querySelectorAll(".subtabs button").forEach(b=>b.classList.toggle("act",b.dataset.s===s));
-  ["mba","mbv","sn","mp","msa","pil","mpa","fab","fhwa","cv","pf","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
+  ["mba","mbv","opt","sn","mp","msa","pil","mpa","fab","fhwa","cv","pf","ag","dca","mt","resumen"].forEach(x=>document.getElementById("sub-"+x).style.display=x===s?"block":"none");
   renderSub();
 }
 /* ════════ VERSIÓN Y ESTADO DE SINCRONIZACIÓN ════════
    El chip del encabezado indica la versión publicada de la app y si el proyecto
    abierto está guardado en la base de datos, tiene cambios pendientes o no hay conexión. */
-const APP_VER="1.73";
+const APP_VER="1.74";
 const SYNC={db:null,savedHash:null,savedAt:null,busy:false,err:""};
 const PROJ_IDS=["p_num","p_nom","p_ubi","p_cli","p_ing","p_rev","p_revn","p_fec","p_tipo","p_est","p_uf","p_gg","p_ut","p_iva"];
 function estadoHash(){                       // huella del proyecto en pantalla
@@ -1366,7 +1364,7 @@ function pintarSync(){
 }
 setInterval(pintarSync,20000);               // refresca el "hace X minutos"
 function renderSub(){
-  ({mba:renderMBA,mbv:renderMBV,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,mpa:renderMPA,fab:renderFAB,fhwa:renderFHWA,cv:renderCV,pf:renderPF,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
+  ({mba:renderMBA,mbv:renderMBV,opt:initOpt,sn:renderSN,mp:renderMP,msa:renderMSA,pil:renderPIL,mpa:renderMPA,fab:renderFAB,fhwa:renderFHWA,cv:renderCV,pf:renderPF,ag:renderAG,dca:renderDCA,mt:renderMT,resumen:renderResumen})[curS]();
 }
 
 /* ═════════════════ LIMPIAR MÓDULOS ═════════════════ */
